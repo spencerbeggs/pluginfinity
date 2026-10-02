@@ -30,8 +30,8 @@ sources:
     title: impeccable's post-build rewrite of the Claude Code plugin copy
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T22:08:02Z
-  body_sha256: 9d389d9847d6257ca484e950becdaa287052d7fda20165fe302c37cf5649318d
+  at: 2026-10-02T22:11:37Z
+  body_sha256: bca63de651a2c35b227d2b7ef100067a83598808ac3428050f3f85848fff95b1
 ---
 
 # pluginfinity first release
@@ -105,7 +105,7 @@ What to avoid: impeccable's main output is a project install, and the Claude Cod
 ## Open questions
 
 - **Files only one host gets.** For example, hook scripts only Claude Code runs, or a Copilot-only agent. The candidates are a per-component `targets:` field, host blocks inside shared files, and a small `overrides/<target>/` folder copied verbatim.
-- **The plugin root in a Copilot hook command.** Copilot documents `${PLUGIN_ROOT}` for MCP server, LSP and plugin-agent `mcp-servers` config, and says a plugin hook "can read the directory it was loaded from", but no page says whether `${PLUGIN_ROOT}` is set or expanded in a hook command. impeccable gives no answer: it installs its Copilot hooks into the project and finds its scripts with `$(git rev-parse --show-toplevel)`. The Copilot CLI binary (1.0.91) packs its JavaScript in a form a string search cannot read. The question is settled by installing a probe plugin whose hook prints its environment and working directory.
+- **The plugin root in an installed Copilot plugin.** The docs do not say whether a hook command gets the plugin root. A probe loaded with `--plugin-dir` showed that it does: hooks run from the plugin root, `${PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}` are substituted in the command text, and the root variables are set in the environment ([measurement](../measurements/copilot-plugin-hook-environment.md)). The same probe installed with `copilot plugin install`, which copies the plugin into `~/.copilot/installed-plugins/`, has not run yet. Until it does, `${PLUGIN_ROOT}` is the working assumption for Copilot hook commands.
 - **The local dev loop.** `pnpm claude --plugin-dir plugins/pluginfinity/builds/claude` needs a rebuild (or a watch mode) before a source edit shows.
 - **Where tests live.** Source and schema tests would sit at the plugin root. Host-specific checks (`claude plugin validate --strict`, install tests) would run against `builds/<target>/`.
 - **Distributing the companion.** How the companion plugin reaches users (which marketplace, and how its entries are pinned on release) is undecided. Whether plugin-bot is removed from the owner's marketplaces after pluginfinity ships is also undecided.

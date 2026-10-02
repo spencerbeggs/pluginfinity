@@ -27,3 +27,4 @@
 * Added Skill frontmatter across hosts
 * Added The copilot target emits Agent Plugins 1.0
 * Added claude-binary-plugin prior art
+* Added Copilot plugin hook environment, 2026-10-02
