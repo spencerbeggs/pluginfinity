@@ -32,4 +32,27 @@ export {
 	makeHooks,
 } from "./hooks.js";
 export { McpServer, McpServers, RemoteMcpServer, StdioMcpServer } from "./mcp.js";
+export type { DegradeForm } from "./target.js";
+export {
+	DEGRADE_FORMS,
+	EventMapping,
+	FieldMapEntry,
+	HOOKS_FORMATS,
+	HooksFormat,
+	MANIFEST_FORMATS,
+	MCP_FORMATS,
+	ManifestFormat,
+	McpFormat,
+	RootSpelling,
+	Target,
+	ToolMapping,
+	Unresolved,
+	absent,
+	degrade,
+	drop,
+	keep,
+	rename,
+	translate,
+	unresolved,
+} from "./target.js";
 export { CORE_VERSION } from "./version.js";
