@@ -38,8 +38,8 @@ sources:
     last_modified: 2026-10-02T00:00:00Z
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T22:11:37Z
-  body_sha256: e89781205d40d2a7fadd5b67dd0e0126b098bc8444fdbc1a976ae80505c9fad4
+  at: 2026-10-02T22:13:15Z
+  body_sha256: 19c5ee1d3e1baf9d089f2e60fa52b0ee177a46ab41bc0ce967e1d082b12707a0
 ---
 
 # GitHub Copilot CLI plugin format
@@ -333,7 +333,7 @@ Install specs for `copilot plugin install`: `plugin@marketplace`, `OWNER/REPO`, 
 
 - Legacy manifest discovery includes `.claude-plugin/plugin.json` (checked last), and marketplace discovery includes `.claude-plugin/marketplace.json` (checked last).[^copilot-cli-plugin-reference]
 - GitHub lists `claude-code-plugins` (`anthropics/claude-code`) and `claudeforge-marketplace` as example marketplaces, and documents `copilot plugin marketplace add anthropics/claude-code`.[^copilot-about-plugins]
-- `${CLAUDE_PLUGIN_DATA}` is accepted as an alias of `${PLUGIN_DATA}` in Agent Plugins `stdio` MCP config, and `${CLAUDE_PLUGIN_ROOT}` as an alias of `${PLUGIN_ROOT}` only inside a plugin agent's `mcp-servers` block. No alias of either is documented for hook commands.[^copilot-cli-plugin-reference] A probe under `--plugin-dir` found hook commands run from the plugin root with `${PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}` substituted ([measurement](../measurements/copilot-plugin-hook-environment.md)).
+- `${CLAUDE_PLUGIN_DATA}` is accepted as an alias of `${PLUGIN_DATA}` in Agent Plugins `stdio` MCP config, and `${CLAUDE_PLUGIN_ROOT}` as an alias of `${PLUGIN_ROOT}` only inside a plugin agent's `mcp-servers` block. No alias of either is documented for hook commands.[^copilot-cli-plugin-reference] A probe, loaded in place and installed, found hook commands run from the plugin root with `${PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}` substituted ([measurement](../measurements/copilot-plugin-hook-environment.md)).
 - Hooks configured with PascalCase event names (`PreToolUse`, `PermissionRequest`), "as used in Claude Code plugins and the Open Plugins format", apply Claude matcher semantics (`*`/`**`/empty match all; literal or `|` alternation; otherwise anchored regex) against Claude tool names, and the payload reports Claude tool names. Mapping: `bash`/`powershell` → `Bash`, `view` → `Read`, `create` → `Write`, `edit`/`str_replace_editor`/`apply_patch` → `Edit`, `grep`/`rg` → `Grep`, `glob` → `Glob`, `web_fetch` → `WebFetch`, `web_search` → `WebSearch`, `ask_user` → `AskUserQuestion`, `update_todo` → `TodoWrite`, `task` → `Agent` (literal `Task` also accepted).[^copilot-hooks-reference]
 - The CLI reads `.claude/agents/`, `.claude/skills/`, `.claude/commands/`, `.claude/rules/**/*.md`, and the cross-tool subset of `.claude/settings.json` / `.claude/settings.local.json` (`enabledPlugins`, `extraKnownMarketplaces`, `hooks`, `disableAllHooks`, `companyAnnouncements`) at project level.[^copilot-cli-command-reference][^copilot-cli-config-dir-reference]
 
