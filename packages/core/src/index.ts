@@ -22,4 +22,5 @@ export {
 	ScriptHook,
 	makeHooks,
 } from "./hooks.js";
+export { McpServer, McpServers, RemoteMcpServer, StdioMcpServer } from "./mcp.js";
 export { CORE_VERSION } from "./version.js";
