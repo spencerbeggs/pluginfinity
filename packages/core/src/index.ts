@@ -10,4 +10,16 @@
  */
 
 export { BASE_CONFIG_KEYS, BaseConfigFields, PluginName, TargetOverride, TargetSetting } from "./config.js";
+export type { HooksFields } from "./hooks.js";
+export {
+	CLAUDE_HOOK_EVENTS,
+	ClaudeHookEvent,
+	CommandHook,
+	HookEntries,
+	HookEntry,
+	HookFallback,
+	Hooks,
+	ScriptHook,
+	makeHooks,
+} from "./hooks.js";
 export { CORE_VERSION } from "./version.js";
