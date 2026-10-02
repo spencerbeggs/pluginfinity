@@ -1,7 +1,7 @@
 ---
 type: Module
 title: "@pluginfinity/core"
-description: The platform-free pluginfinity domain model: the plugin-wide config fields, hooks and MCP servers, skill and agent frontmatter, and the Target capability schema.
+description: The platform-free pluginfinity domain model, covering the plugin-wide config fields, hooks and MCP servers, skill and agent frontmatter, and the Target capability schema.
 kind: package
 layer: core
 resource: ../../packages/core
@@ -15,7 +15,7 @@ sources:
     title: "@pluginfinity/core package manifest"
   - id: config
     resource: ../../packages/core/src/config.ts
-    title: PluginName, BaseConfigFields and TargetSetting
+    title: PluginName, BaseConfigFields and makeTargetSetting
   - id: hooks
     resource: ../../packages/core/src/hooks.ts
     title: Hooks, HookEntry and CLAUDE_HOOK_EVENTS
@@ -30,8 +30,8 @@ sources:
     title: The Target class and its entries
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T22:36:46Z
-  body_sha256: 96aeea8584c7910b104847320411cf935c96b87f1d4cce88adce62038f0b3735
+  at: 2026-10-02T23:32:29Z
+  body_sha256: b90905ffa6c598238a67c2e780eab3dcc0bb7c4889b2bfd478083cfb7af4abf5
 ---
 
 # @pluginfinity/core
@@ -45,7 +45,7 @@ generated:
 The plugin-wide half of the [config](../interfaces/config.md):[^config]
 
 - `PluginName`, the kebab-case name every host accepts. The CLI checks `--name` and `plugin add <name>` against it too.
-- `BaseConfigFields` and `BASE_CONFIG_KEYS`, the config fields that are not target keys, which today are only `name`. Base keys and target ids share one key space in the config, so a base key must never equal a target id.
+- `BaseConfigFields` and `BASE_CONFIG_KEYS`, the config fields that are not target keys, which are `name`, `description`, `author`, `homepage`, `repository`, `license`, `keywords`, `scripts`, `hooks` and `mcpServers`. Base keys and target ids share one key space in the config, so a base key must never equal a target id.
 - `Hooks`, `HookEntry`, `makeHooks` and `CLAUDE_HOOK_EVENTS`: hooks keyed by Claude Code's 33 event names.[^hooks]
 - `McpServers`: MCP servers in Claude Code's `.mcp.json` server shape.[^mcp]
 - `SkillFrontmatter` and `AgentFrontmatter` in Claude Code's field names, with `SKILL_FIELDS` and `AGENT_FIELDS`, the lists every target's field maps must cover.[^frontmatter]
