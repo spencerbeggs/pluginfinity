@@ -35,30 +35,60 @@ describe("PluginfinityConfig", () => {
 
 	it.effect("decodes the spec's example config", () =>
 		Effect.gen(function* () {
-			const config = yield* decode({ name: "foo", claude: { name: "baz" }, copilot: true });
-			assert.deepStrictEqual(config, { name: "foo", claude: { name: "baz" }, copilot: true });
+			const config = yield* decode({ name: "foo", description: "y", claude: { name: "baz" }, copilot: true });
+			assert.deepStrictEqual(config, { name: "foo", description: "y", claude: { name: "baz" }, copilot: true });
 			assert.deepStrictEqual(enabledTargets(config), ["claude", "copilot"]);
 		}),
 	);
 
 	it.effect("an absent target key is off", () =>
 		Effect.gen(function* () {
-			const config = yield* decode({ name: "foo", copilot: true });
+			const config = yield* decode({ name: "foo", description: "y", copilot: true });
 			assert.deepStrictEqual(enabledTargets(config), ["copilot"]);
 		}),
 	);
 
 	it.effect("rejects a missing name", () =>
 		Effect.gen(function* () {
-			const error = yield* Effect.flip(decode({ claude: true }));
+			const error = yield* Effect.flip(decode({ description: "y", claude: true }));
 			assert.strictEqual(error._tag, "SchemaError");
 		}),
 	);
 
 	it.effect("rejects an unknown top-level key", () =>
 		Effect.gen(function* () {
-			const error = yield* Effect.flip(decode({ name: "foo", claud: true }));
+			const error = yield* Effect.flip(decode({ name: "foo", description: "y", claud: true }));
 			assert.strictEqual(error._tag, "SchemaError");
+		}),
+	);
+});
+
+describe("per-target hooks overrides", () => {
+	const base = { name: "x", description: "y" };
+
+	it.effect("copilot admits its own events", () =>
+		Effect.gen(function* () {
+			const config = { ...base, copilot: { hooks: { subagentStart: [{ script: "hooks/brief.sh" }] } } };
+			assert.deepStrictEqual(yield* decode(config), config);
+		}),
+	);
+
+	it.effect("claude rejects a Copilot-only event", () =>
+		Effect.gen(function* () {
+			const error = yield* Effect.flip(decode({ ...base, claude: { hooks: { subagentStart: [] } } }));
+			assert.strictEqual(error._tag, "SchemaError");
+		}),
+	);
+
+	it.effect("both admit Claude events and an empty list that removes them", () =>
+		Effect.gen(function* () {
+			const config = {
+				...base,
+				hooks: { Stop: [{ script: "hooks/s.sh" }] },
+				claude: { hooks: { Stop: [] } },
+				copilot: true as const,
+			};
+			assert.deepStrictEqual(yield* decode(config), config);
 		}),
 	);
 });

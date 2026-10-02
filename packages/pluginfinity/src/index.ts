@@ -21,6 +21,7 @@ export type { KnownTargetId, PluginfinityConfig, PluginfinityConfigInput } from 
  *
  * export default defineConfig({
  * 	name: "foo",
+ * 	description: "What foo does",
  * 	claude: { name: "baz" },
  * 	copilot: true,
  * });

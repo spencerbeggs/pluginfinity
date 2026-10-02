@@ -39,6 +39,7 @@ describe("ConfigLoader.load", () => {
 				assert.strictEqual(result.success.root, root);
 				assert.deepStrictEqual(result.success.config, {
 					name: "valid-plugin",
+					description: "Fixture plugin.",
 					claude: { name: "valid-claude" },
 					copilot: true,
 				});
