@@ -21,8 +21,8 @@ sources:
     title: The assembled PluginfinityConfig schema
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T19:34:21Z
-  body_sha256: bdf69406a952d79c56d6dbc35eeaf24955d52b4992a32d96196f8ba53e631092
+  at: 2026-10-02T22:36:46Z
+  body_sha256: 88582b050b33c829fca5e4fa7634d23f433b0a959d29c314b192f2d28cab8cc2
 ---
 
 # @pluginfinity/targets
@@ -45,7 +45,7 @@ Adding a host means a registry entry and a config key here, in one release.
 
 ## Status
 
-The capability description of each target (frontmatter keys per component kind, manifest location and keys, plugin-relative path spelling, hook events, missing features such as `paths:` auto-loading) waits for core's `Target` schema in [the roadmap](../roadmaps/pluginfinity-first-release.md).
+The capability description of each target (frontmatter keys per component kind, manifest location and keys, plugin-relative path spelling, hook events, missing features such as `paths:` auto-loading) is designed as the [target description](../models/target-description.md) and lands with core's `Target` schema in the builder phase of [the roadmap](../roadmaps/pluginfinity-first-release.md).
 
 [^package-manifest]: `../../packages/targets/package.json`
 [^registry]: `../../packages/targets/src/registry.ts`

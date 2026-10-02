@@ -19,6 +19,9 @@ pluginfinity is a CLI that builds one host-neutral agent-plugin source into ever
 - dogfood fixture → `okf/modules/dogfood.md` — Load when: working under `plugins/dogfood/` or adding an end-to-end exercise of a CLI feature.
 - Missing `pluginfinity` bin in a plugin workspace → `okf/gotchas/workspace-bin-needs-built-cli.md` — Load when: `pnpm exec pluginfinity` fails, or touching a `prepare` or `postprepare` script.
 - `doctor` prints JSON under Claude Code → `okf/gotchas/agent-environment-selects-json-output.md` — Load when: CLI output is JSON when you expected the human form, or a test asserts on human output.
+- Host plugin formats → `okf/references/claude-code-plugin-format.md`, `okf/references/claude-code-marketplace-format.md`, `okf/references/copilot-cli-plugin-format.md` — Load when: writing or changing a target's manifest, layout, hooks or path-variable handling.
+- Skill and agent frontmatter per host → `okf/references/skill-frontmatter.md`, `okf/references/agent-frontmatter.md` — Load when: mapping, stripping or reshaping frontmatter for a target.
+- Binary hooks prior art → `okf/references/claude-binary-plugin.md` — Load when: designing the hook model or compiled hook binaries.
 - Test layout → `packages/cli/__test__/CLAUDE.md` — Load when: adding or moving a test in any package.
 
 Effect v4 work goes through the effected plugin's agents and skills, never from memory.
