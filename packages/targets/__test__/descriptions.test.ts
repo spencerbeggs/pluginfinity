@@ -47,7 +47,7 @@ for (const entry of TARGETS) {
 // Positive control: the totality check sees a missing field when one is missing.
 it("the totality check flags a missing skill field", () => {
 	const fields = Object.keys(TARGETS[0]?.target.skills.fields ?? {}).slice(1);
-	assert.isBelow(fields.length, SKILL_FIELDS.length);
+	assert.throws(() => assert.sameMembers(fields, [...SKILL_FIELDS]));
 });
 
 describe("the copilot description", () => {
