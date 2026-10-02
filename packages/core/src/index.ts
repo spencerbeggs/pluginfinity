@@ -10,6 +10,15 @@
  */
 
 export { BASE_CONFIG_KEYS, BaseConfigFields, PluginName, TargetOverride, TargetSetting } from "./config.js";
+export type { AgentField, SkillField } from "./frontmatter.js";
+export {
+	AGENT_FIELDS,
+	AgentFrontmatter,
+	ComponentName,
+	ComponentTargets,
+	SKILL_FIELDS,
+	SkillFrontmatter,
+} from "./frontmatter.js";
 export type { HooksFields } from "./hooks.js";
 export {
 	CLAUDE_HOOK_EVENTS,
