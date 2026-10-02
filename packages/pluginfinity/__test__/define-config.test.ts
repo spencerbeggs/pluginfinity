@@ -17,8 +17,12 @@ describe("defineConfig", () => {
 		// @ts-expect-error -- description is required.
 		defineConfig({ name: "foo", claude: true });
 		// @ts-expect-error -- claude overrides admit Claude Code events only.
-		defineConfig({ name: "foo", description: "x", claude: { hooks: { subagentStart: [] } } });
-		defineConfig({ name: "foo", description: "x", copilot: { hooks: { subagentStart: [{ script: "hooks/a.sh" }] } } });
+		defineConfig({ name: "foo", description: "x", claude: { hooks: { userPromptTransformed: [] } } });
+		defineConfig({
+			name: "foo",
+			description: "x",
+			copilot: { hooks: { userPromptTransformed: [{ script: "hooks/a.sh" }] } },
+		});
 		assert.ok(true);
 	});
 });

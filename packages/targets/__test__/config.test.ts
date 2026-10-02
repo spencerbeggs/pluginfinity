@@ -68,14 +68,14 @@ describe("per-target hooks overrides", () => {
 
 	it.effect("copilot admits its own events", () =>
 		Effect.gen(function* () {
-			const config = { ...base, copilot: { hooks: { subagentStart: [{ script: "hooks/brief.sh" }] } } };
+			const config = { ...base, copilot: { hooks: { userPromptTransformed: [{ script: "hooks/brief.sh" }] } } };
 			assert.deepStrictEqual(yield* decode(config), config);
 		}),
 	);
 
 	it.effect("claude rejects a Copilot-only event", () =>
 		Effect.gen(function* () {
-			const error = yield* Effect.flip(decode({ ...base, claude: { hooks: { subagentStart: [] } } }));
+			const error = yield* Effect.flip(decode({ ...base, claude: { hooks: { userPromptTransformed: [] } } }));
 			assert.strictEqual(error._tag, "SchemaError");
 		}),
 	);

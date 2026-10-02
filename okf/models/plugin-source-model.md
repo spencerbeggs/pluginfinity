@@ -15,8 +15,8 @@ sources:
     title: The Phase 1 design agreed with the repository owner, section by section
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T22:36:46Z
-  body_sha256: 36d7233ba88b4e38d5f309e6c16fe371eccd1684e02842ecf573aa2986c531a0
+  at: 2026-10-02T23:38:04Z
+  body_sha256: 267e2ba727c12e9e0be3ed882dc8b8dd20d04099bac91ee4624c4f4a901cde2a
 ---
 
 # Plugin source model
@@ -67,7 +67,7 @@ export default defineConfig({
   },
   claude: true,
   copilot: {
-    hooks: { subagentStart: [{ script: "hooks/brief.sh" }] },
+    hooks: { userPromptTransformed: [{ script: "hooks/brief.sh" }] },
   },
 });
 ```
@@ -77,7 +77,7 @@ export default defineConfig({
 - **`fallback`** says what a target that lacks the event does: `"fail"` (the default) or `"omit"`.
 - **`scripts.invoke`.** `"bash"`, the default, emits `bash "<root>/<path>"` and ignores the file mode, because this repository keeps scripts in git without the executable bit and restores it locally. `"exec"` emits the bare quoted path and fails a build whose shipped `.sh` files are not executable in the source.
 - **`mcpServers`** uses Claude Code's `.mcp.json` server shape: `command`, `args`, `env`, or `type` with `url` and `headers`. `${PLUGIN_ROOT}` is the one placeholder in `args`, `env` and `cwd`.
-- **Target overrides.** `TargetOverride` grows from `name` to `name`, `hooks` and `mcpServers`, typed per target. An event under a target's `hooks` replaces the base entries for that event on that target, `[]` removes them, and a target may name its own events Claude Code lacks. A server under a target's `mcpServers` replaces the base server of that name.
+- **Target overrides.** A target key's override object grows from `name` to `name`, `hooks` and `mcpServers`, typed per target. An event under a target's `hooks` replaces the base entries for that event on that target, `[]` removes them, and a Copilot override uses Claude Code event names, plus `userPromptTransformed` and `errorOccurred`, which only Copilot has. A server under a target's `mcpServers` replaces the base server of that name.
 
 The current contract, before these additions, is the [config interface](../interfaces/config.md).
 

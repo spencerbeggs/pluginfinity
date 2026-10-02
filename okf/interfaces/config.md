@@ -14,7 +14,7 @@ sources:
     title: The assembled PluginfinityConfig schema
   - id: core-config
     resource: ../../packages/core/src/config.ts
-    title: PluginName and TargetSetting
+    title: PluginName, BaseConfigFields and makeTargetSetting
   - id: carrier-index
     resource: ../../packages/pluginfinity/src/index.ts
     title: defineConfig
@@ -35,8 +35,8 @@ sources:
     title: McpServers
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T23:30:51Z
-  body_sha256: 4d144c40d38c9abbde81dafd394a48627973e0ad3e0568d61c0d352ab0d1d686
+  at: 2026-10-02T23:38:04Z
+  body_sha256: 9fb78e4aad57b6aba05fa9c4e375d6358d067106d651b89e140507090206c1e6
 ---
 
 # pluginfinity.config.ts
@@ -63,7 +63,7 @@ export default defineConfig({
 - **`hooks`** maps Claude Code event names to hook entries. An entry has exactly one of `script` (a path relative to the plugin root, with optional `args`) or `command` (a string whose one placeholder is `${PLUGIN_ROOT}`), and optional `matcher`, `timeout` (positive whole seconds) and `fallback` (`"fail"`, the default, or `"omit"`).[^core-hooks]
 - **`mcpServers`** maps server names to Claude Code's `.mcp.json` server shape: `command` with optional `args`, `env` and `cwd`, or `type` (`http` or `sse`) with `url` and optional `headers`.[^core-mcp]
 - **`scripts.invoke`** is `"bash"` (the default) or `"exec"`, how `script` hooks run.[^core-config]
-- **Target keys** are top-level, one per known target: `claude` (Claude Code) and `copilot` (GitHub Copilot). Each is `true`, or an object that may set `name`, `hooks` and `mcpServers` for that host. An event under a target's `hooks` replaces the base entries for that event on that target, and `[]` removes them; `claude` admits Claude Code events only, and `copilot` also admits `subagentStart`, `notification`, `userPromptTransformed` and `errorOccurred`. A server under a target's `mcpServers` replaces the base server of that name. An absent key turns the target off, and `false` is rejected. At least one target must be enabled.[^targets-config]
+- **Target keys** are top-level, one per known target: `claude` (Claude Code) and `copilot` (GitHub Copilot). Each is `true`, or an object that may set `name`, `hooks` and `mcpServers` for that host. An event under a target's `hooks` replaces the base entries for that event on that target, and `[]` removes them; `claude` admits Claude Code events only, and a `copilot` override uses Claude Code event names, plus `userPromptTransformed` and `errorOccurred`, which only Copilot has. A server under a target's `mcpServers` replaces the base server of that name. An absent key turns the target off, and `false` is rejected. At least one target must be enabled.[^targets-config]
 - **Nothing else** is accepted. An unknown top-level key fails as `UnknownTarget`, and an unknown key inside a target object fails as `ConfigInvalid`.
 
 `defineConfig` returns its argument unchanged and is typed against the schema, so a misspelt target key, `false` as a target value, or a missing `name` is a type error in the editor before pluginfinity ever loads the file.[^carrier-index]

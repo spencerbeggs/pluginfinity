@@ -44,6 +44,8 @@ describe("HookEntry", () => {
 		["an absolute script path", { script: "/etc/x.sh" }],
 		["a script path with a backslash", { script: "hooks\\x.sh" }],
 		["a dot-dot segment mid-path", { script: "hooks/../../x.sh" }],
+		["a path containing a newline", { script: "a\n/../../x.sh" }],
+		["a path containing a control character", { script: "hooks/\tx.sh" }],
 		["an empty command", { command: "" }],
 		["a zero timeout", { script: "hooks/x.sh", timeout: 0 }],
 		["a negative timeout", { script: "hooks/x.sh", timeout: -5 }],

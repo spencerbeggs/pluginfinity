@@ -1,10 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { AGENT_FIELDS, CLAUDE_HOOK_EVENTS, SKILL_FIELDS, Target } from "@pluginfinity/core";
 import { Effect, Schema } from "effect";
-// Imported from the modules directly, not the index: until Task 7 the index
-// also loads config.ts, which still names the TargetSetting Task 5 removed.
-import { COPILOT_OWN_EVENTS } from "../src/copilot.js";
-import { TARGETS } from "../src/registry.js";
+import { COPILOT_OWN_EVENTS, TARGETS } from "../src/index.js";
 
 const decodeTarget = (input: unknown) =>
 	Schema.decodeUnknownEffect(Target)(input, { onExcessProperty: "error", errors: "all" });

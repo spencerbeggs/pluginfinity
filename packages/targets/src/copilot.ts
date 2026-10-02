@@ -14,13 +14,13 @@ import {
 const ROOT = `\${PLUGIN_ROOT}`;
 
 /**
- * Copilot's own hook events with no Claude Code counterpart, plus the
- * camelCase names of `SubagentStart` and `Notification`, which have no
- * PascalCase form on Copilot.
+ * Copilot's own hook events: the ones with no Claude Code counterpart.
+ * `SubagentStart` and `Notification` are not here; authors write the Claude
+ * names and the event table maps them to their camelCase Copilot names.
  *
  * @public
  */
-export const COPILOT_OWN_EVENTS = ["subagentStart", "notification", "userPromptTransformed", "errorOccurred"] as const;
+export const COPILOT_OWN_EVENTS = ["userPromptTransformed", "errorOccurred"] as const;
 
 const skillFields = {
 	name: keep,
