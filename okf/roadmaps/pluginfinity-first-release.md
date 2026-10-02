@@ -30,8 +30,8 @@ sources:
     title: impeccable's post-build rewrite of the Claude Code plugin copy
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T22:13:15Z
-  body_sha256: cbce482994dec00432345f0c4fa15b203a93d262469be9c4025699fe8a20ece2
+  at: 2026-10-02T22:36:46Z
+  body_sha256: ae9154337a6e4b028512c253a700b684e5aeb00ae98f29a6a20b80d73d913b98
 ---
 
 # pluginfinity first release
@@ -85,18 +85,28 @@ What to avoid: impeccable's main output is a project install, and the Claude Cod
 
 ## Design direction
 
-- **Targets described by capability.** A `Target` schema says which frontmatter keys each component kind accepts, the manifest location and keys, how plugin-relative paths are spelled, which hook events exist, and whether `paths:` auto-loading exists. An unknown key fails decoding. Facts the host documentation leaves unresolved, such as Copilot's agent tool names, are encoded as unresolved, not guessed.
+- **Targets described by capability.** Designed as the [target description](../models/target-description.md): data plus a closed set of named formats ([decision](../decisions/targets-are-data-plus-named-formats.md)), with field maps that are total over core's frontmatter fields and `unresolved` cells where the docs leave a fact open.
+- **Source model.** Designed as the [plugin source model](../models/plugin-source-model.md): skills, agents, hooks and MCP servers, written in [Claude Code's vocabulary](../decisions/claude-code-names-are-the-source-vocabulary.md), with host blocks, `pluginfinity://` references and a per-component `targets` block.
 - **Declared fallbacks.** A component declares per target whether a missing capability means omit, degrade to a named form (description suffix, body section, inline role) or fail.
 - **Typed references instead of free-text placeholders.** A reference to another skill's file resolves per target and must exist, so an unresolved reference is a build error, never shipped text.
 - **Hooks declared once, generated per target.** Hooks are declared in a host-neutral form in `pluginfinity.config.ts`, with per-target overrides, and the build generates each target's hooks file from that declaration rather than transforming one host's `hooks.json` into another's.[^owner-direction] Host event names, tool names, handler fields and file locations come from the target descriptions ([Claude Code](../references/claude-code-plugin-format.md), [Copilot](../references/copilot-cli-plugin-format.md)). Hook commands are bash scripts ([decision](../decisions/plugins-carry-no-node-dependencies.md)). Copilot runs a plugin hook from the plugin root and substitutes `${PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}` in its command, whether the plugin is loaded in place or installed, which the docs leave unstated ([measurement](../measurements/copilot-plugin-hook-environment.md)). Typed Effect hooks compiled to binaries are a later goal, with [claude-binary-plugin](../references/claude-binary-plugin.md) as prior art.
 - **Host formats.** The copilot target emits Agent Plugins 1.0 ([decision](../decisions/copilot-target-emits-agent-plugins.md)). The host facts behind the target descriptions are mirrored under [references](../references/index.md), and where the SchemaStore schemas and the host docs disagree, the docs win.
-- **Pipeline.** Read, decode, validate, transform per target, emit, then check. A `check` mode rebuilds and compares with the committed `builds/` so CI catches output that was not rebuilt. The `@effected` markdown, yaml, jsonc, glob, walker and memfs packages cover most of the building blocks.
+- **Pipeline.** Six stages in `@pluginfinity/engine`, built on the `@effected` markdown, yaml, jsonc, glob, walker and memfs packages:
+  1. **Read** the config, `skills/`, `agents/` and referenced scripts.
+  2. **Decode** frontmatter, config and hooks against core's schemas.
+  3. **Resolve** host blocks, `pluginfinity://` references, scripts and each component's `targets` block.
+  4. **Transform** per target: field maps, body rendering, and the format encoders for manifest, hooks and MCP.
+  5. **Check** per target: allowlisted manifest keys, no lockfile or `node_modules`, host name rules, and executable bits under `scripts.invoke: "exec"`.
+  6. **Emit** each target as an in-memory tree. `build` swaps it into `builds/<id>/` through a sibling temp directory, so stale files disappear; `build --check` compares it with disk byte for byte; `validate` stops after the check stage.
+
+  Output is deterministic (stable key order, LF, trailing newline, sorted files), so `--check` is a byte comparison. Errors are collected across the whole plugin and each carries the file and, where meaningful, the field or line: `SourceInvalid`, `NameMismatch`, `HostBlockInvalid`, `ReferenceUnresolved`, `ScriptMissing`, `ScriptNotExecutable`, `CapabilityMissing`, `FactUnresolved`, `OutputInvalid` and `BuildStale`.
+- **Testing.** Core unit tests cover every schema, including rejection of unknown fields. Targets unit tests pin field-map totality and event-table coverage, and a carrier layering test pins an engine implementation for every format literal and degrade form. Engine unit tests cover each transform and encoder and one fixture plugin per error; integration tests run the whole pipeline over memfs against golden `builds/` trees, with `--check` clean and stale. `plugins/dogfood/` grows to use every feature once, commits its `builds/`, and runs `build --check` in CI, with `claude plugin validate --strict` against `builds/claude/` when the `claude` CLI is present. A Copilot `--plugin-dir` load stays manual because it spends a request.
 - **Command surface.** `init`, `plugin add`, `build` (with `--check` as the check mode), `validate` and `doctor` are in place as flags and exit codes ([CLI interface](../interfaces/cli.md)); exit codes and stdout/stderr discipline follow `@effected/cli`.
 
 ## Phases
 
 0. **Workspace.** Done on 2026-10-02: the template became a workspace with the CLI split into carrier-pattern layer packages under `packages/` ([decision](../decisions/pluginfinity-ships-as-a-carrier-package.md)) and two plugin workspaces, `plugins/pluginfinity/` (the companion) and `plugins/dogfood/` (the end-to-end fixture), each depending on the `pluginfinity` carrier through `workspace:*`; and this bundle was seeded.
-1. **Design.** The command surface and the first `pluginfinity.config.ts` shape (`name` plus one key per target) have landed: see the [CLI interface](../interfaces/cli.md) and the [config interface](../interfaces/config.md). What remains is the `Target` capability schema, the plugin source model, and the open questions below.
+1. **Design.** Done on 2026-10-02. The command surface and the first `pluginfinity.config.ts` shape landed first ([CLI interface](../interfaces/cli.md), [config interface](../interfaces/config.md)); the [plugin source model](../models/plugin-source-model.md), the [target description](../models/target-description.md), the pipeline and the test plan above complete it.
 2. **Builder.** Config discovery, loading and `doctor` work, and `build` and `validate` stop with `NotImplemented` after loading the config. What remains is the pipeline and `check` mode in `@pluginfinity/engine`, the Claude Code and Copilot capability descriptions in `@pluginfinity/targets`, the `init` and `plugin add` scaffolding, and the host-CLI half of `validate`. Grow `plugins/dogfood/` alongside, so every CLI feature is exercised end to end even when the companion does not use it.
 3. **Companion plugin.** Author `plugins/pluginfinity/` as a single source from the start, drawing on plugin-bot's content in the bot repository as a reference rather than copying its two target folders. Compare its generated `builds/` with plugin-bot's hand-maintained targets to check that the build reproduces what porting produced by hand.
 4. **Guards and docs.** Wire `check` into CI. Teach the companion plugin the pluginfinity authoring pattern, including a hook that blocks direct edits under `plugins/*/builds/**`.
@@ -104,7 +114,6 @@ What to avoid: impeccable's main output is a project install, and the Claude Cod
 
 ## Open questions
 
-- **Files only one host gets.** For example, hook scripts only Claude Code runs, or a Copilot-only agent. The candidates are a per-component `targets:` field, host blocks inside shared files, and a small `overrides/<target>/` folder copied verbatim.
 - **The local dev loop.** `pnpm claude --plugin-dir plugins/pluginfinity/builds/claude` needs a rebuild (or a watch mode) before a source edit shows.
 - **Where tests live.** Source and schema tests would sit at the plugin root. Host-specific checks (`claude plugin validate --strict`, install tests) would run against `builds/<target>/`.
 - **Distributing the companion.** How the companion plugin reaches users (which marketplace, and how its entries are pinned on release) is undecided. Whether plugin-bot is removed from the owner's marketplaces after pluginfinity ships is also undecided.

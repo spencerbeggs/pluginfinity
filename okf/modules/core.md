@@ -18,8 +18,8 @@ sources:
     title: PluginName, BaseConfigFields and TargetSetting
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T19:34:21Z
-  body_sha256: ad6c2078d3935f69a137e11eff3a0e6c5ce179f10b441a0cef0e5ca3b9e717c1
+  at: 2026-10-02T22:36:46Z
+  body_sha256: 96aeea8584c7910b104847320411cf935c96b87f1d4cce88adce62038f0b3735
 ---
 
 # @pluginfinity/core
@@ -38,7 +38,7 @@ The plugin-wide half of the [config](../interfaces/config.md):[^config]
 
 Core does not know which targets exist. [`@pluginfinity/targets`](targets.md) joins these base fields with one key per known target into `PluginfinityConfig`, which the [carrier](pluginfinity.md) exposes through `defineConfig`.
 
-It will also own the host-neutral plugin source model (component kinds and their frontmatter) and the `Target` schema, which describes a host by what it can do. Both are the remaining design work in [the roadmap](../roadmaps/pluginfinity-first-release.md).
+It will also own the host-neutral plugin source model (component kinds and their frontmatter) and the `Target` schema, which describes a host by what it can do. Both are designed, as the [plugin source model](../models/plugin-source-model.md) and the [target description](../models/target-description.md), and land in the builder phase of [the roadmap](../roadmaps/pluginfinity-first-release.md).
 
 ## Rules
 

@@ -32,8 +32,8 @@ sources:
     title: The build and validate programs
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T19:34:21Z
-  body_sha256: b9356d4a6758cc47404883408c9f631fd66cab6b6ec8358673adb454adf5a622
+  at: 2026-10-02T22:36:46Z
+  body_sha256: 0f7d62330180200eb96e62dff4dbb815770f6582c78b165919bc10059dca635e
 ---
 
 # @pluginfinity/engine
@@ -59,7 +59,7 @@ generated:
 
 ## Status
 
-The read, transform, emit and `check` stages of the pipeline come with the `Target` capability schema in the builder phase of [the roadmap](../roadmaps/pluginfinity-first-release.md).
+The six-stage pipeline, its errors and `check` mode are designed in [the roadmap](../roadmaps/pluginfinity-first-release.md)'s design direction and land in its builder phase, with each format encoder the [target description](../models/target-description.md) names.
 
 [^package-manifest]: `../../packages/engine/package.json`
 [^discovery]: `../../packages/engine/src/discovery.ts`

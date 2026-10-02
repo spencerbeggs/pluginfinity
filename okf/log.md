@@ -28,3 +28,8 @@
 * Added The copilot target emits Agent Plugins 1.0
 * Added claude-binary-plugin prior art
 * Added Copilot plugin hook environment, 2026-10-02
+* Added Claude Code's names are the source vocabulary
+* Added Copilot honours a Claude-style PreToolUse deny, 2026-10-02
+* Added Plugin source model
+* Added Target description
+* Added Targets are data plus a closed set of named formats
