@@ -2,10 +2,10 @@
  * The host targets pluginfinity builds for, described as data.
  *
  * @remarks
- * The registry (`claude`, `copilot`) and the assembled `PluginfinityConfig`
- * schema, which joins the `@pluginfinity/core` base fields with one optional key
- * per target. Capability descriptions land once `@pluginfinity/core` defines the
- * `Target` schema.
+ * The registry (`claude`, `copilot`), the `CLAUDE` and `COPILOT` descriptions
+ * (values of `@pluginfinity/core`'s `Target` class), and the assembled
+ * `PluginfinityConfig` schema, which joins the `@pluginfinity/core` base fields
+ * with one optional key per target and its per-target settings.
  *
  * @packageDocumentation
  */

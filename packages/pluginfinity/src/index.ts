@@ -27,7 +27,7 @@ export type { KnownTargetId, PluginfinityConfig, PluginfinityConfigInput } from 
  * });
  * ```
  *
- * @param config - the plugin's name and one key per enabled target
+ * @param config - the plugin's name, description and one key per enabled target
  * @returns `config`, unchanged: pluginfinity decodes it when it loads the file
  *
  * @public
