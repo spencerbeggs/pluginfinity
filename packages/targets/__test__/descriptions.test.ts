@@ -17,6 +17,10 @@ for (const entry of TARGETS) {
 			}),
 		);
 
+		it("is a Target instance, validated when the module loads", () => {
+			assert.instanceOf(entry.target, Target);
+		});
+
 		it("maps every skill field and nothing else", () => {
 			assert.sameMembers(Object.keys(entry.target.skills.fields), [...SKILL_FIELDS]);
 		});

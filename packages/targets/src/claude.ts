@@ -1,5 +1,5 @@
-import type { AgentField, FieldMapEntry, SkillField, Target } from "@pluginfinity/core";
-import { CLAUDE_HOOK_EVENTS, drop, keep } from "@pluginfinity/core";
+import type { AgentField, FieldMapEntry, SkillField } from "@pluginfinity/core";
+import { CLAUDE_HOOK_EVENTS, Target, drop, keep } from "@pluginfinity/core";
 
 const ROOT = `\${CLAUDE_PLUGIN_ROOT}`;
 
@@ -54,7 +54,7 @@ const agentFields = {
  *
  * @public
  */
-export const CLAUDE: Target = {
+export const CLAUDE: Target = Target.make({
 	manifest: {
 		path: ".claude-plugin/plugin.json",
 		format: "claude-plugin-json",
@@ -72,4 +72,4 @@ export const CLAUDE: Target = {
 	mcp: { path: ".mcp.json", format: "claude-mcp-json" },
 	references: { style: "path" },
 	tools: { names: {}, mcp: "mcp__{server}__{tool}" },
-};
+});

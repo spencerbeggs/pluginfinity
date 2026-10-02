@@ -44,26 +44,39 @@ export const MCP_FORMATS = ["claude-mcp-json", "agent-plugins-mcp-1.0"] as const
 /** @public */
 export const McpFormat = Schema.Literals(MCP_FORMATS);
 
+const NonEmpty = Schema.String.check(Schema.isMinLength(1));
+
+/** Write the field unchanged. @public */
+export class Keep extends Schema.TaggedClass<Keep>()("keep", {}) {}
+
+/** Write the field under another name. @public */
+export class Rename extends Schema.TaggedClass<Rename>()("rename", { to: NonEmpty }) {}
+
+/** Map the field's value through a named table. @public */
+export class Translate extends Schema.TaggedClass<Translate>()("translate", { table: Schema.Literal("tools") }) {}
+
+/** Move the field into a named form the engine renders. @public */
+export class Degrade extends Schema.TaggedClass<Degrade>()("degrade", { form: DegradeForm }) {}
+
+/** Leave the field out; the host lacks it. @public */
+export class Drop extends Schema.TaggedClass<Drop>()("drop", {}) {}
+
 /**
  * A fact the host documentation leaves open, with a note on what is unknown.
  *
  * @public
  */
-export const Unresolved = Schema.TaggedStruct("unresolved", { note: Schema.String.check(Schema.isMinLength(1)) });
+export class Unresolved extends Schema.TaggedClass<Unresolved>()("unresolved", { note: NonEmpty }) {}
+
+/** A Claude Code event the target does not have. @public */
+export class Absent extends Schema.TaggedClass<Absent>()("absent", {}) {}
 
 /**
  * What a target does with one frontmatter field.
  *
  * @public
  */
-export const FieldMapEntry = Schema.Union([
-	Schema.TaggedStruct("keep", {}),
-	Schema.TaggedStruct("rename", { to: Schema.String.check(Schema.isMinLength(1)) }),
-	Schema.TaggedStruct("translate", { table: Schema.Literal("tools") }),
-	Schema.TaggedStruct("degrade", { form: DegradeForm }),
-	Schema.TaggedStruct("drop", {}),
-	Unresolved,
-]);
+export const FieldMapEntry = Schema.Union([Keep, Rename, Translate, Degrade, Drop, Unresolved]);
 
 /** @public */
 export type FieldMapEntry = typeof FieldMapEntry.Type;
@@ -80,7 +93,7 @@ export const RootSpelling = Schema.Union([Schema.String, Unresolved]);
  *
  * @public
  */
-export const EventMapping = Schema.Union([Schema.String, Schema.TaggedStruct("absent", {})]);
+export const EventMapping = Schema.Union([Schema.String, Absent]);
 
 /**
  * A Claude Code tool name's spelling on a target, or that the docs leave it open.
@@ -95,13 +108,15 @@ const FieldMap = Schema.Record(Schema.String, FieldMapEntry);
  * One host, described by what it can do.
  *
  * @remarks
+ * Build a description with `Target.make`, which validates it at construction,
+ * so a malformed host description fails when `@pluginfinity/targets` loads.
  * Field maps are typed as string records here; `@pluginfinity/targets` checks
  * their totality over `SKILL_FIELDS` and `AGENT_FIELDS` at compile time and in
  * tests. A tool name absent from `tools.names` passes through unchanged.
  *
  * @public
  */
-export const Target = Schema.Struct({
+export class Target extends Schema.Class<Target>("Target")({
 	manifest: Schema.Struct({
 		path: Schema.String,
 		format: ManifestFormat,
@@ -125,28 +140,25 @@ export const Target = Schema.Struct({
 	mcp: Schema.Struct({ path: Schema.String, format: McpFormat, schema: Schema.optionalKey(Schema.String) }),
 	references: Schema.Struct({ style: Schema.Literals(["path", "prose"]) }),
 	tools: Schema.Struct({ names: Schema.Record(Schema.String, ToolMapping), mcp: Schema.String }),
-});
+}) {}
 
 /** @public */
-export type Target = typeof Target.Type;
+export const keep: Keep = Keep.make({});
 
 /** @public */
-export const keep: FieldMapEntry = { _tag: "keep" };
+export const drop: Drop = Drop.make({});
 
 /** @public */
-export const drop: FieldMapEntry = { _tag: "drop" };
+export const absent: Absent = Absent.make({});
 
 /** @public */
-export const rename = (to: string): FieldMapEntry => ({ _tag: "rename", to });
+export const rename = (to: string): Rename => Rename.make({ to });
 
 /** @public */
-export const translate = (table: "tools"): FieldMapEntry => ({ _tag: "translate", table });
+export const translate = (table: "tools"): Translate => Translate.make({ table });
 
 /** @public */
-export const degrade = (form: DegradeForm): FieldMapEntry => ({ _tag: "degrade", form });
+export const degrade = (form: DegradeForm): Degrade => Degrade.make({ form });
 
 /** @public */
-export const unresolved = (note: string): typeof Unresolved.Type => ({ _tag: "unresolved", note });
-
-/** @public */
-export const absent: typeof EventMapping.Type = { _tag: "absent" };
+export const unresolved = (note: string): Unresolved => Unresolved.make({ note });

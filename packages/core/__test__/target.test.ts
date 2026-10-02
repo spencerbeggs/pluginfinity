@@ -1,6 +1,18 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Effect } from "effect";
-import { FieldMapEntry, Target, absent, degrade, drop, keep, rename, translate, unresolved } from "../src/index.js";
+import { Effect, Schema } from "effect";
+import {
+	FieldMapEntry,
+	Keep,
+	Rename,
+	Target,
+	absent,
+	degrade,
+	drop,
+	keep,
+	rename,
+	translate,
+	unresolved,
+} from "../src/index.js";
 import { decodeStrict } from "./utils/decode.js";
 
 const decodeEntry = decodeStrict(FieldMapEntry);
@@ -61,7 +73,7 @@ describe("FieldMapEntry", () => {
 describe("Target", () => {
 	it.effect("accepts a complete description", () =>
 		Effect.gen(function* () {
-			assert.deepStrictEqual(yield* decodeTarget(minimalTarget), minimalTarget);
+			assert.deepStrictEqual(yield* decodeTarget(minimalTarget), Target.make(minimalTarget));
 		}),
 	);
 
@@ -79,4 +91,28 @@ describe("Target", () => {
 			assert.strictEqual(error._tag, "SchemaError");
 		}),
 	);
+});
+
+describe("Target as a class", () => {
+	it.effect("decodes to a Target instance whose entries are class instances", () =>
+		Effect.gen(function* () {
+			const decoded = yield* decodeTarget(minimalTarget);
+			assert.instanceOf(decoded, Target);
+			assert.deepStrictEqual(decoded, Target.make(minimalTarget));
+			assert.isTrue(Schema.is(Keep)(decoded.skills.fields.description));
+		}),
+	);
+
+	it("Target.make rejects an invalid description at construction", () => {
+		assert.throws(() =>
+			Target.make({ ...minimalTarget, manifest: { ...minimalTarget.manifest, format: "yaml" } } as never),
+		);
+	});
+
+	it("constructors return their own member type", () => {
+		const entry: Rename = rename("reasoningEffort");
+		assert.strictEqual(entry.to, "reasoningEffort");
+		assert.isTrue(Schema.is(Keep)(keep));
+		assert.isFalse(Schema.is(Rename)(keep));
+	});
 });

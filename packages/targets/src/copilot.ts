@@ -1,5 +1,15 @@
-import type { AgentField, ClaudeHookEvent, FieldMapEntry, SkillField, Target } from "@pluginfinity/core";
-import { CLAUDE_HOOK_EVENTS, absent, degrade, drop, keep, rename, translate, unresolved } from "@pluginfinity/core";
+import type { AgentField, ClaudeHookEvent, FieldMapEntry, SkillField } from "@pluginfinity/core";
+import {
+	CLAUDE_HOOK_EVENTS,
+	Target,
+	absent,
+	degrade,
+	drop,
+	keep,
+	rename,
+	translate,
+	unresolved,
+} from "@pluginfinity/core";
 
 const ROOT = `\${PLUGIN_ROOT}`;
 
@@ -83,7 +93,7 @@ const CAMEL_CASE: Partial<Record<ClaudeHookEvent, string>> = {
  *
  * @public
  */
-export const COPILOT: Target = {
+export const COPILOT: Target = Target.make({
 	manifest: {
 		path: "plugin.json",
 		format: "agent-plugins-1.0",
@@ -135,4 +145,4 @@ export const COPILOT: Target = {
 		},
 		mcp: "{server}/{tool}",
 	},
-};
+});
