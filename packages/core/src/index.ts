@@ -2,14 +2,14 @@
  * The platform-free pluginfinity domain model.
  *
  * @remarks
- * Holds the plugin-wide config fields and the per-target override shape.
- * The plugin source model and the `Target` capability schema land here in
- * the design phase.
+ * Holds the config schemas (plugin-wide fields, hooks, MCP servers and the
+ * per-target override factory), skill and agent frontmatter in Claude Code's
+ * field names, and the `Target` schema that describes a host by what it can do.
  *
  * @packageDocumentation
  */
 
-export { BASE_CONFIG_KEYS, BaseConfigFields, PluginName, TargetOverride, TargetSetting } from "./config.js";
+export { BASE_CONFIG_KEYS, BaseConfigFields, PluginName, ScriptInvoke, makeTargetSetting } from "./config.js";
 export type { AgentField, SkillField } from "./frontmatter.js";
 export {
 	AGENT_FIELDS,

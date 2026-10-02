@@ -1,9 +1,12 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Schema } from "effect";
-import { BASE_CONFIG_KEYS, PluginName, TargetSetting } from "../src/index.js";
+import { BASE_CONFIG_KEYS, BaseConfigFields, Hooks, PluginName, makeTargetSetting } from "../src/index.js";
+import { decodeStrict } from "./utils/decode.js";
 
-const decodeName = Schema.decodeUnknownEffect(PluginName);
-const decodeSetting = Schema.decodeUnknownEffect(TargetSetting);
+const decodeName = decodeStrict(PluginName);
+const Base = Schema.Struct(BaseConfigFields);
+const decodeBase = decodeStrict(Base);
+const decodeSetting = decodeStrict(makeTargetSetting(Hooks));
 
 describe("PluginName", () => {
 	it.effect("accepts kebab-case names", () =>
@@ -23,11 +26,74 @@ describe("PluginName", () => {
 	}
 });
 
-describe("TargetSetting", () => {
-	it.effect("accepts true and an override object", () =>
+describe("BaseConfigFields", () => {
+	it.effect("accepts the full plugin-wide config", () =>
+		Effect.gen(function* () {
+			const config = {
+				name: "dogfood",
+				description: "End-to-end fixture",
+				author: { name: "C. Spencer Beggs", email: "spencer@beggs.codes", url: "https://beg.gs" },
+				homepage: "https://example.com",
+				repository: "https://github.com/spencerbeggs/pluginfinity",
+				license: "MIT",
+				keywords: ["plugins"],
+				scripts: { invoke: "exec" as const },
+				hooks: { PreToolUse: [{ matcher: "Bash", script: "hooks/guard.sh" }] },
+				mcpServers: { docs: { type: "http" as const, url: "https://example.com/mcp" } },
+			} as const;
+			assert.deepStrictEqual(yield* decodeBase(config), config);
+		}),
+	);
+
+	it.effect("needs only name and description", () =>
+		Effect.gen(function* () {
+			const config = { name: "x", description: "y" };
+			assert.deepStrictEqual(yield* decodeBase(config), config);
+		}),
+	);
+
+	const rejected: ReadonlyArray<readonly [string, unknown]> = [
+		["a missing description", { name: "x" }],
+		["an empty description", { name: "x", description: "" }],
+		["an unknown scripts.invoke", { name: "x", description: "y", scripts: { invoke: "sh" } }],
+		["an author without a name", { name: "x", description: "y", author: { email: "a@b.c" } }],
+		["a hook on an event Claude Code lacks", { name: "x", description: "y", hooks: { subagentStart: [] } }],
+	];
+	for (const [label, input] of rejected) {
+		it.effect(`rejects ${label}`, () =>
+			Effect.gen(function* () {
+				const error = yield* Effect.flip(decodeBase(input));
+				assert.strictEqual(error._tag, "SchemaError");
+			}),
+		);
+	}
+
+	it("lists its keys", () => {
+		assert.deepStrictEqual(BASE_CONFIG_KEYS, [
+			"name",
+			"description",
+			"author",
+			"homepage",
+			"repository",
+			"license",
+			"keywords",
+			"scripts",
+			"hooks",
+			"mcpServers",
+		]);
+	});
+});
+
+describe("makeTargetSetting", () => {
+	it.effect("accepts true and an override object with name, hooks and mcpServers", () =>
 		Effect.gen(function* () {
 			assert.strictEqual(yield* decodeSetting(true), true);
-			assert.deepStrictEqual(yield* decodeSetting({ name: "baz" }), { name: "baz" });
+			const override = {
+				name: "baz",
+				hooks: { Stop: [] as const },
+				mcpServers: { docs: { type: "http" as const, url: "https://example.com/mcp" } },
+			} as const;
+			assert.deepStrictEqual(yield* decodeSetting(override), override);
 			assert.deepStrictEqual(yield* decodeSetting({}), {});
 		}),
 	);
@@ -41,16 +107,8 @@ describe("TargetSetting", () => {
 
 	it.effect("rejects an unknown override key", () =>
 		Effect.gen(function* () {
-			const error = yield* Effect.flip(
-				Schema.decodeUnknownEffect(TargetSetting)({ nmae: "x" }, { onExcessProperty: "error" }),
-			);
+			const error = yield* Effect.flip(decodeSetting({ nmae: "x" }));
 			assert.strictEqual(error._tag, "SchemaError");
 		}),
 	);
-});
-
-describe("BASE_CONFIG_KEYS", () => {
-	it("lists the plugin-wide fields", () => {
-		assert.deepStrictEqual(BASE_CONFIG_KEYS, ["name"]);
-	});
 });
