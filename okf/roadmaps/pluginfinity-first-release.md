@@ -30,8 +30,8 @@ sources:
     title: impeccable's post-build rewrite of the Claude Code plugin copy
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T22:36:46Z
-  body_sha256: ae9154337a6e4b028512c253a700b684e5aeb00ae98f29a6a20b80d73d913b98
+  at: 2026-10-02T22:37:34Z
+  body_sha256: aa8347903dc3faa08c0d2a6a2110e58a16cde9f7594ae9ce58179563ab44e7cc
 ---
 
 # pluginfinity first release
@@ -97,7 +97,13 @@ What to avoid: impeccable's main output is a project install, and the Claude Cod
   3. **Resolve** host blocks, `pluginfinity://` references, scripts and each component's `targets` block.
   4. **Transform** per target: field maps, body rendering, and the format encoders for manifest, hooks and MCP.
   5. **Check** per target: allowlisted manifest keys, no lockfile or `node_modules`, host name rules, and executable bits under `scripts.invoke: "exec"`.
-  6. **Emit** each target as an in-memory tree. `build` swaps it into `builds/<id>/` through a sibling temp directory, so stale files disappear; `build --check` compares it with disk byte for byte; `validate` stops after the check stage.
+  6. **Emit** each target as an in-memory tree, built entirely outside `builds/<id>/`, then reconcile it with what is already there.[^owner-direction]
+     - **Inventory first.** Read every existing file under `builds/<id>/` with its bytes and mode. Symlinks are never followed, and nothing outside `builds/<id>/` is touched.
+     - **Plan.** Compare the two trees file by file into four sets: unchanged, changed, added and removed. A file whose bytes and mode already match is unchanged and is never written, so its mtime survives. A copied file carries its source file's mode, and a generated file is `0644`, so the repository's local `chmod +x` hooks change source and build alike and never make a build look stale.
+     - **Apply only the plan.** A changed or added file is written to a temporary file beside its destination and renamed into place, so no file is ever half-written. A removed file is deleted, then any directory the deletes left empty. Nothing is written when the plan is empty.
+     - **Report the plan.** `build` prints what it added, changed and removed. `build --check` computes the same plan and fails with `BuildStale` when it is not empty, writing nothing. `validate` stops after the check stage.
+
+     `builds/<id>/` is owned by pluginfinity, so a file there that the build no longer produces is removed and listed in the report.
 
   Output is deterministic (stable key order, LF, trailing newline, sorted files), so `--check` is a byte comparison. Errors are collected across the whole plugin and each carries the file and, where meaningful, the field or line: `SourceInvalid`, `NameMismatch`, `HostBlockInvalid`, `ReferenceUnresolved`, `ScriptMissing`, `ScriptNotExecutable`, `CapabilityMissing`, `FactUnresolved`, `OutputInvalid` and `BuildStale`.
 - **Testing.** Core unit tests cover every schema, including rejection of unknown fields. Targets unit tests pin field-map totality and event-table coverage, and a carrier layering test pins an engine implementation for every format literal and degrade form. Engine unit tests cover each transform and encoder and one fixture plugin per error; integration tests run the whole pipeline over memfs against golden `builds/` trees, with `--check` clean and stale. `plugins/dogfood/` grows to use every feature once, commits its `builds/`, and runs `build --check` in CI, with `claude plugin validate --strict` against `builds/claude/` when the `claude` CLI is present. A Copilot `--plugin-dir` load stays manual because it spends a request.
