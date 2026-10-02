@@ -178,6 +178,53 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  build:
+    '@types/node':
+      specifier: ^26.6.3
+      version: 26.6.3
+    typescript:
+      specifier: ^7.0.2
+      version: 7.0.2
+  effect:
+    '@effect/platform-node':
+      specifier: ^4.0.0
+      version: 4.0.0
+    '@effect/vitest':
+      specifier: ^4.0.0
+      version: 4.0.0
+    effect:
+      specifier: ^4.0.0
+      version: 4.0.0
+  effected:
+    '@effected/cli':
+      specifier: ^0.11.0
+      version: 0.11.0
+    '@effected/commands':
+      specifier: ^0.11.0
+      version: 0.11.0
+    '@effected/engine':
+      specifier: ^0.3.0
+      version: 0.3.0
+    '@effected/env':
+      specifier: ^0.1.0
+      version: 0.1.0
+    '@effected/glob':
+      specifier: ^0.10.0
+      version: 0.10.0
+    '@effected/memfs':
+      specifier: ^0.14.0
+      version: 0.14.0
+    '@effected/semver':
+      specifier: ^0.11.0
+      version: 0.11.0
+    '@effected/walker':
+      specifier: ^0.15.0
+      version: 0.15.0
+    '@effected/workspaces':
+      specifier: ^0.31.0
+      version: 0.31.0
+
 overrides:
   '@effect/vitest>vitest': ^5.0.1
   '@microsoft/api-extractor>typescript': ^6.0.3
@@ -193,16 +240,234 @@ importers:
       '@okfit/plugin':
         specifier: ^0.5.9
         version: 0.5.9(redis@6.3.0)
-      '@savvy-web/bundler':
-        specifier: ^2.4.20
-        version: 2.4.20(@types/node@26.6.3)(react@19.3.0)(redis@6.3.0)(tsx@4.23.15)(typescript@7.0.2)
       '@savvy-web/silk':
         specifier: ^4.3.2
         version: 4.3.2(@changesets/cli@3.0.3)(@commitlint/cli@21.2.3(@types/node@26.6.3)(conventional-commits-parser@7.1.2)(typescript@7.0.2))(@commitlint/config-conventional@21.2.3)(@effected/config-file@0.14.0(@effected/glob@0.10.0(effect@4.0.0))(@effected/jsonc@0.15.0(effect@4.0.0))(@effected/toml@0.11.0(effect@4.0.0))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.0))(effect@4.0.0))(@effected/yaml@0.19.0(effect@4.0.0))(effect@4.0.0))(@types/bun@1.4.2)(@types/node@26.6.3)(@vitest/coverage-istanbul@5.0.3)(@vitest/coverage-v8@5.0.3)(@vitest/expect@5.0.3)(husky@9.1.7)(lint-staged@17.6.0)(markdownlint-cli2-formatter-codequality@0.0.8(markdownlint-cli2@0.23.3(supports-color@8.1.1)))(markdownlint-cli2@0.23.3(supports-color@8.1.1))(redis@6.3.0)(supports-color@8.1.1)(tsx@4.23.15)(turbo@2.11.6)(typescript@7.0.2)(vite@8.3.2(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.15)(yaml@2.9.1))(vitest@5.0.3)
       '@vitest-agent/plugin':
         specifier: ^5.2.0
         version: 5.2.0(@effected/config-file@0.14.0(@effected/glob@0.10.0(effect@4.0.0))(@effected/jsonc@0.15.0(effect@4.0.0))(@effected/toml@0.11.0(effect@4.0.0))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.0))(effect@4.0.0))(@effected/yaml@0.19.0(effect@4.0.0))(effect@4.0.0))(@effected/jsonc@0.15.0(effect@4.0.0))(@effected/toml@0.11.0(effect@4.0.0))(@effected/yaml@0.19.0(effect@4.0.0))(@vitest/coverage-istanbul@5.0.3)(@vitest/coverage-v8@5.0.3)(ink@7.1.1(react@19.3.0))(react@19.3.0)(redis@6.3.0)(vitest@5.0.3)
+
+  packages/cli:
+    dependencies:
+      '@effect/platform-node':
+        specifier: catalog:effect
+        version: 4.0.0(effect@4.0.0)(redis@6.3.0)
+      '@effected/cli':
+        specifier: catalog:effected
+        version: 0.11.0(@effected/config-file@0.14.0(@effected/glob@0.10.0(effect@4.0.0))(@effected/jsonc@0.15.0(effect@4.0.0))(@effected/toml@0.11.0(effect@4.0.0))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.0))(effect@4.0.0))(@effected/yaml@0.19.0(effect@4.0.0))(effect@4.0.0))(@effected/env@0.1.0(effect@4.0.0))(@effected/glob@0.10.0(effect@4.0.0))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.0))(effect@4.0.0))(effect@4.0.0)(ink@7.1.1(react@19.3.0))(react@19.3.0)
+      '@effected/commands':
+        specifier: catalog:effected
+        version: 0.11.0(effect@4.0.0)
+      '@effected/engine':
+        specifier: catalog:effected
+        version: 0.3.0(effect@4.0.0)
+      '@effected/env':
+        specifier: catalog:effected
+        version: 0.1.0(effect@4.0.0)
+      '@effected/glob':
+        specifier: catalog:effected
+        version: 0.10.0(effect@4.0.0)
+      '@effected/semver':
+        specifier: catalog:effected
+        version: 0.11.0(effect@4.0.0)
+      '@effected/walker':
+        specifier: catalog:effected
+        version: 0.15.0(@effected/glob@0.10.0(effect@4.0.0))(effect@4.0.0)
+      '@pluginfinity/core':
+        specifier: workspace:*
+        version: link:../core/dist/dev/pkg
+      '@pluginfinity/engine':
+        specifier: workspace:*
+        version: link:../engine/dist/dev/pkg
+      '@pluginfinity/targets':
+        specifier: workspace:*
+        version: link:../targets/dist/dev/pkg
+      effect:
+        specifier: catalog:effect
+        version: 4.0.0
+      jiti:
+        specifier: ^2.6.1
+        version: 2.6.1
+    devDependencies:
+      '@effect/vitest':
+        specifier: catalog:effect
+        version: 4.0.0(effect@4.0.0)(vitest@5.0.3)
+      '@savvy-web/bundler':
+        specifier: ^2.4.20
+        version: 2.4.20(@types/node@26.6.3)(react@19.3.0)(redis@6.3.0)(tsx@4.23.15)(typescript@7.0.2)
+      '@types/node':
+        specifier: catalog:build
+        version: 26.6.3
+      typescript:
+        specifier: catalog:build
+        version: 7.0.2
     publishDirectory: dist/dev/pkg
+
+  packages/core:
+    devDependencies:
+      '@effect/vitest':
+        specifier: catalog:effect
+        version: 4.0.0(effect@4.0.0)(vitest@5.0.3)
+      '@savvy-web/bundler':
+        specifier: ^2.4.20
+        version: 2.4.20(@types/node@26.6.3)(react@19.3.0)(redis@6.3.0)(tsx@4.23.15)(typescript@7.0.2)
+      '@types/node':
+        specifier: catalog:build
+        version: 26.6.3
+      effect:
+        specifier: catalog:effect
+        version: 4.0.0
+      typescript:
+        specifier: catalog:build
+        version: 7.0.2
+    publishDirectory: dist/dev/pkg
+
+  packages/engine:
+    dependencies:
+      '@effected/commands':
+        specifier: catalog:effected
+        version: 0.11.0(effect@4.0.0)
+      '@effected/engine':
+        specifier: catalog:effected
+        version: 0.3.0(effect@4.0.0)
+      '@effected/glob':
+        specifier: catalog:effected
+        version: 0.10.0(effect@4.0.0)
+      '@effected/semver':
+        specifier: catalog:effected
+        version: 0.11.0(effect@4.0.0)
+      '@effected/walker':
+        specifier: catalog:effected
+        version: 0.15.0(@effected/glob@0.10.0(effect@4.0.0))(effect@4.0.0)
+      '@pluginfinity/core':
+        specifier: workspace:*
+        version: link:../core/dist/dev/pkg
+      '@pluginfinity/targets':
+        specifier: workspace:*
+        version: link:../targets/dist/dev/pkg
+      jiti:
+        specifier: ^2.6.1
+        version: 2.6.1
+    devDependencies:
+      '@effect/platform-node':
+        specifier: catalog:effect
+        version: 4.0.0(effect@4.0.0)(redis@6.3.0)
+      '@effect/vitest':
+        specifier: catalog:effect
+        version: 4.0.0(effect@4.0.0)(vitest@5.0.3)
+      '@effected/memfs':
+        specifier: catalog:effected
+        version: 0.14.0(effect@4.0.0)
+      '@savvy-web/bundler':
+        specifier: ^2.4.20
+        version: 2.4.20(@types/node@26.6.3)(react@19.3.0)(redis@6.3.0)(tsx@4.23.15)(typescript@7.0.2)
+      '@types/node':
+        specifier: catalog:build
+        version: 26.6.3
+      effect:
+        specifier: catalog:effect
+        version: 4.0.0
+      typescript:
+        specifier: catalog:build
+        version: 7.0.2
+    publishDirectory: dist/dev/pkg
+
+  packages/pluginfinity:
+    dependencies:
+      '@effect/platform-node':
+        specifier: catalog:effect
+        version: 4.0.0(effect@4.0.0)(redis@6.3.0)
+      '@effected/cli':
+        specifier: catalog:effected
+        version: 0.11.0(@effected/config-file@0.14.0(@effected/glob@0.10.0(effect@4.0.0))(@effected/jsonc@0.15.0(effect@4.0.0))(@effected/toml@0.11.0(effect@4.0.0))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.0))(effect@4.0.0))(@effected/yaml@0.19.0(effect@4.0.0))(effect@4.0.0))(@effected/env@0.1.0(effect@4.0.0))(@effected/glob@0.10.0(effect@4.0.0))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.0))(effect@4.0.0))(effect@4.0.0)(ink@7.1.1(react@19.3.0))(react@19.3.0)
+      '@effected/commands':
+        specifier: catalog:effected
+        version: 0.11.0(effect@4.0.0)
+      '@effected/engine':
+        specifier: catalog:effected
+        version: 0.3.0(effect@4.0.0)
+      '@effected/env':
+        specifier: catalog:effected
+        version: 0.1.0(effect@4.0.0)
+      '@effected/glob':
+        specifier: catalog:effected
+        version: 0.10.0(effect@4.0.0)
+      '@effected/semver':
+        specifier: catalog:effected
+        version: 0.11.0(effect@4.0.0)
+      '@effected/walker':
+        specifier: catalog:effected
+        version: 0.15.0(@effected/glob@0.10.0(effect@4.0.0))(effect@4.0.0)
+      '@pluginfinity/cli':
+        specifier: workspace:*
+        version: link:../cli/dist/dev/pkg
+      '@pluginfinity/core':
+        specifier: workspace:*
+        version: link:../core/dist/dev/pkg
+      '@pluginfinity/engine':
+        specifier: workspace:*
+        version: link:../engine/dist/dev/pkg
+      '@pluginfinity/targets':
+        specifier: workspace:*
+        version: link:../targets/dist/dev/pkg
+      effect:
+        specifier: catalog:effect
+        version: 4.0.0
+      jiti:
+        specifier: ^2.6.1
+        version: 2.6.1
+    devDependencies:
+      '@effect/vitest':
+        specifier: catalog:effect
+        version: 4.0.0(effect@4.0.0)(vitest@5.0.3)
+      '@effected/workspaces':
+        specifier: catalog:effected
+        version: 0.31.0(effect@4.0.0)
+      '@savvy-web/bundler':
+        specifier: ^2.4.20
+        version: 2.4.20(@types/node@26.6.3)(react@19.3.0)(redis@6.3.0)(tsx@4.23.15)(typescript@7.0.2)
+      '@types/node':
+        specifier: catalog:build
+        version: 26.6.3
+      typescript:
+        specifier: catalog:build
+        version: 7.0.2
+    publishDirectory: dist/dev/pkg
+
+  packages/targets:
+    dependencies:
+      '@pluginfinity/core':
+        specifier: workspace:*
+        version: link:../core/dist/dev/pkg
+    devDependencies:
+      '@effect/vitest':
+        specifier: catalog:effect
+        version: 4.0.0(effect@4.0.0)(vitest@5.0.3)
+      '@savvy-web/bundler':
+        specifier: ^2.4.20
+        version: 2.4.20(@types/node@26.6.3)(react@19.3.0)(redis@6.3.0)(tsx@4.23.15)(typescript@7.0.2)
+      '@types/node':
+        specifier: catalog:build
+        version: 26.6.3
+      effect:
+        specifier: catalog:effect
+        version: 4.0.0
+      typescript:
+        specifier: catalog:build
+        version: 7.0.2
+    publishDirectory: dist/dev/pkg
+
+  plugins/dogfood:
+    devDependencies:
+      pluginfinity:
+        specifier: workspace:*
+        version: link:../../packages/pluginfinity/dist/dev/pkg
+
+  plugins/pluginfinity:
+    devDependencies:
+      pluginfinity:
+        specifier: workspace:*
+        version: link:../../packages/pluginfinity/dist/dev/pkg
 
 packages:
 
@@ -472,6 +737,12 @@ packages:
     peerDependencies:
       effect: ^4.0.0
 
+  '@effect/vitest@4.0.0':
+    resolution: {integrity: sha512-kGElCPFGtP+CgMCwV/HjJWqtE3zYo6I1+8MSA54l+EI24lPU9p2Efa+TBp1jfkg9j711KKzEqgSAy3VzTsb76Q==}
+    peerDependencies:
+      effect: ^4.0.0
+      vitest: ^5.0.1
+
   '@effected/app@0.20.0':
     resolution: {integrity: sha512-oFCiiWdgE2QYdPJLOLnUBGwQHzAW5KzhT/+K1jABGTy8f21vjHBtHHtQ/O0TAiy9S457vQYCeAjWhF5DgtzC4w==}
     engines: {node: '>=24.11.0'}
@@ -596,6 +867,12 @@ packages:
     engines: {node: '>=24.11.0'}
     peerDependencies:
       '@effected/engine': ^0.3.0
+      effect: ^4.0.0
+
+  '@effected/memfs@0.14.0':
+    resolution: {integrity: sha512-Jok0/IrgrtDEffwub2sP1SnlErcL1OCW56DkaIK28qcc8gVo8WNKXWZ07825ILczI8u1292OTX6tTAZoN8leUw==}
+    engines: {node: '>=24.11.0'}
+    peerDependencies:
       effect: ^4.0.0
 
   '@effected/npm@0.20.0':
@@ -3468,6 +3745,11 @@ snapshots:
     dependencies:
       effect: 4.0.0
 
+  '@effect/vitest@4.0.0(effect@4.0.0)(vitest@5.0.3)':
+    dependencies:
+      effect: 4.0.0
+      vitest: 5.0.3(@types/node@26.6.3)(@vitest/coverage-istanbul@5.0.3)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.15)(yaml@2.9.1))
+
   '@effected/app@0.20.0(b0ddca41547e3dab4a219551812f4c9b)':
     dependencies:
       '@effected/config-file': 0.14.0(@effected/glob@0.10.0(effect@4.0.0))(@effected/jsonc@0.15.0(effect@4.0.0))(@effected/toml@0.11.0(effect@4.0.0))(@effected/walker@0.15.0(@effected/glob@0.10.0(effect@4.0.0))(effect@4.0.0))(@effected/yaml@0.19.0(effect@4.0.0))(effect@4.0.0)
@@ -3550,6 +3832,10 @@ snapshots:
   '@effected/mcp@0.4.0(@effected/engine@0.3.0(effect@4.0.0))(effect@4.0.0)':
     dependencies:
       '@effected/engine': 0.3.0(effect@4.0.0)
+      effect: 4.0.0
+
+  '@effected/memfs@0.14.0(effect@4.0.0)':
+    dependencies:
       effect: 4.0.0
 
   '@effected/npm@0.20.0(@effected/semver@0.11.0(effect@4.0.0))(effect@4.0.0)':

@@ -1,0 +1,72 @@
+{
+	"name": "pluginfinity",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Build one agent-plugin source into every host's format: Claude Code, GitHub Copilot and more, from a single config.",
+	"keywords": ["claude-code", "copilot", "agent-plugin", "plugin", "cli", "effect"],
+	"homepage": "https://github.com/spencerbeggs/pluginfinity/tree/main/packages/pluginfinity#readme",
+	"bugs": {
+		"url": "https://github.com/spencerbeggs/pluginfinity/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/spencerbeggs/pluginfinity.git",
+		"directory": "packages/pluginfinity"
+	},
+	"license": "MIT",
+	"author": {
+		"name": "C. Spencer Beggs",
+		"email": "spencer@beggs.codes",
+		"url": "https://spencerbeg.gs"
+	},
+	"sideEffects": false,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./package.json": "./package.json"
+	},
+	"bin": {
+		"pluginfinity": "./src/bin/pluginfinity.ts"
+	},
+	"scripts": {
+		"build:dev": "node savvy.build.ts --target dev",
+		"build:prod": "node savvy.build.ts --target prod",
+		"postprepare": "cd ../.. && pnpm rebuild pluginfinity",
+		"prepare": "node savvy.build.ts --target dev",
+		"types:check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@effect/platform-node": "catalog:effect",
+		"@effected/cli": "catalog:effected",
+		"@effected/commands": "catalog:effected",
+		"@effected/engine": "catalog:effected",
+		"@effected/env": "catalog:effected",
+		"@effected/glob": "catalog:effected",
+		"@effected/semver": "catalog:effected",
+		"@effected/walker": "catalog:effected",
+		"@pluginfinity/cli": "workspace:*",
+		"@pluginfinity/core": "workspace:*",
+		"@pluginfinity/engine": "workspace:*",
+		"@pluginfinity/targets": "workspace:*",
+		"effect": "catalog:effect",
+		"jiti": "^2.6.1"
+	},
+	"devDependencies": {
+		"@effect/vitest": "catalog:effect",
+		"@effected/workspaces": "catalog:effected",
+		"@savvy-web/bundler": "^2.4.20",
+		"@types/node": "catalog:build",
+		"typescript": "catalog:build"
+	},
+	"engines": {
+		"node": ">=24.11.0"
+	},
+	"publishConfig": {
+		"access": "public",
+		"directory": "dist/dev/pkg",
+		"linkDirectory": true,
+		"targets": {
+			"npm": true
+		}
+	}
+}

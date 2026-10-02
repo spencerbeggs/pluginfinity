@@ -1,5 +1,6 @@
 packages:
-  - .
+  - packages/*
+  - plugins/*
 autoInstallPeers: true
 configDependencies:
   "@effected/pnpm-plugin-effect": 0.13.0
