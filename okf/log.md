@@ -19,3 +19,11 @@
 * Added pluginfinity is a CLI application in its own repository
 * Added pluginfinity ships as a carrier package over scoped layer packages
 * Added pluginfinity.config.ts
+* Added Agent frontmatter across hosts
+* Added Built plugins carry no Node dependencies
+* Added Claude Code marketplace format
+* Added Claude Code plugin format
+* Added GitHub Copilot CLI plugin format
+* Added Skill frontmatter across hosts
+* Added The copilot target emits Agent Plugins 1.0
+* Added claude-binary-plugin prior art
