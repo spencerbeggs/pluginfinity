@@ -10,8 +10,10 @@
  * @packageDocumentation
  */
 
+export { CLAUDE } from "./claude.js";
 export type { PluginfinityConfigInput } from "./config.js";
 export { CONFIG_KEYS, PluginfinityConfig, enabledTargets } from "./config.js";
+export { COPILOT, COPILOT_OWN_EVENTS } from "./copilot.js";
 export type { TargetEntry } from "./registry.js";
 export { KNOWN_TARGET_IDS, KnownTargetId, TARGETS, isKnownTargetId } from "./registry.js";
 export { TARGETS_VERSION } from "./version.js";

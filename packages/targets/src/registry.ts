@@ -1,4 +1,7 @@
+import type { Target } from "@pluginfinity/core";
 import { Schema } from "effect";
+import { CLAUDE } from "./claude.js";
+import { COPILOT } from "./copilot.js";
 
 /**
  * The id of every target pluginfinity knows, in registry order. One id names a
@@ -23,14 +26,14 @@ export const KnownTargetId = Schema.Literals(KNOWN_TARGET_IDS);
 export type KnownTargetId = typeof KnownTargetId.Type;
 
 /**
- * One registry entry. Only an id and a display name for now; the capability
- * description lands with the core `Target` schema.
+ * One registry entry: the id, a display name, and the host's description.
  *
  * @public
  */
 export interface TargetEntry {
 	readonly id: KnownTargetId;
 	readonly displayName: string;
+	readonly target: Target;
 }
 
 /**
@@ -39,8 +42,8 @@ export interface TargetEntry {
  * @public
  */
 export const TARGETS: ReadonlyArray<TargetEntry> = [
-	{ id: "claude", displayName: "Claude Code" },
-	{ id: "copilot", displayName: "GitHub Copilot" },
+	{ id: "claude", displayName: "Claude Code", target: CLAUDE },
+	{ id: "copilot", displayName: "GitHub Copilot", target: COPILOT },
 ];
 
 /**
