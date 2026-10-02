@@ -1,6 +1,6 @@
 {
 	"name": "@pluginfinity/targets",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"private": true,
 	"description": "The host targets pluginfinity builds for (Claude Code, GitHub Copilot), described as data against the @pluginfinity/core Target schema.",
 	"keywords": ["pluginfinity", "claude-code", "copilot", "agent-plugin", "effect"],

@@ -1,6 +1,6 @@
 {
 	"name": "@pluginfinity/cli",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"private": true,
 	"description": "The pluginfinity command-line front end. Install the pluginfinity package to get the pluginfinity bin.",
 	"keywords": ["pluginfinity", "agent-plugin", "cli", "effect"],

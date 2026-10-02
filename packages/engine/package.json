@@ -1,6 +1,6 @@
 {
 	"name": "@pluginfinity/engine",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"private": true,
 	"description": "The pluginfinity build pipeline shared by every pluginfinity front end: config discovery, read, transform per target, emit and check.",
 	"keywords": ["pluginfinity", "agent-plugin", "effect"],
