@@ -1,0 +1,1 @@
+{"session_id":"s","transcript_path":"/dev/null","cwd":"/tmp","hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"/tmp/pf-dogfood-crash.txt"}}

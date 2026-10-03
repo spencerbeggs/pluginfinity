@@ -31,7 +31,7 @@
 		"lint:md:fix": "markdownlint-cli2 --config './lib/configs/.markdownlint-cli2.jsonc' --fix",
 		"prepare": "husky",
 		"test": "vitest run --passWithNoTests",
-		"test:bats": "bats --recursive packages/engine/__test__/hook-lib",
+		"test:bats": "bats --recursive packages/engine/__test__/hook-lib plugins/dogfood/__test__",
 		"test:bats:compat": "BASH_UNDER_TEST=/bin/bash bats --recursive packages/engine/__test__/hook-lib",
 		"test:coverage": "vitest run --coverage",
 		"test:watch": "vitest --watch",

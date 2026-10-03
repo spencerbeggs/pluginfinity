@@ -1,0 +1,1 @@
+{"session_id":"s","transcript_path":"/dev/null","cwd":"/tmp","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo pf-dogfood-context"},"tool_response":{"stdout":"pf-dogfood-context"}}
