@@ -1,0 +1,5 @@
+{
+	"name": "pluginfinity-dogfood",
+	"version": "0.0.0",
+	"description": "End-to-end fixture for the pluginfinity CLI"
+}

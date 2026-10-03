@@ -17,8 +17,8 @@ sources:
     title: Companion plugin tracking package
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T02:10:38Z
-  body_sha256: 118c22b5aa5f43f9034a835864473a84ba49c4d5e6c16d7bd985769d92915599
+  at: 2026-10-03T03:08:38Z
+  body_sha256: 4cc239e705ec22d94baa7191ad536f75f3b60ab968dbec95d192b7d4b5bba007
 ---
 
 # pluginfinity companion plugin
@@ -29,7 +29,7 @@ generated:
 
 ## Shape
 
-- `package.json` is a private tracking package, `pluginfinity-plugin`, that is never published to npm. It gives changesets a version to bump, and the build copies that version into each generated manifest.[^package-manifest]
+- `package.json` is a private tracking package, `@pluginfinity/ai-plugins`, that is never published to npm. A changeset against it bumps its version, which the build copies into each generated manifest, and CI cuts a GitHub-only release that the marketplaces track; `.changeset/config.json` lists both built manifests as its version files.[^package-manifest]
 - It depends on the CLI as `"pluginfinity": "workspace:*"` in `devDependencies`, so its scripts run the locally built `pluginfinity`. See [the bin-link gotcha](../gotchas/workspace-bin-needs-built-cli.md).
 - Once there is a source to build, it follows the target layout in [the roadmap](../roadmaps/pluginfinity-first-release.md): host-neutral source at the root, `pluginfinity.config.ts`, and generated, committed output under `builds/<id>/`.
 

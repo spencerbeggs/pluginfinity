@@ -1,14 +1,15 @@
 {
-	"name": "pluginfinity-dogfood",
+	"name": "@pluginfinity/dogfood-plugin",
 	"version": "0.0.0",
 	"private": true,
 	"description": "An end-to-end fixture for the pluginfinity CLI: a plugin that exercises CLI features the companion plugin does not use. Never released.",
 	"license": "MIT",
 	"type": "module",
 	"scripts": {
-		"build:dev": "echo 'Skipping build:dev'",
-		"build:prod": "echo 'Skipping build:prod'",
-		"types:check": "tsc --noEmit"
+		"build:dev": "pluginfinity build",
+		"build:prod": "pluginfinity build",
+		"types:check": "tsc --noEmit",
+		"validate": "pluginfinity validate"
 	},
 	"devDependencies": {
 		"pluginfinity": "workspace:*"
