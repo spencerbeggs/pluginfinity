@@ -19,7 +19,7 @@ You are running a live end-to-end check of pluginfinity's hook library from insi
 Rules:
 
 - Do the steps in order, one at a time, and record the observed result verbatim next to the expected one.
-- Do not edit the repository. The only file you write is the report.
+- Do not edit the repository. Beyond the report, the only files you create are the two marker files in step 4 and the last step, and you delete both.
 - If a step needs the user, stop and ask one precise question, such as "Did you see a system message reading ...?"
 - If something unexpected happens, record it and carry on. Do not try to fix the plugin.
 
@@ -37,7 +37,7 @@ Copilot notes:
 
 **Step 2. UserPromptSubmit.** Ask the user to send you a message containing `pf-dogfood-system`, typed as a chat message. When it arrives, check the new lines in hook-debug.log.
 <!-- pluginfinity:only claude -->
-Then ask the user whether they saw a system message reading `pluginfinity-dogfood saw the marker`. Expected: seen. On Claude Code 2.1.288 it was not shown in one run; that is unconfirmed, so record what the user reports.
+Then ask the user whether they saw a system message reading `pluginfinity-dogfood saw the marker`. Expected: seen in the UI as `UserPromptSubmit says: ...`, and not added to your context. Record what the user reports.
 <!-- /pluginfinity:only -->
 <!-- pluginfinity:only copilot -->
 Expected: nothing shown, and a debug line `hook_system_message does nothing on copilot for UserPromptSubmit`.

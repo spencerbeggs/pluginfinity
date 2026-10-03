@@ -88,6 +88,8 @@ event and tool names, so a lookup that finds nothing tries Copilot's spelling:
 | `old_string` | `old_str` |
 | `new_string` | `new_str` |
 
+`hook_input tool_input`, the whole object, is not aliased: on Copilot it carries Copilot's key names.
+
 ### Responding
 
 Call one of these to answer the host. What each does depends on the host:
@@ -98,13 +100,17 @@ Call one of these to answer the host. What each does depends on the host:
 | `hook_deny "r"` | `hookSpecificOutput{hookEventName: "PreToolUse", permissionDecision: deny, permissionDecisionReason}` | flat `permissionDecision: deny` + `permissionDecisionReason` |
 | `hook_allow [json]` | `hookSpecificOutput{hookEventName: "PreToolUse", permissionDecision: allow}` (+ `updatedInput`) | `allow` (+ `modifiedArgs`) |
 | `hook_ask "r"` | `hookSpecificOutput{hookEventName: "PreToolUse", permissionDecision: ask}` | `ask` (the cloud agent treats it as deny; documented) |
-| `hook_block "r"` | top-level `decision: block` + `reason` on UserPromptSubmit, UserPromptExpansion, PostToolUse, PostToolUseFailure, PostToolBatch, Stop, SubagentStop, ConfigChange, PreCompact, TaskCreated, PreModelSwitch; no-op elsewhere | `decision: block` + `reason` on Stop, SubagentStop; no-op elsewhere |
-| `hook_system_message "t"` | `systemMessage` | no-op |
+| `hook_block "r"` | top-level `decision: block` + `reason` on UserPromptSubmit, UserPromptExpansion, PostToolUse, PostToolBatch, Stop, SubagentStop, ConfigChange, PreCompact, TaskCreated, PreModelSwitch; no-op elsewhere | `decision: block` + `reason` on Stop, SubagentStop; no-op elsewhere |
+| `hook_system_message "t"` | `systemMessage`, shown to the user and not added to model context; no-op on Notification, SessionEnd, PreCompact and ConfigChange, which discard it | no-op |
 | `hook_noop` | `{}` | `{}` |
 | `hook_raw <host> <json>` | compacted and sent as is, only when `<host>` is `claude` | compacted and sent as is, only when `<host>` is `copilot` |
 
+Use `hook_noop` to let a call proceed under normal permissions. `hook_allow` auto-approves, which skips the
+permission prompt on Claude, so use it to approve or rewrite input deliberately.
+
 `hook_allow '<json>'` passes `updatedInput` or `modifiedArgs` through unchanged, so on Copilot write the
-replacement input with Copilot's key names (`path`, `file_text`, `old_str`, `new_str`).
+replacement input with Copilot's key names (`path`, `file_text`, `old_str`, `new_str`). The argument must be
+valid JSON; otherwise the call logs the problem and returns 1, sending nothing.
 
 The rules:
 
@@ -134,7 +140,10 @@ where a failing `preToolUse` hook denies the tool call.
 - `exit 2` is a failure here, not a block. Use `hook_deny` or `hook_block` to refuse something.
 - Do not install your own `trap ... EXIT`. It replaces the library's trap, and a failing hook would then exit
   non-zero.
-- A failing emitter, such as `hook_raw` given invalid JSON, logs the problem and aborts into the same policy.
+- A failing emitter, such as `hook_raw` or `hook_allow` given invalid JSON, logs the problem and returns 1. Under
+  `set -e` that aborts into the same policy. Without `set -e` the script carries on after it.
+- `hook_fail_closed` on `Stop` or `SubagentStop` still fails open when `stop_hook_active` is `true`, so a
+  crashing hook cannot keep blocking in a loop.
 - A failure while the library loads, such as a missing `host.sh`, is a silent exit 0.
 - Assign input to a variable before you use it: `cmd=$(hook_input tool_input.command)`, then `case "$cmd" in`.
   A failing `$(...)` inside a command's arguments or a `case` word does not trip `set -e`, so the script
@@ -144,6 +153,9 @@ Logs live in `${XDG_STATE_HOME:-~/.local/state}/pluginfinity/<plugin>/`. `hook-e
 `hook-debug.log` holds debug lines, written when `PLUGINFINITY_HOOK_DEBUG=1`, which also logs each hook's
 raw input as an `input:` line. Use it to see what a host sends. `hook_log` and `hook_debug` append to the
 logs from your own script.
+
+With `PLUGINFINITY_HOOK_DEBUG=1`, prompts and tool inputs are written to a plaintext log. Do not leave it set
+outside a debugging session.
 
 ## Testing hooks
 
@@ -221,9 +233,8 @@ Host notes from live runs:
 
 - Copilot puts `SubagentStart` context at the top of the subagent's first prompt.
 - Copilot also fires `UserPromptSubmit` for a subagent's prompt, under the subagent's own session id.
-- Claude Code 2.1.288 was seen not showing a `UserPromptSubmit` `systemMessage` to the user. This was
-  observed once and is unconfirmed.
+- Claude Code 2.1.288 shows a `UserPromptSubmit` `systemMessage` in the UI ("UserPromptSubmit says: ...") and
+  does not add it to model context.
 
-Copilot's output contract differs per event; a script that serves both hosts may need to print a
-different shape on each. Copilot honours a flat `{ "additionalContext": ... }` from `SessionStart`, and
-Claude Code's `hookSpecificOutput` deny shape from `PreToolUse`.
+The library prints each host's output shape for you. For a field only one host has, use
+`hook_raw <host> <json>`, which sends the JSON on that host and does nothing on the other.

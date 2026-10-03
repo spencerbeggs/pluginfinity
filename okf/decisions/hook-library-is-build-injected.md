@@ -17,8 +17,8 @@ sources:
     title: The live run on Claude Code and Copilot CLI that checked the library against both hosts
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T20:49:08Z
-  body_sha256: 45d19b39d030eeada9e5e76fea7e29ecbdccce64df7c2a7e842edcf257f9257a
+  at: 2026-10-03T21:06:07Z
+  body_sha256: 0937ff89a9d81c2f0f819b259e62e018e74b9586cc91f421c0f192f56e5a1f93
 ---
 
 # The hook library is injected at build time
@@ -31,7 +31,7 @@ plugin-bot copied its `hooks/lib/*.sh` templates into each plugin at setup time.
 
 ## Decision
 
-- The helper library ships inside the engine's carrier package, and `build` writes it to `hooks/lib/pluginfinity/` in each target that has at least one hook. A target with no hooks gets nothing.
+- The helper library is embedded in the engine as generated TypeScript (`hook-lib/*.sh` to `src/hook-lib.generated.ts`, kept in step by a sync test), and `build` writes it to `hooks/lib/pluginfinity/` in each target that has at least one hook. A target with no hooks gets nothing.
 - `build` also writes a generated `host.sh` beside it, setting the host, the plugin name and the library version. A script sources the library by a path relative to itself, and the library picks host behaviour at run time from `host.sh`.
 - Hook scripts are never transformed. What a script runs in the repository is what a target ships.
 - Library version equals the pluginfinity version, and `build --check` treats the injected files like any other output, so a stale copy is drift.
@@ -50,7 +50,7 @@ plugin-bot copied its `hooks/lib/*.sh` templates into each plugin at setup time.
 - The library is bash, compatible with Bash 3.2, and needs `jq` at run time, consistent with [plugins carrying no Node dependencies](plugins-carry-no-node-dependencies.md).
 - A live run on both hosts confirmed that Copilot honours the per-entry `env` the build writes and showed where its payloads differ from Claude's, which the library absorbs by aliasing `tool_input` keys ([measurement](../measurements/hook-library-live-2026-10-03.md)).[^live-run]
 - Failure behaviour is fixed by [hooks fail open](hooks-fail-open.md).
-- The carrier package has to publish the library files, and the engine has to receive them through a service the carrier provides rather than locating them itself ([the carrier split](pluginfinity-ships-as-a-carrier-package.md)).
+- There is no carrier-provided service for the library. The plan had the carrier publish the `.sh` files and hand them to the engine; embedding instead keeps the engine pure, makes every bin work, and depends on nothing in the bundler shipping `.sh` files ([the carrier split](pluginfinity-ships-as-a-carrier-package.md)). This deviates from the plan.
 
 [^hook-library-spec]: `../../docs/superpowers/specs/2026-10-03-hook-library-design.md`
 [^live-run]: `../measurements/hook-library-live-2026-10-03.md`

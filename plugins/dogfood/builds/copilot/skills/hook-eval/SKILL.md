@@ -19,7 +19,7 @@ You are running a live end-to-end check of pluginfinity's hook library from insi
 Rules:
 
 - Do the steps in order, one at a time, and record the observed result verbatim next to the expected one.
-- Do not edit the repository. The only file you write is the report.
+- Do not edit the repository. Beyond the report, the only files you create are the two marker files in step 4 and the last step, and you delete both.
 - If a step needs the user, stop and ask one precise question, such as "Did you see a system message reading ...?"
 - If something unexpected happens, record it and carry on. Do not try to fix the plugin.
 

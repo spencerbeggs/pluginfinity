@@ -20,8 +20,8 @@ sources:
     title: GitHub Copilot hooks configuration reference
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T20:49:08Z
-  body_sha256: 234b05ca3d8dbe67797a399de5402842f4800c00b45c9ddbca9bdd75fdbb35f1
+  at: 2026-10-03T21:06:07Z
+  body_sha256: 363e5d3c710a37aa2196e6006e788844fe74afe5525608d3a50efc281c5953c3
 ---
 
 # Hook library live run on Claude Code and Copilot CLI, 2026-10-03
@@ -38,7 +38,7 @@ The [hook library](../decisions/hook-library-is-build-injected.md) was written a
 | Check | Claude Code 2.1.288 | Copilot CLI 1.0.91 |
 | :-- | :-- | :-- |
 | SessionStart context | Present, naming the host and source | Seen in one run, not reported in the next; inconclusive |
-| UserPromptSubmit system message | Not shown to the user; the hook printed it when replayed by hand | Nothing shown, as designed, with one debug line that the call does nothing on Copilot |
+| UserPromptSubmit system message | Shown in the UI as "UserPromptSubmit says: ..."; not added to model context. The first run did not show it; a second run did | Nothing shown, as designed, with one debug line that the call does nothing on Copilot |
 | PreToolUse deny | Blocked with the hook's reason | Blocked with the hook's reason |
 | PreToolUse crash fails open | Read succeeded and the error log gained an `exited 1` line | The hook never fired: it read `tool_input.file_path` and Copilot's Read sends `path` |
 | PostToolUse context | Delivered | Delivered |
@@ -54,7 +54,7 @@ The [hook library](../decisions/hook-library-is-build-injected.md) was written a
 - **`tool_input` is a JSON object and `hook_event_name` is present** on a PascalCase event, snake_case, at the top level.
 - **A `subagentStart` hook's `additionalContext` is delivered by putting it at the top of the subagent's first prompt.** A subagent asked about its context in general did not report it; asked to quote the first line of its prompt, it can.[^copilot-hooks-reference]
 - **UserPromptSubmit fires on every typed prompt, and for a subagent's prompt under the subagent's own session id.** It does not fire for a reply submitted through a form or question tool.
-- **Claude 2.1.288 did not show a UserPromptSubmit `systemMessage`** although the hook printed it. This was observed once and is unconfirmed; the docs list `systemMessage` as a universal output and do not say this event discards it.
+- **Claude 2.1.288 shows a UserPromptSubmit `systemMessage` in the UI** ("UserPromptSubmit says: ...") and does not add it to model context. The first run saw nothing shown; a second run confirmed it is shown, so the first observation was a miss.
 - **Copilot SessionStart context was inconclusive.** Two consecutive sessions on the same plugin disagreed about whether the context was visible, so the run neither confirms nor rules out delivery. An earlier [SessionStart measurement](copilot-pascalcase-sessionstart-context.md) saw it delivered.
 
 ## What each finding changed
@@ -62,13 +62,13 @@ The [hook library](../decisions/hook-library-is-build-injected.md) was written a
 - **Key aliasing.** `hook_input` reads a `tool_input.<key>` by its Claude name on both hosts and falls back to the Copilot spelling when the Claude key is null: `file_path` to `path`, `content` to `file_text`, `old_string` to `old_str`, `new_string` to `new_str`. A Claude payload finds its own key first, so the filter stays free of host checks.
 - **Raw-input debug line.** With `PLUGINFINITY_HOOK_DEBUG=1` each hook writes its raw input, truncated, to the debug log, so a maintainer sees what a host sends without editing a build.
 - **Dogfood crash test.** A bats test runs the crash hook on Copilot's Read shape, since the live run never reached it, and asserts it fails open.
-- **The hook-eval skill.** The live checklist became a skill in the dogfood plugin, so a debug session can run it and write a report. Its Copilot and Claude host blocks carry the subagent-prompt, typed-prompt and unconfirmed-`systemMessage` caveats above.
+- **The hook-eval skill.** The live checklist became a skill in the dogfood plugin, so a debug session can run it and write a report. Its Copilot and Claude host blocks carry the subagent-prompt, typed-prompt and `systemMessage` notes above.
 - **Docs.** The companion's hooks reference teaches the alias table, that `hook_allow` passes `updatedInput` through unchanged, and the host notes above.
 
 ## What this rules in and out
 
 - The `env` route for the event name works on Copilot, so the library needs no per-event command prefix.
-- It covers one machine, one session per check, and the two host versions named. The UserPromptSubmit `systemMessage` and SessionStart results need a repeat before anything relies on either.
+- It covers one machine, one session per check, and the two host versions named. The Copilot SessionStart result needs a repeat before anything relies on it. The Claude `systemMessage` result held across two runs.
 
 [^owner-live-runs]: conversation with the repository owner, 2026-10-03
 [^copilot-hooks-reference]: <https://docs.github.com/en/copilot/reference/hooks-configuration>

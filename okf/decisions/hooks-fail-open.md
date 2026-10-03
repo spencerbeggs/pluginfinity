@@ -21,8 +21,8 @@ sources:
     last_modified: 2026-10-03T00:00:00Z
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:33:34Z
-  body_sha256: da8d6f627d5a056866c403096c3e97a5974c03a32a11618dfd8f8f497df1d1b5
+  at: 2026-10-03T21:06:07Z
+  body_sha256: 6d4afc0d271c08db6ebb8dda0f2007315a7f40cbab903ffef8c67e1648c98187
 ---
 
 # Hooks fail open on both hosts
@@ -33,8 +33,8 @@ The two hosts treat a failing hook differently. On Copilot a command `preToolUse
 
 ## Decision
 
-- The library installs a crash trap. A hook script that fails, whether by an unexpected non-zero exit, a `set -e` abort or a missing `jq`, writes `{}`, exits `0`, and records the failure in the hook error log, on both hosts.
-- A script that wants a failure to deny calls `hook_fail_closed`. The trap then denies on a pre-tool event and blocks on events where block is supported, instead of printing `{}`.
+- The library installs a crash trap. A hook script that fails, whether by an unexpected non-zero exit, a `set -e` abort or a missing `jq`, writes nothing (no `{}`), exits `0`, and records the failure in the hook error log, on both hosts.
+- A script that wants a failure to deny calls `hook_fail_closed`. The trap then denies on a pre-tool event and blocks on events where block is supported, instead of writing nothing.
 - Timeouts are not covered by the trap. Copilot treats a timeout as fail-open for every event, and Claude Code lets a timed-out `PreToolUse` command hook through.[^copilot-hooks-reference][^cc-hooks]
 
 ## Consequences
