@@ -2,7 +2,8 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, layer } from "@effect/vitest";
 import { ScriptedSpawner } from "@effected/commands";
 import { Effect, FileSystem, Path } from "effect";
-import { build, preparePlugins, validate } from "../src/index.js";
+import { hookLibFiles } from "../src/hook-lib.js";
+import { ENGINE_VERSION, build, preparePlugins, validate } from "../src/index.js";
 import {
 	HOOKED,
 	HOOKED_COMMAND,
@@ -199,13 +200,30 @@ describe("build with hooks", () => {
 			Effect.gen(function* () {
 				const root = yield* hookedPlugin();
 				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				const lib = (target: string) =>
+					hookLibFiles(target as "claude" | "copilot", "hooked", ENGINE_VERSION).map((file) => file.path);
 				assert.deepStrictEqual(
 					builds.map((entry) => [entry.target, entry.plan.added]),
 					[
-						["claude", [".claude-plugin/plugin.json", "hooks/hooks.json", "hooks/lib/output.sh", "hooks/start.sh"]],
+						[
+							"claude",
+							[
+								".claude-plugin/plugin.json",
+								"hooks/hooks.json",
+								...lib("claude"),
+								"hooks/lib/output.sh",
+								"hooks/start.sh",
+							].sort(),
+						],
 						[
 							"copilot",
-							["com.github.copilot/hooks/hooks.json", "hooks/lib/output.sh", "hooks/start.copilot.sh", "plugin.json"],
+							[
+								"com.github.copilot/hooks/hooks.json",
+								...lib("copilot"),
+								"hooks/lib/output.sh",
+								"hooks/start.copilot.sh",
+								"plugin.json",
+							].sort(),
 						],
 					],
 				);
@@ -291,6 +309,52 @@ describe("build with hooks", () => {
 				assert.strictEqual(error._tag, "PathConflict");
 				if (error._tag !== "PathConflict") return;
 				assert.deepStrictEqual([error.target, error.file], ["claude", "hooks/hooks.json"]);
+			}),
+		);
+
+		it.effect("host.sh in each build names its host and the plugin", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* hookedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const claude = yield* fs.readFileString(path.join(root, "builds/claude/hooks/lib/pluginfinity/host.sh"));
+				const copilot = yield* fs.readFileString(path.join(root, "builds/copilot/hooks/lib/pluginfinity/host.sh"));
+				assert.include(claude, "PLUGINFINITY_HOST=claude\nPLUGINFINITY_PLUGIN='hooked'\n");
+				assert.include(copilot, "PLUGINFINITY_HOST=copilot\n");
+			}),
+		);
+
+		it.effect("a plugin without hooks gets no library", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* plugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/hooks")));
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/hooks")));
+			}),
+		);
+
+		it.effect("a source file under hooks/lib/pluginfinity/ is a PathConflict", () =>
+			Effect.gen(function* () {
+				const root = yield* hookedPlugin(HOOKED, { "hooks/lib/pluginfinity/mine.sh": "echo mine\n" });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.strictEqual(error.file, "hooks/lib/pluginfinity/mine.sh");
+			}),
+		);
+
+		it.effect("--check reports a stale injected library as drift", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* hookedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				yield* fs.writeFileString(path.join(root, "builds/claude/hooks/lib/pluginfinity/hook.sh"), "# old\n");
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: true }));
+				assert.strictEqual(error._tag, "BuildStale");
 			}),
 		);
 	});

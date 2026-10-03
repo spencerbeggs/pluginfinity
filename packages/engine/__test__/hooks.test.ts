@@ -148,8 +148,22 @@ describe("renderHooks", () => {
 		assert.deepStrictEqual(JSON.parse(text), {
 			version: 1,
 			hooks: {
-				SessionStart: [{ type: "command", bash: `bash "\${PLUGIN_ROOT}/hooks/start.sh"`, timeoutSec: 5 }],
-				PreToolUse: [{ type: "command", bash: `bash "\${PLUGIN_ROOT}/hooks/guard.sh" --quiet`, matcher: "Bash" }],
+				SessionStart: [
+					{
+						type: "command",
+						bash: `bash "\${PLUGIN_ROOT}/hooks/start.sh"`,
+						timeoutSec: 5,
+						env: { PLUGINFINITY_EVENT: "SessionStart" },
+					},
+				],
+				PreToolUse: [
+					{
+						type: "command",
+						bash: `bash "\${PLUGIN_ROOT}/hooks/guard.sh" --quiet`,
+						matcher: "Bash",
+						env: { PLUGINFINITY_EVENT: "PreToolUse" },
+					},
+				],
 			},
 		});
 	});

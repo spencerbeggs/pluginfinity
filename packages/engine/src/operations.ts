@@ -21,6 +21,7 @@ import {
 	PathConflict,
 	TargetDrift,
 } from "./errors.js";
+import { HOOK_LIB_DIR, hookLibFiles } from "./hook-lib.js";
 import type { TargetHookEvent } from "./hooks.js";
 import { hookCommandFiles, hookScripts, renderHooks, targetHooks } from "./hooks.js";
 import type { LoadedConfig } from "./loader.js";
@@ -28,6 +29,7 @@ import { renderManifest, serializeManifest } from "./manifest.js";
 import type { ConfigSelection, PreparedPlugin } from "./selection.js";
 import { preparePlugins } from "./selection.js";
 import { readSkills, renderSkill } from "./skills.js";
+import { ENGINE_VERSION } from "./version.js";
 
 /**
  * The input to `build`.
@@ -181,7 +183,9 @@ const checkScript = (
  * @remarks
  * Each target ships the source `hooks/` directory whole, so a script can
  * source its own helpers, except scripts only another target's hooks run; a
- * script outside `hooks/` ships to the targets that run it.
+ * script outside `hooks/` ships to the targets that run it. A target with
+ * hooks also gets the hook library under `hooks/lib/pluginfinity/`, which no
+ * source file may occupy.
  */
 const planPlugin = (
 	prepared: PreparedPlugin,
@@ -250,11 +254,18 @@ const planPlugin = (
 			const generated: Array<EmittedFile> = [{ path: target.manifest.path, content: serializeManifest(manifest) }];
 			const hooksFile = renderHooks(target, events, invoke);
 			if (hooksFile !== undefined) generated.push({ path: target.hooks.path, content: hooksFile });
+			if (hooksFile !== undefined) generated.push(...hookLibFiles(id, String(manifest.name), ENGINE_VERSION));
 			for (const skill of skills)
 				generated.push(...((yield* collect(renderSkill(target, id, skill, KNOWN_TARGET_IDS))) ?? []));
 			for (const agent of agents) {
 				const file = yield* collect(renderAgent(target, id, agent, KNOWN_TARGET_IDS));
 				if (file !== undefined) generated.push(file);
+			}
+
+			// The library's directory belongs to pluginfinity; a source file there would shadow or join it.
+			const reserved = copied.find((file) => file.path.startsWith(`${HOOK_LIB_DIR}/`));
+			if (reserved !== undefined) {
+				return yield* Effect.fail(new PathConflict({ path: config.path, target: id, file: reserved.path }));
 			}
 
 			const copiedPaths = new Set(copied.map((file) => file.path));

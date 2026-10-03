@@ -160,13 +160,15 @@ const FORMATS: Record<Target["hooks"]["format"], HooksRenderer> = {
 	"copilot-hooks-v1": (events, command) => ({
 		version: 1,
 		hooks: Object.fromEntries(
-			events.map(({ name, entries }) => [
+			events.map(({ event, name, entries }) => [
 				name,
 				entries.map((entry) => ({
 					type: "command",
 					bash: command(entry),
 					...(entry.matcher === undefined ? {} : { matcher: entry.matcher }),
 					...(entry.timeout === undefined ? {} : { timeoutSec: entry.timeout }),
+					// The library reads its event from here: camelCase Copilot payloads carry no hook_event_name.
+					env: { PLUGINFINITY_EVENT: event },
 				})),
 			]),
 		),
