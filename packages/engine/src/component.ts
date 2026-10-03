@@ -22,23 +22,46 @@ export const invalid = (path: string, issues: ReadonlyArray<ConfigIssue>, target
 	new ComponentInvalid({ path, issues: [...issues], ...(target === undefined ? {} : { target }) });
 
 /**
- * Top-level plain values holding ` #`, which YAML reads as the start of a
+ * Plain values holding ` #`, which YAML reads as the start of a
  * comment: Claude Code's own frontmatter reader keeps the rest of the line,
- * every YAML parser drops it, so the value would silently lose its tail. A
- * deliberate trailing comment is flagged too; frontmatter rarely wants one.
+ * every YAML parser drops it, so the value would silently lose its tail. It
+ * checks every depth, including a `targets` block and list items, and skips
+ * block scalars, where `#` is literal. A deliberate trailing comment is
+ * flagged too; frontmatter rarely wants one.
  */
-const trailingComments = (frontmatter: string): ReadonlyArray<ConfigIssue> =>
-	frontmatter.split("\n").flatMap((line, index) => {
-		const match = /^([A-Za-z_][\w-]*):[ \t]+([^"'|>\s#].*?)[ \t]+#/.exec(line);
-		return match === null
-			? []
-			: [
-					issue(
-						`line ${index + 2}`,
-						`the plain value of ${match[1]} holds " #", which YAML reads as a comment, dropping the rest of the line; quote or fold the value`,
-					),
-				];
-	});
+const trailingComments = (frontmatter: string): ReadonlyArray<ConfigIssue> => {
+	const issues: Array<ConfigIssue> = [];
+	// The indent of the key that opened a block scalar (| or >); lines indented
+	// past it are the scalar's text, where # is literal.
+	let block: number | undefined;
+	for (const [index, line] of frontmatter.split("\n").entries()) {
+		const indent = /^[ \t]*/.exec(line)?.[0].length ?? 0;
+		if (block !== undefined && (line.trim() === "" || indent > block)) continue;
+		block = undefined;
+		if (BLOCK_SCALAR.test(line)) {
+			block = indent;
+			continue;
+		}
+		const match = KEYED_PLAIN.exec(line) ?? ITEM_PLAIN.exec(line);
+		if (match === null) continue;
+		const subject = match[1] === undefined ? "a list item" : `the plain value of ${match[1]}`;
+		issues.push(
+			issue(
+				`line ${index + 2}`,
+				`${subject} holds " #", which YAML reads as a comment, dropping the rest of the line; quote or fold the value`,
+			),
+		);
+	}
+	return issues;
+};
+
+// A key or list item whose value is a block scalar indicator.
+const BLOCK_SCALAR = /^[ \t]*(?:-[ \t]+)?(?:[A-Za-z_][\w-]*:[ \t]*)?[|>][-+0-9]*[ \t]*(?:#.*)?$/;
+// `key: value #…`, at any depth, optionally as a list item; the value is plain
+// (not quoted, a block scalar or a flow collection).
+const KEYED_PLAIN = /^[ \t]*(?:-[ \t]+)?([A-Za-z_][\w-]*):[ \t]+[^"'|>\s#[{].*?[ \t]+#/;
+// `- value #…`: a plain list item.
+const ITEM_PLAIN = /^[ \t]*-[ \t]+(?=[^"'|>\s#[{])(?![A-Za-z_][\w-]*:[ \t]).*?[ \t]+#/;
 
 /**
  * Split a component file's text at its frontmatter, parse the frontmatter as

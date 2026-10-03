@@ -455,6 +455,52 @@ describe("build with skills", () => {
 			}),
 		);
 
+		it.effect("a cut-short value is caught at any depth: in a targets block and in a list", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": [
+						"---",
+						"description: x",
+						"allowed-tools:",
+						"  - Read # the reader",
+						"targets:",
+						"  copilot:",
+						"    description: Parses refs (Closes #12) from a commit message",
+						"---",
+						"",
+					].join("\n"),
+				});
+				const error = yield* failure(root);
+				assert.deepStrictEqual(
+					error.issues.map((found) => found.key),
+					["line 4", "line 7"],
+				);
+				assert.include(error.message, "the plain value of description");
+				assert.include(error.message, "a list item");
+			}),
+		);
+
+		it.effect("a # inside a block scalar is text, at any depth", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": [
+						"---",
+						"description: >-",
+						"  Parses refs (Closes #12)",
+						"  note: see #3 too",
+						"targets:",
+						"  copilot:",
+						"    description: |",
+						"      Copilot (Closes #12)",
+						"---",
+						"",
+					].join("\n"),
+				});
+				yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+				assert.include(yield* read(root, "builds/copilot/skills/alpha/SKILL.md"), "Copilot (Closes #12)");
+			}),
+		);
+
 		it.effect("a quoted value or a comment line is not mistaken for a cut-short value", () =>
 			Effect.gen(function* () {
 				const root = yield* skillPlugin({
