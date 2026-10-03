@@ -83,15 +83,15 @@ capabilities are `context`, `deny`, `allow`, `ask`, `block`, `system_message`, `
 Call one of these to answer the host. What each does depends on the host:
 
 | Function | Claude | Copilot |
-|---|---|---|
-| `hook_context "t"` | `hookSpecificOutput{hookEventName, additionalContext}` | flat `additionalContext` on SessionStart, SubagentStart, PostToolUse, Notification; no-op elsewhere (including UserPromptSubmit) |
-| `hook_deny "r"` | `permissionDecision: deny` + `permissionDecisionReason` | flat `permissionDecision: deny` + `permissionDecisionReason` |
-| `hook_allow [json]` | `allow` (+ `updatedInput`) | `allow` (+ `modifiedArgs`) |
-| `hook_ask "r"` | `ask` | `ask` (the cloud agent treats it as deny; documented) |
-| `hook_block "r"` | top-level `decision: block` + `reason` on Stop, SubagentStop, PostToolUse, PostToolUseFailure, UserPromptSubmit, PreCompact | `decision: block` + `reason` on Stop, SubagentStop; no-op elsewhere |
+| --- | --- | --- |
+| `hook_context "t"` | `hookSpecificOutput{hookEventName, additionalContext}` on SessionStart, SubagentStart, PostModelSwitch, UserPromptSubmit, UserPromptExpansion, PreToolUse, PostToolUse, PostToolUseFailure, PostToolBatch, Stop, SubagentStop; no-op (`{}`) elsewhere | flat `additionalContext` on SessionStart, SubagentStart, PostToolUse, Notification; no-op elsewhere (including UserPromptSubmit) |
+| `hook_deny "r"` | `hookSpecificOutput{hookEventName: "PreToolUse", permissionDecision: deny, permissionDecisionReason}` | flat `permissionDecision: deny` + `permissionDecisionReason` |
+| `hook_allow [json]` | `hookSpecificOutput{hookEventName: "PreToolUse", permissionDecision: allow}` (+ `updatedInput`) | `allow` (+ `modifiedArgs`) |
+| `hook_ask "r"` | `hookSpecificOutput{hookEventName: "PreToolUse", permissionDecision: ask}` | `ask` (the cloud agent treats it as deny; documented) |
+| `hook_block "r"` | top-level `decision: block` + `reason` on UserPromptSubmit, UserPromptExpansion, PostToolUse, PostToolUseFailure, PostToolBatch, Stop, SubagentStop, ConfigChange, PreCompact, TaskCreated, PreModelSwitch; no-op elsewhere | `decision: block` + `reason` on Stop, SubagentStop; no-op elsewhere |
 | `hook_system_message "t"` | `systemMessage` | no-op |
 | `hook_noop` | `{}` | `{}` |
-| `hook_raw <host> <json>` | emits verbatim when host matches | emits verbatim when host matches |
+| `hook_raw <host> <json>` | compacted and sent as is, only when `<host>` is `claude` | compacted and sent as is, only when `<host>` is `copilot` |
 
 The rules:
 
@@ -166,6 +166,10 @@ The dogfood plugin tests its `PreToolUse` hook on both targets:
 ```
 
 For a quick case without a fixture file, build one: `run_hook claude hooks/stop.sh "$(hook_fixture Stop '{"stop_hook_active":false}')"`.
+
+`run_hook` on the claude target sets `CLAUDE_PROJECT_DIR` from `HOOK_PROJECT_DIR`, which defaults to the test's
+temp directory (`$BATS_TEST_TMPDIR`). Set it in front of the call to point `hook_project_dir` at a fixture project:
+`HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/proj" run_hook claude hooks/stop.sh stop.json`.
 
 Tests run against `builds/`, not the source, so run `pluginfinity build` first. Run them with
 `bats --recursive __test__`.
