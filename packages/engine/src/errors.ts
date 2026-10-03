@@ -352,6 +352,36 @@ export class PathConflict extends Schema.TaggedError<PathConflict>()("PathConfli
 }
 
 /**
+ * A skill or agent file does not decode, or cannot be built for a target:
+ * bad frontmatter, a name that breaks the rules, a malformed host block, or a
+ * field the target cannot place.
+ *
+ * @public
+ */
+export class ComponentInvalid extends Schema.TaggedError<ComponentInvalid>()("ComponentInvalid", {
+	/** The component file, or its directory when the file is missing. */
+	path: Schema.String,
+	/** The target the problem is specific to, when it is. */
+	target: Schema.optionalKey(Schema.String),
+	issues: Schema.Array(ConfigIssue),
+}) {
+	override get message(): string {
+		const where = this.target === undefined ? this.path : `${this.path} (for ${this.target})`;
+		return `${where}: ${this.issues
+			.map((issue) => (issue.key === "" ? issue.message : `${issue.key}: ${issue.message}`))
+			.join("; ")}`;
+	}
+
+	get remediation(): Remediation {
+		return this.target === undefined
+			? { hint: `Correct the listed problems in ${this.path}.` }
+			: {
+					hint: `Correct the listed problems in ${this.path}, or set the field for ${this.target} in its \`targets.${this.target}\` block.`,
+				};
+	}
+}
+
+/**
  * Every finding a build or validation can produce after its config loaded.
  *
  * @public
@@ -362,7 +392,8 @@ export type BuildError =
 	| HostRejected
 	| HookEventUnsupported
 	| HookScriptInvalid
-	| PathConflict;
+	| PathConflict
+	| ComponentInvalid;
 
 const BUILD_ERROR_TAGS: ReadonlyArray<string> = [
 	"PackageVersionMissing",
@@ -371,6 +402,7 @@ const BUILD_ERROR_TAGS: ReadonlyArray<string> = [
 	"HookEventUnsupported",
 	"HookScriptInvalid",
 	"PathConflict",
+	"ComponentInvalid",
 ];
 
 /**

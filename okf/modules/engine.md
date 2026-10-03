@@ -1,7 +1,7 @@
 ---
 type: Module
 title: "@pluginfinity/engine"
-description: The pluginfinity logic shared by every front end; today config discovery, loading and strict decoding, the typed config and build errors, the doctor program, build and validate for manifests and hooks, the reconciling emit, and ENGINE_VERSION.
+description: The pluginfinity logic shared by every front end; today config discovery, loading and strict decoding, the typed config and build errors, the doctor program, build and validate for manifests, hooks and skills, the reconciling emit, and ENGINE_VERSION.
 kind: package
 layer: engine
 resource: ../../packages/engine
@@ -39,10 +39,13 @@ sources:
   - id: hooks
     resource: ../../packages/engine/src/hooks.ts
     title: targetHooks, hookCommand and renderHooks
+  - id: skills
+    resource: ../../packages/engine/src/skills.ts
+    title: readSkills, renderSkill and the skill description limit
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T01:26:25Z
-  body_sha256: 7aa11b312e6c9cac66001e63fc8cd3193f7404304ec04f9c29b93bbeca3a7432
+  at: 2026-10-03T01:36:39Z
+  body_sha256: 82bb383b75d50e2916bba2e8f652ce06c6c16234be391dfebb1658a3740e9d00
 ---
 
 # @pluginfinity/engine
@@ -60,7 +63,8 @@ generated:
 - **Manifests.** `renderManifest` builds a target's manifest from the config, the target's name override and the `package.json` version, through one function per manifest format, cut to the target's key allowlist in its order.[^manifest]
 - **Emit.** `planEmit` compares the files a build produces with what a build directory holds, by bytes and mode, and returns an `EmitPlan` of added, changed, removed and unchanged paths. `applyEmit` stages added and changed files in a sibling temporary directory, then renames each into place, deletes removed files and stray empty directories, and prunes the directories that leaves empty. Unchanged files are never written, so their mtimes stay, and generated files are `0644`.[^emit]
 - **Hooks.** `targetHooks` applies a target's per-event overrides to the base `hooks` and maps each event to the target's name. An event the target lacks drops its `fallback: "omit"` entries and otherwise fails the build with `HookEventUnsupported`. `hookCommand` renders an entry as a shell command at the target's plugin root, through `bash` unless `scripts.invoke` is `"exec"`, and `renderHooks` writes the hooks file through one renderer per hooks format.[^hooks] Each target ships the source `hooks/` directory whole, so a script can source its helpers, except scripts that only another target's hooks run. Copied files keep their source mode. A missing script, or one without the executable bit under `exec`, is `HookScriptInvalid`. A source file on a path the build generates, such as `hooks/hooks.json` on Claude Code, is `PathConflict`.[^operations]
-- **`build` and `validate`.** `build` renders every selected target into `<plugin root>/builds/<id>/`; with `check` it writes nothing and fails with `BuildStale` on any difference. `validate` requires current builds, then runs each host's check unless `skipHosts`: `claude plugin validate`, and for Copilot, which has no validate command, a `--plugin-dir` plugin listing that must load the build under its manifest name and version.[^operations] Skills, agents and MCP servers are not built yet.
+- **Skills.** `readSkills` reads every `skills/<name>/SKILL.md`, parses its frontmatter with `@effected/yaml` and decodes it strictly against core's `SkillFrontmatter`. A YAML error is reported at its file line and column, and a name that differs from the directory or a `targets` key that is not a known target fails too, all as `ComponentInvalid`. `mapFrontmatter` applies a target's field map and the component's `targets` block, `applyHostBlocks` keeps or strips each host block, and `renderSkill` writes `SKILL.md` with `name` always set and its `.md` support files processed and the rest copied, every file keeping its source mode. A built `description` over 1,024 characters, the Agent Skills limit Copilot enforces, fails for that target.[^skills]
+- **`build` and `validate`.** `build` renders every selected target into `<plugin root>/builds/<id>/`; with `check` it writes nothing and fails with `BuildStale` on any difference. `validate` requires current builds, then runs each host's check unless `skipHosts`: `claude plugin validate`, and for Copilot, which has no validate command, a `--plugin-dir` plugin listing that must load the build under its manifest name and version.[^operations] Agents and MCP servers are not built yet.
 - **`doctor`.** `runDoctor` never fails; every problem is a check in the `DoctorReport`. It checks Node.js against the `24.11.0` floor, the package manager it detects from the nearest lockfile (npm when there is none), each host CLI (`claude`, `copilot`), `bats`, `git`, and the config. A host CLI is `required` only when a loaded config targets that host, and `info` otherwise. A missing package manager, `bats` or `git` is a `warning`. A missing config is `info`, because doctor runs anywhere, but a config that fails to load is `required`. Each probe and each config load times out after 10 seconds. `DoctorReport.ok` is false only when a `required` check fails.[^doctor]
 
 ## Rules
@@ -82,4 +86,5 @@ The six-stage pipeline, its errors and `check` mode are designed in [the roadmap
 [^manifest]: `../../packages/engine/src/manifest.ts`
 [^emit]: `../../packages/engine/src/emit.ts`
 [^hooks]: `../../packages/engine/src/hooks.ts`
+[^skills]: `../../packages/engine/src/skills.ts`
 [^operations]: `../../packages/engine/src/operations.ts`

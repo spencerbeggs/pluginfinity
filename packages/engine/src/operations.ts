@@ -1,13 +1,13 @@
 import { Run } from "@effected/commands";
 import type { KnownTargetId } from "@pluginfinity/targets";
-import { TARGETS } from "@pluginfinity/targets";
+import { KNOWN_TARGET_IDS, TARGETS } from "@pluginfinity/targets";
 import type { PlatformError } from "effect";
 import { Effect, FileSystem, Path, Schema } from "effect";
 import type { ChildProcessSpawner } from "effect/process";
 import { ChildProcess } from "effect/process";
 import type { EmitPlan, EmittedFile } from "./emit.js";
 import { applyEmit, planEmit } from "./emit.js";
-import type { ConfigError } from "./errors.js";
+import type { ComponentInvalid, ConfigError } from "./errors.js";
 import {
 	BuildStale,
 	HookEventUnsupported,
@@ -22,6 +22,7 @@ import type { LoadedConfig } from "./loader.js";
 import { renderManifest, serializeManifest } from "./manifest.js";
 import type { ConfigSelection, PreparedPlugin } from "./selection.js";
 import { preparePlugins } from "./selection.js";
+import { readSkills, renderSkill } from "./skills.js";
 
 /**
  * The input to `build`.
@@ -113,6 +114,7 @@ export type PlanError =
 	| HookEventUnsupported
 	| HookScriptInvalid
 	| PathConflict
+	| ComponentInvalid
 	| PlatformError.PlatformError;
 
 /** Every file under `dir`, as `/`-separated paths relative to `root`; none when `dir` is absent. */
@@ -197,6 +199,7 @@ const planPlugin = (
 		const everyScript = new Set(hooks.flatMap(({ events }) => hookScripts(events)));
 		for (const script of everyScript) yield* checkScript(config, script, invoke);
 		const hooksDir = yield* sourceFiles(config.root, "hooks");
+		const skills = yield* readSkills(config.root, KNOWN_TARGET_IDS);
 
 		const planned: Array<PlannedTarget> = [];
 		for (const { id, target, events } of hooks) {
@@ -212,6 +215,7 @@ const planPlugin = (
 			const generated: Array<EmittedFile> = [{ path: target.manifest.path, content: serializeManifest(manifest) }];
 			const hooksFile = renderHooks(target, events, invoke);
 			if (hooksFile !== undefined) generated.push({ path: target.hooks.path, content: hooksFile });
+			for (const skill of skills) generated.push(...((yield* renderSkill(target, id, skill, KNOWN_TARGET_IDS)) ?? []));
 
 			const copiedPaths = new Set(copied.map((file) => file.path));
 			const conflict = generated.find((file) => copiedPaths.has(file.path));

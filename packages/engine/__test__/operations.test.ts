@@ -262,6 +262,159 @@ describe("build with hooks", () => {
 	});
 });
 
+describe("build with skills", () => {
+	const SKILL = [
+		"---",
+		"name: alpha",
+		"description: Does alpha.",
+		"when_to_use: alpha work",
+		"---",
+		"",
+		"# Alpha",
+		"<!-- pluginfinity:only claude -->",
+		"Claude only.",
+		"<!-- /pluginfinity:only -->",
+		"",
+	].join("\n");
+
+	/** A plugin with one skill, `alpha`, and any extra files. */
+	const skillPlugin = (files: Readonly<Record<string, string>> = {}) =>
+		writeTree({
+			"pluginfinity.config.ts": VALID,
+			"package.json": PACKAGE_JSON,
+			"skills/alpha/SKILL.md": SKILL,
+			"skills/alpha/references/guide.md":
+				"Guide.\n<!-- pluginfinity:only copilot -->\nCopilot only.\n<!-- /pluginfinity:only -->\n",
+			"skills/alpha/assets/data.json": "{}\n",
+			...files,
+		});
+
+	const read = (root: string, file: string) =>
+		Effect.gen(function* () {
+			const fs = yield* FileSystem.FileSystem;
+			const path = yield* Path.Path;
+			return yield* fs.readFileString(path.join(root, file));
+		});
+
+	const failure = (root: string) =>
+		Effect.flip(build({ selection: nearest(root), targets: [], check: false })).pipe(
+			Effect.map((error) => {
+				if (error._tag !== "ComponentInvalid") throw new Error(`expected ComponentInvalid, got ${error._tag}`);
+				return error;
+			}),
+		);
+
+	layer(NodeServices.layer)((it) => {
+		it.effect("each target gets the skill with its own frontmatter, host blocks applied, and every support file", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.strictEqual(
+					yield* read(root, "builds/claude/skills/alpha/SKILL.md"),
+					"---\nname: alpha\ndescription: Does alpha.\nwhen_to_use: alpha work\n---\n\n# Alpha\nClaude only.\n",
+				);
+				assert.strictEqual(
+					yield* read(root, "builds/copilot/skills/alpha/SKILL.md"),
+					'---\nname: alpha\ndescription: "Does alpha. Also use when: alpha work"\n---\n\n# Alpha\n',
+				);
+				assert.strictEqual(yield* read(root, "builds/claude/skills/alpha/references/guide.md"), "Guide.\n");
+				assert.strictEqual(
+					yield* read(root, "builds/copilot/skills/alpha/references/guide.md"),
+					"Guide.\nCopilot only.\n",
+				);
+				assert.strictEqual(yield* read(root, "builds/copilot/skills/alpha/assets/data.json"), "{}\n");
+			}),
+		);
+
+		it.effect("a skill without name gets its directory name on every target", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({ "skills/alpha/SKILL.md": "---\ndescription: Does alpha.\n---\nBody.\n" });
+				yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+				assert.include(yield* read(root, "builds/copilot/skills/alpha/SKILL.md"), "name: alpha\n");
+			}),
+		);
+
+		it.effect("targets.copilot: false leaves the skill out of the Copilot build only", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": "---\ndescription: Does alpha.\ntargets:\n  copilot: false\n---\nBody.\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/skills/alpha")));
+				assert.notInclude(yield* read(root, "builds/claude/skills/alpha/SKILL.md"), "targets");
+			}),
+		);
+
+		it.effect("an unknown frontmatter field is ComponentInvalid naming it", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({ "skills/alpha/SKILL.md": "---\ndescription: x\ncolour: red\n---\n" });
+				const error = yield* failure(root);
+				assert.deepStrictEqual(
+					error.issues.map((found) => found.key),
+					["colour"],
+				);
+			}),
+		);
+
+		it.effect("frontmatter that is not valid YAML is ComponentInvalid", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": "---\ndescription: x\nwhen_to_use: a, Tests: 0/0\n---\n",
+				});
+				const error = yield* failure(root);
+				assert.include(error.message, "not valid YAML");
+				assert.match(error.issues[0]?.key ?? "", /^line 3, column \d+$/);
+			}),
+		);
+
+		it.effect("a name that differs from the directory is ComponentInvalid", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({ "skills/alpha/SKILL.md": "---\nname: beta\ndescription: x\n---\n" });
+				const error = yield* failure(root);
+				assert.include(error.message, `must equal the directory name "alpha"`);
+			}),
+		);
+
+		it.effect("a targets block for an unknown target is ComponentInvalid", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": "---\ndescription: x\ntargets:\n  vscode: false\n---\n",
+				});
+				const error = yield* failure(root);
+				assert.deepStrictEqual(
+					error.issues.map((found) => found.key),
+					["targets.vscode"],
+				);
+			}),
+		);
+
+		it.effect("a description over 1024 characters on Copilot is ComponentInvalid for copilot", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": `---\ndescription: ${"d".repeat(1000)}\nwhen_to_use: ${"w".repeat(100)}\n---\n`,
+				});
+				const error = yield* failure(root);
+				assert.strictEqual(error.target, "copilot");
+				assert.include(error.message, "over the 1024 limit");
+			}),
+		);
+
+		it.effect("a malformed host block in a support file is ComponentInvalid naming that file and line", () =>
+			Effect.gen(function* () {
+				const path = yield* Path.Path;
+				const root = yield* skillPlugin({
+					"skills/alpha/references/guide.md": "a\n<!-- pluginfinity:only claude -->\n",
+				});
+				const error = yield* failure(root);
+				assert.strictEqual(error.path, path.join(root, "skills/alpha/references/guide.md"));
+				assert.include(error.message, "line 2");
+			}),
+		);
+	});
+});
+
 describe("validate", () => {
 	layer(NodeServices.layer)((it) => {
 		it.effect("with --no-host, a current build passes without running any host", () =>
