@@ -8,14 +8,13 @@
 #   . "$(dirname "$0")/../lib/pluginfinity/hook.sh"   # hooks/<event>/<name>.sh
 #
 # Bash 3.2 compatible. Writes nothing when sourced. Needs jq.
+#
+# Do not install your own `trap ... EXIT`: it replaces the library's
+# fail-open / fail-closed trap, and a failing hook would then exit non-zero.
 
-_pf_lib_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=/dev/null
-. "$_pf_lib_dir/host.sh"
-
-_pf_emitted=0
 _pf_fail_closed=0
 _pf_event=""
+_pf_marker=""
 
 # --- logging --------------------------------------------------------------
 
@@ -35,13 +34,34 @@ hook_debug() {
 	_pf_write_log debug "$*"
 }
 
+# Until the library is fully loaded a failure must still fail open: on Copilot
+# a non-zero exit from a preToolUse hook denies the tool.
+_pf_early_exit() {
+	local code=$?
+	[ "$code" -eq 0 ] || hook_log "exited $code while loading the hook library"
+	_pf_cleanup
+	exit 0
+}
+_pf_cleanup() {
+	if [ -n "$_pf_marker" ]; then rm -f "$_pf_marker" 2>/dev/null || true; fi
+	return 0
+}
+trap _pf_early_exit EXIT
+
+_pf_lib_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd) || exit 0
+# shellcheck source=/dev/null
+. "$_pf_lib_dir/host.sh" 2>/dev/null || {
+	hook_log "host.sh not loadable; hook skipped"
+	exit 0
+}
+
 # --- input ----------------------------------------------------------------
 
 # Read the event once. A terminal on stdin (a hand run) reads as {}.
 if [ -t 0 ]; then
 	_pf_input='{}'
 else
-	_pf_input=$(cat)
+	_pf_input=$(cat) || _pf_input='{}'
 fi
 [ -n "$_pf_input" ] || _pf_input='{}'
 
@@ -49,6 +69,12 @@ if ! command -v jq >/dev/null 2>&1; then
 	hook_log "jq not found; hook skipped"
 	exit 0
 fi
+
+# One marker file records that a response went out. It is a file, not a
+# variable, so a response sent from a subshell or a pipeline still counts.
+_pf_marker=$(mktemp "${TMPDIR:-/tmp}/pluginfinity-emitted.XXXXXX" 2>/dev/null) ||
+	_pf_marker="${TMPDIR:-/tmp}/pluginfinity-emitted.$$"
+: >"$_pf_marker" 2>/dev/null || true
 
 # A Claude field name, read from either payload form: as written, then the
 # camelCase spelling (tool_input from a toolArgs object or JSON string,
@@ -67,25 +93,33 @@ def args: if type == "string" then (fromjson? // .) else . end;
 
 # Print an input field by its Claude name (dotted for nested keys), or the
 # whole input as JSON with no argument. Prints nothing for a missing field.
-hook_input() { printf '%s' "$_pf_input" | jq -r --arg path "${1:-}" "$_PF_INPUT_FILTER"; }
+hook_input() { printf '%s' "$_pf_input" | jq -r --arg path "${1:-}" "$_PF_INPUT_FILTER" 2>/dev/null; }
 
 # --- failure policy -------------------------------------------------------
 
+_pf_has_emitted() { [ -s "$_pf_marker" ]; }
+
+_pf_closed_response() { # code
+	local reason="${PLUGINFINITY_PLUGIN:-a plugin} hook failed (exit $1)" body
+	if hook_supports deny; then
+		_pf_permission deny "$reason"
+	elif hook_supports block; then
+		body=$(jq -nc --arg r "$reason" '{decision: "block", reason: $r}') || return 1
+		_pf_emit "$body"
+	fi
+}
+
 _pf_on_exit() {
 	local code=$?
-	[ "$code" -eq 0 ] && return 0
-	hook_log "exited $code during ${_pf_event:-an unknown event}"
-	if [ "$_pf_emitted" = 0 ] && [ "$_pf_fail_closed" = 1 ]; then
-		local reason="${PLUGINFINITY_PLUGIN:-a plugin} hook failed (exit $code)"
-		if hook_supports deny; then
-			_pf_permission deny "$reason"
-		elif hook_supports block; then
-			_pf_emit "$(jq -nc --arg r "$reason" '{decision: "block", reason: $r}')"
+	if [ "$code" -ne 0 ]; then
+		hook_log "exited $code during ${_pf_event:-an unknown event}"
+		if [ "$_pf_fail_closed" = 1 ] && ! _pf_has_emitted; then
+			_pf_closed_response "$code" || true
 		fi
 	fi
+	_pf_cleanup
 	exit 0
 }
-trap _pf_on_exit EXIT
 
 # Make a failure deny (PreToolUse) or block (where blocking is honoured)
 # instead of letting the action through.
@@ -121,7 +155,7 @@ hook_project_dir() {
 	dir=$(hook_input cwd)
 	[ -n "$dir" ] || dir=$PWD
 	probe=$dir
-	while [ -n "$probe" ] && [ "$probe" != / ]; do
+	while [ -n "$probe" ] && [ "$probe" != / ] && [ "$probe" != . ]; do
 		if [ -e "$probe/.git" ]; then
 			printf '%s\n' "$probe"
 			return 0
@@ -163,11 +197,15 @@ hook_supports() {
 # --- output ---------------------------------------------------------------
 
 _pf_emit() { # json
-	if [ "$_pf_emitted" = 1 ]; then
+	if [ -z "${1:-}" ]; then
+		hook_log "refused to send an empty response"
+		return 1
+	fi
+	if _pf_has_emitted; then
 		hook_debug "ignored a second response: $1"
 		return 0
 	fi
-	_pf_emitted=1
+	printf 1 >"$_pf_marker" 2>/dev/null || true
 	printf '%s\n' "$1"
 }
 
@@ -177,18 +215,16 @@ _pf_unsupported() { # function-name
 }
 
 _pf_permission() { # decision reason [updated-input-json]
-	local key=updatedInput
+	local key=updatedInput body
 	[ "$PLUGINFINITY_HOST" = copilot ] && key=modifiedArgs
-	local body
 	body=$(jq -nc --arg d "$1" --arg r "${2:-}" --argjson u "${3:-null}" --arg k "$key" \
 		'{permissionDecision: $d}
 		 + (if $r == "" then {} else {permissionDecisionReason: $r} end)
-		 + (if $u == null then {} else {($k): $u} end)')
-	if [ "$PLUGINFINITY_HOST" = copilot ]; then
-		_pf_emit "$body"
-	else
-		_pf_emit "$(jq -nc --argjson b "$body" '{hookSpecificOutput: ({hookEventName: "PreToolUse"} + $b)}')"
+		 + (if $u == null then {} else {($k): $u} end)') || return 1
+	if [ "$PLUGINFINITY_HOST" != copilot ]; then
+		body=$(jq -nc --argjson b "$body" '{hookSpecificOutput: ({hookEventName: "PreToolUse"} + $b)}') || return 1
 	fi
+	_pf_emit "$body"
 }
 
 # Respond with nothing to change.
@@ -200,12 +236,14 @@ hook_context() {
 		_pf_unsupported hook_context
 		return 0
 	}
+	local body
 	if [ "$PLUGINFINITY_HOST" = copilot ]; then
-		_pf_emit "$(jq -nc --arg c "${1:-}" '{additionalContext: $c}')"
+		body=$(jq -nc --arg c "${1:-}" '{additionalContext: $c}') || return 1
 	else
-		_pf_emit "$(jq -nc --arg e "$_pf_event" --arg c "${1:-}" \
-			'{hookSpecificOutput: {hookEventName: $e, additionalContext: $c}}')"
+		body=$(jq -nc --arg e "$_pf_event" --arg c "${1:-}" \
+			'{hookSpecificOutput: {hookEventName: $e, additionalContext: $c}}') || return 1
 	fi
+	_pf_emit "$body"
 }
 
 # PreToolUse: refuse the tool call.
@@ -241,7 +279,9 @@ hook_block() {
 		_pf_unsupported hook_block
 		return 0
 	}
-	_pf_emit "$(jq -nc --arg r "${1:-Blocked by ${PLUGINFINITY_PLUGIN:-a plugin}}" '{decision: "block", reason: $r}')"
+	local body
+	body=$(jq -nc --arg r "${1:-Blocked by ${PLUGINFINITY_PLUGIN:-a plugin}}" '{decision: "block", reason: $r}') || return 1
+	_pf_emit "$body"
 }
 
 # Show the user a message.
@@ -250,7 +290,9 @@ hook_system_message() {
 		_pf_unsupported hook_system_message
 		return 0
 	}
-	_pf_emit "$(jq -nc --arg m "${1:-}" '{systemMessage: $m}')"
+	local body
+	body=$(jq -nc --arg m "${1:-}" '{systemMessage: $m}') || return 1
+	_pf_emit "$body"
 }
 
 # Emit a host-specific JSON response verbatim, only on that host.
@@ -259,5 +301,12 @@ hook_raw() {
 		hook_debug "hook_raw for ${1:-no host} skipped on $PLUGINFINITY_HOST"
 		return 0
 	fi
-	_pf_emit "$(printf '%s' "${2:-}" | jq -c .)"
+	local body
+	body=$(printf '%s' "${2:-}" | jq -c . 2>/dev/null) || {
+		hook_log "hook_raw: not JSON: ${2:-}"
+		return 1
+	}
+	_pf_emit "$body"
 }
+
+trap _pf_on_exit EXIT

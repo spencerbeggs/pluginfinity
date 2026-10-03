@@ -114,11 +114,76 @@ load helpers
 	[ "$output" = "$BATS_TEST_TMPDIR/loose" ]
 }
 
+@test "hook_project_dir terminates on a relative cwd" {
+	make_plugin copilot
+	hook_script 'hook_project_dir'
+	run_script '{"hook_event_name":"Stop","cwd":"rel/dir"}'
+	[ "$status" -eq 0 ]
+	[ "$output" = "rel/dir" ]
+}
+
 @test "hook_supports: block on Stop is honoured on both hosts, on PostToolUse only on claude" {
 	make_plugin copilot
 	hook_script 'hook_supports block Stop && echo stop; hook_supports block PostToolUse || echo no-post'
 	run_script "$FIXTURES/stop.json"
 	[ "$output" = $'stop\nno-post' ]
+}
+
+@test "hook_supports claude:context lists" {
+	make_plugin claude
+	hook_script 'for e in SessionStart SubagentStart PostModelSwitch UserPromptSubmit UserPromptExpansion PreToolUse PostToolUse PostToolUseFailure PostToolBatch Stop SubagentStop; do hook_supports context "$e" || echo "missing $e"; done
+for e in PreCompact Notification SessionEnd; do ! hook_supports context "$e" || echo "extra $e"; done
+echo done'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = "done" ]
+}
+
+@test "hook_supports claude:block lists" {
+	make_plugin claude
+	hook_script 'for e in UserPromptSubmit UserPromptExpansion PostToolUse PostToolUseFailure PostToolBatch Stop SubagentStop ConfigChange PreCompact TaskCreated PreModelSwitch; do hook_supports block "$e" || echo "missing $e"; done
+for e in SessionStart PreToolUse Notification; do ! hook_supports block "$e" || echo "extra $e"; done
+echo done'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = "done" ]
+}
+
+@test "hook_supports copilot:context lists" {
+	make_plugin copilot
+	hook_script 'for e in SessionStart SubagentStart PostToolUse Notification; do hook_supports context "$e" || echo "missing $e"; done
+for e in UserPromptSubmit Stop PreToolUse; do ! hook_supports context "$e" || echo "extra $e"; done
+echo done'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = "done" ]
+}
+
+@test "hook_supports copilot:block lists" {
+	make_plugin copilot
+	hook_script 'for e in Stop SubagentStop; do hook_supports block "$e" || echo "missing $e"; done
+for e in PostToolUse PreToolUse UserPromptSubmit; do ! hook_supports block "$e" || echo "extra $e"; done
+echo done'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = "done" ]
+}
+
+@test "hook_supports deny, allow and ask only on PreToolUse, on both hosts" {
+	for host in claude copilot; do
+		make_plugin "$host"
+		hook_script 'for c in deny allow ask; do hook_supports "$c" PreToolUse || echo "missing $c"; for e in PostToolUse Stop SessionStart; do ! hook_supports "$c" "$e" || echo "extra $c $e"; done; done
+echo done'
+		run_script "$FIXTURES/stop.json"
+		[ "$output" = "done" ]
+	done
+}
+
+@test "hook_supports system_message only on claude" {
+	make_plugin claude
+	hook_script 'hook_supports system_message Stop && echo yes'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = "yes" ]
+	make_plugin copilot
+	hook_script 'hook_supports system_message Stop || echo no'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = "no" ]
 }
 
 # --- output ---
@@ -146,11 +211,18 @@ load helpers
 	[[ "$(debug_log)" == *"hook_context does nothing on copilot for UserPromptSubmit"* ]]
 }
 
-@test "context text with quotes, newlines and dollars survives" {
+@test "context text with quotes, newlines, backslashes and dollars survives" {
 	make_plugin claude
 	hook_script 'hook_context "$(hook_input tool_input.command)"'
 	run_script "$FIXTURES/pretooluse.bash.json"
-	[ "$(jq -r .hookSpecificOutput.additionalContext <<<"$output")" = "$(printf 'rm -rf "$HOME"; echo '"'"'quoted'"'"'\nnext')" ]
+	[ "$(jq -r .hookSpecificOutput.additionalContext <<<"$output")" = "$(printf '%s\n%s' 'rm -rf "$HOME"; echo '"'"'quoted'"'"' c:\dir' next)" ]
+}
+
+@test "context text with quotes, newlines, backslashes and dollars survives on copilot" {
+	make_plugin copilot
+	hook_script 'hook_context "$(hook_input tool_input.command)"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PostToolUse
+	[ "$(jq -r .additionalContext <<<"$output")" = "$(printf '%s\n%s' 'rm -rf "$HOME"; echo '"'"'quoted'"'"' c:\dir' next)" ]
 }
 
 @test "hook_deny on claude" {
@@ -313,6 +385,63 @@ load helpers
 	run_script 'not json'
 	[ "$status" -eq 0 ]
 	[ -z "$output" ]
+	[ -z "$stderr" ]
+}
+
+@test "a response from a subshell counts as the one response" {
+	make_plugin claude
+	hook_script '( hook_block "a" ); hook_block "b"'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = '{"decision":"block","reason":"a"}' ]
+}
+
+@test "a response from a pipeline counts as the one response" {
+	make_plugin claude
+	hook_script 'echo x | while read -r l; do hook_block "a"; done; hook_block "b"'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = '{"decision":"block","reason":"a"}' ]
+}
+
+@test "hook_fail_closed keeps a response sent from a subshell" {
+	make_plugin claude
+	hook_script 'hook_fail_closed; ( hook_block "a" ); false'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = '{"decision":"block","reason":"a"}' ]
+}
+
+@test "hook_raw with invalid JSON fails open and logs" {
+	make_plugin claude
+	hook_script 'hook_raw claude "not json"'
+	run_script "$FIXTURES/stop.json"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+	[ -z "$stderr" ]
+	[[ "$(error_log)" == *"hook_raw: not JSON"* ]]
+}
+
+@test "hook_raw with invalid JSON under hook_fail_closed denies on PreToolUse" {
+	make_plugin copilot
+	hook_script 'hook_fail_closed; hook_raw copilot "not json"'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$status" -eq 0 ]
+	[ "$(jq -r .permissionDecision <<<"$output")" = "deny" ]
+}
+
+@test "a missing host.sh exits 0 with no output" {
+	make_plugin copilot
+	rm "$PLUGIN/hooks/lib/pluginfinity/host.sh"
+	hook_script 'hook_deny "x"'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "the emitted marker file is removed on exit" {
+	make_plugin claude
+	hook_script 'hook_block "a"'
+	mkdir -p "$BATS_TEST_TMPDIR/tmp"
+	run_script "$FIXTURES/stop.json" TMPDIR="$BATS_TEST_TMPDIR/tmp"
+	[ -z "$(ls "$BATS_TEST_TMPDIR/tmp")" ]
 }
 
 # --- logging ---
@@ -336,9 +465,11 @@ load helpers
 # --- meta ---
 
 @test "every public library function has a test" {
-	local fn missing=""
-	for fn in $(grep -oE '^hook_[a-z_]+\(\)' "$LIB_SRC/hook.sh" | tr -d '()'); do
-		grep -q "$fn" "$BATS_TEST_FILENAME" || missing="$missing $fn"
+	local fn missing="" fns
+	fns=$(grep -oE '^hook_[a-z_]+\(\)' "$LIB_SRC/hook.sh" | tr -d '()')
+	[ -n "$fns" ]
+	for fn in $fns; do
+		grep -qw "$fn" "$BATS_TEST_FILENAME" || missing="$missing $fn"
 	done
 	[ -z "$missing" ] || { echo "untested:$missing"; false; }
 }
