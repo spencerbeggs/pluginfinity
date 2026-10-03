@@ -15,8 +15,8 @@ sources:
     title: The Phase 1 design agreed with the repository owner, section by section
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T01:53:17Z
-  body_sha256: 4feb42e6f843d68ef8733cea9254a599219e343072ce6905d0dc4f9159fde5ac
+  at: 2026-10-03T02:18:07Z
+  body_sha256: 85fb666ec6b92707f06fc0f2eb1b792947a3bd676acbf05b9adf3c94eee4e5f6
 ---
 
 # Plugin source model
@@ -48,7 +48,8 @@ The first release covers four component kinds: skills, agents, hooks and MCP ser
 ## Body constructs
 
 - **Host blocks.** `<!-- pluginfinity:only <id> [<id>…] -->` … `<!-- /pluginfinity:only -->` keeps the enclosed passage for the listed targets and strips it for the rest. Blocks do not nest; an unclosed block or an unknown id fails.
-- **References.** A markdown link destination `pluginfinity://skill/<skill>[/<path>]` or `pluginfinity://agent/<agent>` must name a component, and a file, that exists. Each target rewrites it ([target description](target-description.md)). Both forms pass the repository's markdownlint config.
+- **References.** A markdown link destination `pluginfinity://skill/<skill>[/<path>]` or `pluginfinity://agent/<agent>` must name a component, and a file, that exists. Each target rewrites it ([target description](target-description.md)). Both forms pass the repository's markdownlint config. They are not built yet, so a build refuses any such link outside code rather than ship it as text.
+- **Code is text.** A host-block marker or a reference inside fenced code or an inline code span is shown, not acted on.
 
 Whole-file overrides per target are out of scope until a plugin needs them.[^owner-direction]
 
@@ -76,6 +77,7 @@ export default defineConfig({
 
 - **Metadata.** `description` is required; `author`, `homepage`, `repository`, `license` and `keywords` are optional. `version` is still copied from `package.json`.
 - **A hook entry** has exactly one of `script` (a path from the plugin root) or `command` (a string whose one placeholder is `${PLUGIN_ROOT}`), and optional `matcher`, `args` (with `script` only), `timeout` in seconds and `fallback`. HTTP and prompt hook types are out of scope.
+- **Files a `command` names** as `${PLUGIN_ROOT}/<path>` ship and are checked like `script` paths.
 - **The `hooks/` directory** ships whole to every target, so a script can source helpers the config never names, except scripts that only another target's hooks run. Test data belongs outside it. A script outside `hooks/` ships to the targets that run it.
 - **`fallback`** says what a target that lacks the event does: `"fail"` (the default) or `"omit"`.
 - **`scripts.invoke`.** `"bash"`, the default, emits `bash "<root>/<path>"` and ignores the file mode, because this repository keeps scripts in git without the executable bit and restores it locally. `"exec"` emits the bare quoted path and fails a build whose shipped `.sh` files are not executable in the source.

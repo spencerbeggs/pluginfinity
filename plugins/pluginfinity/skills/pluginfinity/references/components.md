@@ -43,13 +43,15 @@ An agent is one file, `agents/<name>.md`. Its `name` is required and must equal 
     parsing refs (Closes #12) out of a commit message
   ```
 
+- **Line endings are LF in every build**, whatever the source uses.
 - **Unchanged frontmatter is kept as written.** When a host takes every field as is, the build writes the
   author's text unchanged, comments and folding included; otherwise it re-serializes the fields in the
   author's order.
 
 ## The `targets` block
 
-Any skill or agent can carry a `targets` block keyed by target id. It is never written to a build.
+Any skill or agent can carry a `targets` block keyed by target id. It is never written to a build. Core
+fields set there are checked like the base ones, and a problem is reported as `targets.<id>.<field>`.
 
 ```yaml
 targets:
@@ -83,6 +85,12 @@ The opening marker lists one or more target ids. A host the block lists keeps th
 drop it; every marker line is removed from every build. Blocks do not nest. A block that never closes, a
 close with no open, an unknown id or a marker sharing its line with other text fails. A marker inside
 fenced code or an inline code span is plain text, so a body can show one, as this page does.
+
+## References
+
+`pluginfinity://` links are not built yet. A build refuses one outside code; link with a relative path,
+such as `references/guide.md` or `../other-skill/SKILL.md`, which works on every host because skills sit
+at the same place in each build.
 
 ## Description length
 

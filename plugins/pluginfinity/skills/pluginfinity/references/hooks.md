@@ -26,7 +26,8 @@ An entry has exactly one of `script` or `command`.
 ## How scripts run
 
 With `scripts.invoke: "bash"`, the default, a script entry becomes `bash "<root>/<script>"`, so the file
-needs no executable bit. That suits repositories that keep scripts in git without it. With `"exec"`, the
+needs no executable bit. A path with characters the shell would read, such as `$` or a space, is
+single-quoted. That suits repositories that keep scripts in git without it. With `"exec"`, the
 command is the quoted path alone, and the build fails if the script is not executable.
 
 The plugin root is `${CLAUDE_PLUGIN_ROOT}` on Claude Code and `${PLUGIN_ROOT}` on Copilot. Copilot also
@@ -36,7 +37,8 @@ sets `CLAUDE_PLUGIN_ROOT` in a hook's environment, so a script can read either.
 
 Every host gets the source `hooks/` directory whole, so a script can source helpers the config never
 names, except scripts only another host's hooks run. Keep test data out of `hooks/`. A script outside
-`hooks/` ships to the hosts that run it.
+`hooks/` ships to the hosts that run it, as does any file a `command` names as `${PLUGIN_ROOT}/<path>`;
+the build fails if one is missing. Clutter such as `.DS_Store` never ships.
 
 pluginfinity writes the hooks file itself: `hooks/hooks.json` on Claude Code and
 `com.github.copilot/hooks/hooks.json` on Copilot. A source file at either path fails the build.

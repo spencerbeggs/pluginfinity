@@ -24,6 +24,7 @@ exits 64.
 | `ComponentsInvalid` | One or more skills or agents are wrong; each is listed with its file and, where it applies, the host | Fix each listed file, as below |
 | `HookEventUnsupported` | A host lacks a hook event the config uses | Set `fallback: "omit"`, or give that host its own hooks for the event |
 | `HookScriptInvalid` | A hook script is missing, or not executable under `scripts.invoke: "exec"` | Create it or fix the path; `chmod +x` it or drop `exec` |
+| `NotImplemented` | The config sets `mcpServers`, which are not built yet | Remove them until a release builds them |
 | `PathConflict` | A source file sits where the build writes a generated file, such as `hooks/hooks.json` | Delete or move the source file |
 | `BuildStale` | `build --check` or `validate` found `builds/` out of date; the message names every file | Run `pluginfinity build` and commit the result |
 
@@ -39,6 +40,8 @@ Common problems inside `ComponentsInvalid`:
   in its `targets` block.
 - **A host-block problem at line N.** Close the block, use a known target id, or give the marker its own
   line.
+- **A `pluginfinity://` link.** References are not built yet; use a relative link.
+- **A mistyped `targets.<id>.<field>`.** An override is checked like the base field; fix its value.
 
 ## Validating
 

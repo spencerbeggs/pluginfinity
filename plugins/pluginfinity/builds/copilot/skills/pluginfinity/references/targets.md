@@ -32,8 +32,8 @@ it ignores in plugin agents, so the build drops them. On Copilot:
 | :-- | :-- |
 | `name`, `description` | Kept |
 | `tools` | Translated to Copilot's aliases; see below |
-| `model` | Kept, except `inherit`, which is dropped: Copilot inherits when no model is set |
-| `effort` | Renamed `reasoningEffort` |
+| `model` | A full model ID is kept; `inherit` is dropped, since Copilot inherits when no model is set; the aliases `sonnet`, `opus`, `haiku` and `fable` are unresolved, so set a model ID under `targets.copilot` |
+| `effort` | Written as `reasoningEffort` for `low`, `medium` and `high`; `xhigh` and `max` are unresolved |
 | `skills` | Appended to the body as a `## Skills` list |
 | `mcpServers` | Unresolved: set `mcp-servers` under `targets.copilot` instead |
 | Every other field | Dropped |
@@ -58,6 +58,8 @@ On Copilot each Claude Code tool name becomes its documented alias, with duplica
 | `Skill` | Dropped; Copilot has no alias |
 | `mcp__<server>__<tool>` | `<server>/<tool>` |
 
-Any other name passes through unchanged; Copilot ignores names it does not recognize. A
+A rule such as `Bash(git log:*)` on a renamed tool is unresolved: Copilot has no per-command rules, and
+dropping the rule would widen the tool, so set the field under `targets.copilot`. Any other name passes
+through unchanged; Copilot ignores names it does not recognize. A
 `mcp__plugin_...` name belongs to another plugin, whose server name on Copilot is unknown, so it passes
 through too.

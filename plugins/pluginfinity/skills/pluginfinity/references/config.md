@@ -34,7 +34,7 @@ export default defineConfig({
 | `keywords` | No | A list of strings |
 | `scripts.invoke` | No | How hook scripts run: `"bash"` (the default) or `"exec"`; see [hooks](hooks.md) |
 | `hooks` | No | Hook entries keyed by Claude Code event name; see [hooks](hooks.md) |
-| `mcpServers` | No | Accepted by the config, but not built yet |
+| `mcpServers` | No | Not built yet: a config that sets it fails with `NotImplemented` |
 | `claude`, `copilot` | At least one | Enables that target; see below |
 
 The version is not a config field: every manifest copies `version` from the `package.json` beside the
@@ -52,4 +52,4 @@ overrides:
 - `hooks`: per-event replacements. An event listed here replaces the base entries for that event on
   that host only; `[]` removes the event there. Copilot's object also accepts `userPromptTransformed`
   and `errorOccurred`, events only Copilot has.
-- `mcpServers`: accepted, not built yet.
+- `mcpServers`: not built yet; setting it fails the build.
