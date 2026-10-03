@@ -9,13 +9,16 @@ tags:
   - dx
   - ci
 sources:
+  - id: plugin-manifest
+    resource: ../../plugins/pluginfinity/package.json
+    title: The companion plugin's package manifest and build scripts
   - id: carrier-manifest
     resource: ../../packages/pluginfinity/package.json
     title: Carrier manifest with publishConfig.linkDirectory and the postprepare relink
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T03:08:38Z
-  body_sha256: 385e0b8a32bce1a5048b43ac72df53ceeb96351c1e66e65db170b1327b6d1764
+  at: 2026-10-03T03:39:43Z
+  body_sha256: 45ce66d1977fa543cd162d98877fba8b96a6b0b805ba93e838e101f643a521be
 ---
 
 # A workspace plugin gets no pluginfinity bin unless the carrier is relinked after its build
@@ -40,6 +43,9 @@ cd ../.. && pnpm rebuild pluginfinity
 
 `pnpm rebuild pluginfinity`, run from the workspace root, is the step that creates the shims in every dependent workspace. It does not re-run the carrier's `prepare`, so it does not loop. The built manifests under `dist/` carry no `scripts`, so the hook never reaches the published package. To recover by hand, for example after `pnpm install --ignore-scripts`, run `pnpm build` and then `pnpm rebuild pluginfinity` from the root. A filtered `pnpm rebuild --filter "./plugins/*"` does not relink.
 
+`postprepare` does not run when lifecycle scripts are skipped, and the release workflow installs with `--ignore-scripts`. So the plugins in this repository never rely on the shim. Their `build:dev`, `build:prod` and `validate` scripts run `node node_modules/pluginfinity/bin/pluginfinity.js`, through the package link, which exists from the install onward and resolves once turbo has built the carrier, since a plugin's `build:dev` waits on `^build:dev`.[^plugin-manifest] A release once failed here: the plugins' builds exited 127, command not found, after a clean `--ignore-scripts` install.
+
 The source `bin` at `src/bin/pluginfinity.ts` is not a usable fallback: it imports `@pluginfinity/cli/main`, which resolves to the CLI's built output, so it cannot run before the build either.
 
 [^carrier-manifest]: `../../packages/pluginfinity/package.json`
+[^plugin-manifest]: `../../plugins/pluginfinity/package.json`

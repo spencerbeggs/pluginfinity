@@ -6,10 +6,10 @@
 	"license": "MIT",
 	"type": "module",
 	"scripts": {
-		"build:dev": "pluginfinity build",
-		"build:prod": "pluginfinity build",
+		"build:dev": "node node_modules/pluginfinity/bin/pluginfinity.js build",
+		"build:prod": "node node_modules/pluginfinity/bin/pluginfinity.js build",
 		"types:check": "tsc --noEmit",
-		"validate": "pluginfinity validate"
+		"validate": "node node_modules/pluginfinity/bin/pluginfinity.js validate"
 	},
 	"devDependencies": {
 		"pluginfinity": "workspace:*"

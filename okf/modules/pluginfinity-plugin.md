@@ -17,8 +17,8 @@ sources:
     title: Companion plugin tracking package
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T03:08:38Z
-  body_sha256: 4cc239e705ec22d94baa7191ad536f75f3b60ab968dbec95d192b7d4b5bba007
+  at: 2026-10-03T03:39:43Z
+  body_sha256: 479a76a003796d0020ccdb6dada3e5eaf3cfcafeb4d92d2a4b00bb0d8787d92f
 ---
 
 # pluginfinity companion plugin
@@ -30,7 +30,7 @@ generated:
 ## Shape
 
 - `package.json` is a private tracking package, `@pluginfinity/ai-plugins`, that is never published to npm. A changeset against it bumps its version, which the build copies into each generated manifest, and CI cuts a GitHub-only release that the marketplaces track; `.changeset/config.json` lists both built manifests as its version files.[^package-manifest]
-- It depends on the CLI as `"pluginfinity": "workspace:*"` in `devDependencies`, so its scripts run the locally built `pluginfinity`. See [the bin-link gotcha](../gotchas/workspace-bin-needs-built-cli.md).
+- It depends on the CLI as `"pluginfinity": "workspace:*"` in `devDependencies`, so its scripts run the locally built `pluginfinity`, through `node node_modules/pluginfinity/bin/pluginfinity.js` rather than the bin shim, which a clean install with `--ignore-scripts` never creates. See [the bin-link gotcha](../gotchas/workspace-bin-needs-built-cli.md).
 - Once there is a source to build, it follows the target layout in [the roadmap](../roadmaps/pluginfinity-first-release.md): host-neutral source at the root, `pluginfinity.config.ts`, and generated, committed output under `builds/<id>/`.
 
 ## Status
