@@ -4,12 +4,14 @@
  * @remarks
  * Config discovery and loading, the `doctor` program, and `build` and
  * `validate`. Reads no `process`: a front end passes the start directory and
- * the Node.js version down. Builds emit each target's manifest, hooks and skills so
- * far; agents and MCP servers follow.
+ * the Node.js version down. Builds emit each target's manifest, hooks, skills and
+ * agents; MCP servers follow.
  *
  * @packageDocumentation
  */
 
+export type { SourceAgent } from "./agents.js";
+export { readAgents, renderAgent } from "./agents.js";
 export type { HostBlockProblem } from "./body.js";
 export { applyHostBlocks } from "./body.js";
 export { CONFIG_FILE_NAMES, ConfigDiscovery } from "./discovery.js";
@@ -30,6 +32,7 @@ export type { BuildError, ConfigError } from "./errors.js";
 export {
 	BuildStale,
 	ComponentInvalid,
+	ComponentsInvalid,
 	ConfigAmbiguous,
 	ConfigInvalid,
 	ConfigIssue,

@@ -1,12 +1,12 @@
-import { Yaml } from "@effected/yaml";
 import type { Target } from "@pluginfinity/core";
 import { ComponentName, SkillFrontmatter } from "@pluginfinity/core";
 import type { PlatformError } from "effect";
-import { Effect, FileSystem, Path, Schema, SchemaIssue } from "effect";
+import { Effect, FileSystem, Path, Schema } from "effect";
 import { applyHostBlocks } from "./body.js";
+import { decodeComponent, frontmatterText, invalid, issue, unknownTargets } from "./component.js";
 import type { EmittedFile } from "./emit.js";
-import { ComponentInvalid, ConfigIssue } from "./errors.js";
-import { appendSections, mapFrontmatter, splitFrontmatter } from "./frontmatter.js";
+import type { ComponentInvalid, ConfigIssue } from "./errors.js";
+import { appendSections, mapFrontmatter } from "./frontmatter.js";
 
 /**
  * The most characters a built skill's `description` may hold: the Agent
@@ -28,18 +28,15 @@ export interface SourceSkill {
 	/** The absolute path of its `SKILL.md`. */
 	readonly path: string;
 	readonly frontmatter: typeof SkillFrontmatter.Type;
+	/** The frontmatter as written, without its fences. */
+	readonly frontmatterText: string;
 	/** Everything after the closing frontmatter fence, unchanged. */
 	readonly body: string;
+	/** The file lines before the body. */
+	readonly bodyOffset: number;
 	/** Its other files, as `/`-separated paths relative to the skill directory, sorted. */
 	readonly files: ReadonlyArray<string>;
 }
-
-const formatter = SchemaIssue.makeFormatterStandardSchemaV1();
-
-const issue = (key: string, message: string): ConfigIssue => ConfigIssue.make({ key, message });
-
-const invalid = (path: string, issues: ReadonlyArray<ConfigIssue>, target?: string) =>
-	new ComponentInvalid({ path, issues: [...issues], ...(target === undefined ? {} : { target }) });
 
 /** Every file under `dir`, as sorted `/`-separated relative paths. */
 const filesUnder = (
@@ -71,52 +68,27 @@ const readSkill = (
 			);
 		}
 		if (!(yield* fs.exists(file))) return yield* Effect.fail(invalid(dir, [issue("", "the skill has no SKILL.md")]));
-		const split = splitFrontmatter(yield* fs.readFileString(file));
-		if (split === undefined) {
-			return yield* Effect.fail(invalid(file, [issue("", "SKILL.md must open with a --- frontmatter block")]));
-		}
-		const raw = yield* Yaml.parse(split.frontmatter).pipe(
-			// Diagnostics count lines and characters from 0 within the frontmatter,
-			// which starts on the file's second line.
-			Effect.mapError((error) =>
-				invalid(
-					file,
-					error.diagnostics.map((diagnostic) =>
-						issue(
-							`line ${diagnostic.line + 2}, column ${diagnostic.character + 1}`,
-							`the frontmatter is not valid YAML: ${diagnostic.message}`,
-						),
-					),
-				),
-			),
-		);
-		const frontmatter = yield* Schema.decodeUnknownEffect(SkillFrontmatter)(raw ?? {}, {
-			errors: "all",
-			onExcessProperty: "error",
-		}).pipe(
-			Effect.mapError((error) =>
-				invalid(
-					file,
-					formatter(error.issue).issues.map((found) => issue((found.path ?? []).map(String).join("."), found.message)),
-				),
-			),
-		);
-		const problems: Array<ConfigIssue> = [];
-		if (frontmatter.name !== undefined && frontmatter.name !== name) {
-			problems.push(issue("name", `must equal the directory name "${name}"`));
-		}
-		for (const id of Object.keys(frontmatter.targets ?? {})) {
-			if (!known.includes(id))
-				problems.push(issue(`targets.${id}`, `unknown target; known targets: ${known.join(", ")}`));
-		}
+		const {
+			frontmatter,
+			frontmatterText: text,
+			body,
+			bodyOffset,
+		} = yield* decodeComponent(file, yield* fs.readFileString(file), SkillFrontmatter);
+		const problems: Array<ConfigIssue> = [
+			...(frontmatter.name !== undefined && frontmatter.name !== name
+				? [issue("name", `must equal the directory name "${name}"`)]
+				: []),
+			...unknownTargets(frontmatter.targets, known),
+		];
 		if (problems.length > 0) return yield* Effect.fail(invalid(file, problems));
 		const files = (yield* filesUnder(dir)).filter((entry) => entry !== "SKILL.md");
-		return { name, path: file, frontmatter, body: split.body, files };
+		return { name, path: file, frontmatter, frontmatterText: text, body, bodyOffset, files };
 	});
 
 /**
  * Read every skill under `<root>/skills/`, sorted by name; none when the
- * directory is absent. A skill that does not decode fails the read.
+ * directory is absent. A skill that does not decode is collected in
+ * `failures` rather than stopping the read, so one build reports them all.
  *
  * @public
  */
@@ -124,25 +96,27 @@ export const readSkills = (
 	root: string,
 	known: ReadonlyArray<string>,
 ): Effect.Effect<
-	ReadonlyArray<SourceSkill>,
-	ComponentInvalid | PlatformError.PlatformError,
+	{ readonly skills: ReadonlyArray<SourceSkill>; readonly failures: ReadonlyArray<ComponentInvalid> },
+	PlatformError.PlatformError,
 	FileSystem.FileSystem | Path.Path
 > =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
 		const dir = path.join(root, "skills");
-		if (!(yield* fs.exists(dir))) return [];
+		if (!(yield* fs.exists(dir))) return { skills: [], failures: [] };
 		const skills: Array<SourceSkill> = [];
+		const failures: Array<ComponentInvalid> = [];
 		for (const entry of (yield* fs.readDirectory(dir)).sort()) {
 			const skillDir = path.join(dir, entry);
 			if ((yield* fs.stat(skillDir)).type !== "Directory") continue;
-			skills.push(yield* readSkill(skillDir, entry, known));
+			const skill = yield* readSkill(skillDir, entry, known).pipe(
+				Effect.catchTag("ComponentInvalid", (error) => Effect.sync(() => void failures.push(error))),
+			);
+			if (skill !== undefined) skills.push(skill);
 		}
-		return skills;
+		return { skills, failures };
 	});
-
-const STRINGIFY = { lineWidth: 0, quoteStyle: "double", quoteCompat: "yaml-1.1", finalNewline: true } as const;
 
 /**
  * Render one skill for a target, or `undefined` when its `targets` block
@@ -188,11 +162,16 @@ export const renderSkill = (
 				),
 			);
 		}
+		// A malformed host block is wrong for every target, so it names none.
 		const body = applyHostBlocks(skill.body, id, known);
-		if ("problem" in body) problems.push(issue(`line ${body.problem.line}`, body.problem.message));
+		if ("problem" in body) {
+			return yield* Effect.fail(
+				invalid(skill.path, [issue(`line ${body.problem.line + skill.bodyOffset}`, body.problem.message)]),
+			);
+		}
 		if (problems.length > 0) return yield* Effect.fail(invalid(skill.path, problems, id));
 
-		const yaml = yield* Yaml.stringify({ name: skill.name, description, ...rest }, STRINGIFY).pipe(Effect.orDie);
+		const yaml = yield* frontmatterText({ name: skill.name, description, ...rest }, skill);
 		const dir = path.dirname(skill.path);
 		const out = `${target.skills.dir}/${skill.name}`;
 		const files: Array<EmittedFile> = [
@@ -212,7 +191,7 @@ export const renderSkill = (
 			const processed = applyHostBlocks(yield* fs.readFileString(absolute), id, known);
 			if ("problem" in processed) {
 				return yield* Effect.fail(
-					invalid(absolute, [issue(`line ${processed.problem.line}`, processed.problem.message)], id),
+					invalid(absolute, [issue(`line ${processed.problem.line}`, processed.problem.message)]),
 				);
 			}
 			files.push({ path: `${out}/${file}`, content: processed.text, mode });

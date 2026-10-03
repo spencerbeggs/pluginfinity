@@ -382,6 +382,32 @@ export class ComponentInvalid extends Schema.TaggedError<ComponentInvalid>()("Co
 }
 
 /**
+ * Every skill and agent problem one build found, so a single run reports them
+ * all.
+ *
+ * @public
+ */
+export class ComponentsInvalid extends Schema.TaggedError<ComponentsInvalid>()("ComponentsInvalid", {
+	/** The config. */
+	path: Schema.String,
+	components: Schema.Array(ComponentInvalid),
+}) {
+	override get message(): string {
+		const count = this.components.length;
+		return [
+			`${count} ${count === 1 ? "component is" : "components are"} invalid in the plugin of ${this.path}:`,
+			...this.components.map((component) => `  - ${component.message}`),
+		].join("\n");
+	}
+
+	get remediation(): Remediation {
+		return {
+			hint: "Correct each listed file; a field one host cannot take can be set in that host's `targets` block.",
+		};
+	}
+}
+
+/**
  * Every finding a build or validation can produce after its config loaded.
  *
  * @public
@@ -393,7 +419,7 @@ export type BuildError =
 	| HookEventUnsupported
 	| HookScriptInvalid
 	| PathConflict
-	| ComponentInvalid;
+	| ComponentsInvalid;
 
 const BUILD_ERROR_TAGS: ReadonlyArray<string> = [
 	"PackageVersionMissing",
@@ -402,7 +428,7 @@ const BUILD_ERROR_TAGS: ReadonlyArray<string> = [
 	"HookEventUnsupported",
 	"HookScriptInvalid",
 	"PathConflict",
-	"ComponentInvalid",
+	"ComponentsInvalid",
 ];
 
 /**

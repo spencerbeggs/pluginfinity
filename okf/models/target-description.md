@@ -15,8 +15,8 @@ sources:
     title: The Phase 1 design agreed with the repository owner, section by section
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T01:28:45Z
-  body_sha256: dee5b27e3cd6d292c54bf13016e93dbfadbff8b9bf42d4def065484a46458606
+  at: 2026-10-03T01:53:17Z
+  body_sha256: d70324d8eecc6b3c0cfb122f770696445027cc909202ca624bf07bff22f5cb46
 ---
 
 # Target description
@@ -31,7 +31,8 @@ This is the agreed design for Phase 1 of [the roadmap](../roadmaps/pluginfinity-
 - **`hooks`.** A `path`, a `format` (`"claude-hooks-json"` or `"copilot-hooks-v1"`), a table from each Claude Code event to the target's name or `absent`, and the target's own event names.
 - **`mcp`.** A `path` and a `format` (`"claude-mcp-json"` or `"agent-plugins-mcp-1.0"`).
 - **`references`.** How a `pluginfinity://` link renders: as a path under the root's body spelling, or as prose ("the `<skill>` skill's `<path>`"), plugin-bot's Copilot convention.
-- **`tools`.** A table translating Claude Code tool names for agent `tools` and hook matchers.
+- **`tools`.** A table translating Claude Code tool names for agent `tools` and hook matchers; a name maps to the target's name, `drop`, or `unresolved`, and an unlisted name passes through. Claude's `mcp__<server>__<tool>` names are rewritten to the target's MCP spelling.
+- **`models`.** A table translating Claude Code model names; a name maps to the target's name or `drop`, which leaves the field out. Copilot drops `inherit`, since an agent with no model inherits the session's.
 
 ## Field-map entries
 

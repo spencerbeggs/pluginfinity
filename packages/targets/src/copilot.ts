@@ -50,7 +50,7 @@ const agentFields = {
 	description: keep,
 	tools: translate("tools"),
 	disallowedTools: drop,
-	model: keep,
+	model: translate("models"),
 	effort: rename("reasoningEffort"),
 	permissionMode: drop,
 	maxTurns: drop,
@@ -139,10 +139,30 @@ export const COPILOT: Target = Target.make({
 	},
 	references: { style: "prose" },
 	tools: {
+		// Copilot's primary aliases for the Claude Code tools it documents a
+		// compatible alias for. Skill has no alias and is dropped; any other
+		// Claude-only name passes through, since Copilot ignores names it does
+		// not recognize.
 		names: {
 			Agent: "agent",
-			Skill: unresolved("Copilot documents no alias for Claude Code's Skill tool"),
+			Task: "agent",
+			Bash: "execute",
+			PowerShell: "execute",
+			Read: "read",
+			NotebookRead: "read",
+			Edit: "edit",
+			MultiEdit: "edit",
+			Write: "edit",
+			NotebookEdit: "edit",
+			Grep: "search",
+			Glob: "search",
+			WebFetch: "web",
+			WebSearch: "web",
+			TodoWrite: "todo",
+			Skill: drop,
 		},
 		mcp: "{server}/{tool}",
 	},
+	// Copilot inherits the session's model when an agent sets none.
+	models: { inherit: drop },
 });

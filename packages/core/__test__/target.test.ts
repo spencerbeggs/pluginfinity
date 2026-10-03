@@ -36,7 +36,8 @@ const minimalTarget = {
 	},
 	mcp: { path: "mcp.json", format: "agent-plugins-mcp-1.0" as const },
 	references: { style: "prose" as const },
-	tools: { names: { Agent: "agent", Skill: unresolved("no alias") }, mcp: "{server}/{tool}" },
+	tools: { names: { Agent: "agent", Skill: drop, Task: unresolved("no alias") }, mcp: "{server}/{tool}" },
+	models: { inherit: drop, sonnet: "claude-sonnet" },
 };
 
 describe("FieldMapEntry", () => {
@@ -47,6 +48,7 @@ describe("FieldMapEntry", () => {
 				drop,
 				rename("reasoningEffort"),
 				translate("tools"),
+				translate("models"),
 				degrade("body-section"),
 				unresolved("x"),
 			]) {
@@ -60,6 +62,7 @@ describe("FieldMapEntry", () => {
 		["a rename without a target", { _tag: "rename" }],
 		["an unknown degrade form", { _tag: "degrade", form: "footnote" }],
 		["an unresolved without a note", { _tag: "unresolved" }],
+		["a translate through an unknown table", { _tag: "translate", table: "colours" }],
 	] as const) {
 		it.effect(`rejects ${label}`, () =>
 			Effect.gen(function* () {
@@ -81,6 +84,13 @@ describe("Target", () => {
 		Effect.gen(function* () {
 			const bad = { ...minimalTarget, manifest: { ...minimalTarget.manifest, format: "yaml" as const } };
 			const error = yield* Effect.flip(decodeTarget(bad));
+			assert.strictEqual(error._tag, "SchemaError");
+		}),
+	);
+
+	it.effect("rejects a model mapped to anything but a name or drop", () =>
+		Effect.gen(function* () {
+			const error = yield* Effect.flip(decodeTarget({ ...minimalTarget, models: { inherit: unresolved("x") } }));
 			assert.strictEqual(error._tag, "SchemaError");
 		}),
 	);

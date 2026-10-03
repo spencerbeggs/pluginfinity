@@ -5,11 +5,13 @@ import type { PlatformError } from "effect";
 import { Effect, FileSystem, Path, Schema } from "effect";
 import type { ChildProcessSpawner } from "effect/process";
 import { ChildProcess } from "effect/process";
+import { readAgents, renderAgent } from "./agents.js";
 import type { EmitPlan, EmittedFile } from "./emit.js";
 import { applyEmit, planEmit } from "./emit.js";
 import type { ComponentInvalid, ConfigError } from "./errors.js";
 import {
 	BuildStale,
+	ComponentsInvalid,
 	HookEventUnsupported,
 	HookScriptInvalid,
 	HostRejected,
@@ -114,7 +116,7 @@ export type PlanError =
 	| HookEventUnsupported
 	| HookScriptInvalid
 	| PathConflict
-	| ComponentInvalid
+	| ComponentsInvalid
 	| PlatformError.PlatformError;
 
 /** Every file under `dir`, as `/`-separated paths relative to `root`; none when `dir` is absent. */
@@ -199,7 +201,19 @@ const planPlugin = (
 		const everyScript = new Set(hooks.flatMap(({ events }) => hookScripts(events)));
 		for (const script of everyScript) yield* checkScript(config, script, invoke);
 		const hooksDir = yield* sourceFiles(config.root, "hooks");
-		const skills = yield* readSkills(config.root, KNOWN_TARGET_IDS);
+		const { skills, failures: skillFailures } = yield* readSkills(config.root, KNOWN_TARGET_IDS);
+		const { agents, failures: agentFailures } = yield* readAgents(config.root, KNOWN_TARGET_IDS);
+		// Every component problem in the plugin, so one build reports them all.
+		const failures: Array<ComponentInvalid> = [...skillFailures, ...agentFailures];
+		const collect = <A, R>(effect: Effect.Effect<A | undefined, ComponentInvalid | PlatformError.PlatformError, R>) =>
+			effect.pipe(
+				Effect.catchTag("ComponentInvalid", (error) =>
+					// A problem that names no target recurs for every target; keep one.
+					Effect.sync(() => {
+						if (!failures.some((seen) => seen.message === error.message)) failures.push(error);
+					}),
+				),
+			);
 
 		const planned: Array<PlannedTarget> = [];
 		for (const { id, target, events } of hooks) {
@@ -215,7 +229,12 @@ const planPlugin = (
 			const generated: Array<EmittedFile> = [{ path: target.manifest.path, content: serializeManifest(manifest) }];
 			const hooksFile = renderHooks(target, events, invoke);
 			if (hooksFile !== undefined) generated.push({ path: target.hooks.path, content: hooksFile });
-			for (const skill of skills) generated.push(...((yield* renderSkill(target, id, skill, KNOWN_TARGET_IDS)) ?? []));
+			for (const skill of skills)
+				generated.push(...((yield* collect(renderSkill(target, id, skill, KNOWN_TARGET_IDS))) ?? []));
+			for (const agent of agents) {
+				const file = yield* collect(renderAgent(target, id, agent, KNOWN_TARGET_IDS));
+				if (file !== undefined) generated.push(file);
+			}
 
 			const copiedPaths = new Set(copied.map((file) => file.path));
 			const conflict = generated.find((file) => copiedPaths.has(file.path));
@@ -227,6 +246,9 @@ const planPlugin = (
 			const out = path.join(config.root, "builds", id);
 			const plan = yield* planEmit(out, files);
 			planned.push({ config: config.path, target: id, out, plan, files, name: String(manifest.name), version });
+		}
+		if (failures.length > 0) {
+			return yield* Effect.fail(new ComponentsInvalid({ path: config.path, components: failures }));
 		}
 		return planned;
 	});

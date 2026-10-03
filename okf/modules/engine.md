@@ -1,7 +1,7 @@
 ---
 type: Module
 title: "@pluginfinity/engine"
-description: The pluginfinity logic shared by every front end; today config discovery, loading and strict decoding, the typed config and build errors, the doctor program, build and validate for manifests, hooks and skills, the reconciling emit, and ENGINE_VERSION.
+description: The pluginfinity logic shared by every front end; today config discovery, loading and strict decoding, the typed config and build errors, the doctor program, build and validate for manifests, hooks, skills and agents, the reconciling emit, and ENGINE_VERSION.
 kind: package
 layer: engine
 resource: ../../packages/engine
@@ -42,10 +42,19 @@ sources:
   - id: skills
     resource: ../../packages/engine/src/skills.ts
     title: readSkills, renderSkill and the skill description limit
+  - id: agents
+    resource: ../../packages/engine/src/agents.ts
+    title: readAgents and renderAgent
+  - id: component
+    resource: ../../packages/engine/src/component.ts
+    title: The shared component reader and frontmatter writer
+  - id: frontmatter
+    resource: ../../packages/engine/src/frontmatter.ts
+    title: mapFrontmatter, the translation tables and appendSections
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T01:36:39Z
-  body_sha256: 82bb383b75d50e2916bba2e8f652ce06c6c16234be391dfebb1658a3740e9d00
+  at: 2026-10-03T01:53:17Z
+  body_sha256: d361fa9229852d640e8fe0898408f6128bc68b29f1c7b566ad2008c4a855b01b
 ---
 
 # @pluginfinity/engine
@@ -63,8 +72,11 @@ generated:
 - **Manifests.** `renderManifest` builds a target's manifest from the config, the target's name override and the `package.json` version, through one function per manifest format, cut to the target's key allowlist in its order.[^manifest]
 - **Emit.** `planEmit` compares the files a build produces with what a build directory holds, by bytes and mode, and returns an `EmitPlan` of added, changed, removed and unchanged paths. `applyEmit` stages added and changed files in a sibling temporary directory, then renames each into place, deletes removed files and stray empty directories, and prunes the directories that leaves empty. Unchanged files are never written, so their mtimes stay, and generated files are `0644`.[^emit]
 - **Hooks.** `targetHooks` applies a target's per-event overrides to the base `hooks` and maps each event to the target's name. An event the target lacks drops its `fallback: "omit"` entries and otherwise fails the build with `HookEventUnsupported`. `hookCommand` renders an entry as a shell command at the target's plugin root, through `bash` unless `scripts.invoke` is `"exec"`, and `renderHooks` writes the hooks file through one renderer per hooks format.[^hooks] Each target ships the source `hooks/` directory whole, so a script can source its helpers, except scripts that only another target's hooks run. Copied files keep their source mode. A missing script, or one without the executable bit under `exec`, is `HookScriptInvalid`. A source file on a path the build generates, such as `hooks/hooks.json` on Claude Code, is `PathConflict`.[^operations]
-- **Skills.** `readSkills` reads every `skills/<name>/SKILL.md`, parses its frontmatter with `@effected/yaml` and decodes it strictly against core's `SkillFrontmatter`. A YAML error is reported at its file line and column, and a name that differs from the directory or a `targets` key that is not a known target fails too, all as `ComponentInvalid`. `mapFrontmatter` applies a target's field map and the component's `targets` block, `applyHostBlocks` keeps or strips each host block, and `renderSkill` writes `SKILL.md` with `name` always set and its `.md` support files processed and the rest copied, every file keeping its source mode. A built `description` over 1,024 characters, the Agent Skills limit Copilot enforces, fails for that target.[^skills]
-- **`build` and `validate`.** `build` renders every selected target into `<plugin root>/builds/<id>/`; with `check` it writes nothing and fails with `BuildStale` on any difference. `validate` requires current builds, then runs each host's check unless `skipHosts`: `claude plugin validate`, and for Copilot, which has no validate command, a `--plugin-dir` plugin listing that must load the build under its manifest name and version.[^operations] Agents and MCP servers are not built yet.
+- **Skills.** `readSkills` reads every `skills/<name>/SKILL.md`, parses its frontmatter with `@effected/yaml` and decodes it strictly against core's `SkillFrontmatter`. A YAML error is reported at its file line and column, and a name that differs from the directory or a `targets` key that is not a known target fails too, all as `ComponentInvalid`, collected into `ComponentsInvalid`. `mapFrontmatter` applies a target's field map and the component's `targets` block, `applyHostBlocks` keeps or strips each host block, and `renderSkill` writes `SKILL.md` with `name` always set and its `.md` support files processed and the rest copied, every file keeping its source mode. A built `description` over 1,024 characters, the Agent Skills limit Copilot enforces, fails for that target.[^skills]
+- **Agents.** `readAgents` reads every `agents/<name>.md` the same way, and its `name` must equal the file stem. `renderAgent` writes `<agents.dir>/<name><agents.suffix>` through the target's agent field map; a field degraded to a body section, such as `skills` on Copilot, is appended as a level-two heading and a list marked like the body's first list.[^agents]
+- **Components share one reader.** A frontmatter value plain YAML would cut short at `#` is refused, since Claude Code's reader keeps the text and every YAML parser drops it. Decoded fields keep the author's key order, and when a target's fields come out exactly as they went in, the author's frontmatter text is written unchanged, comments and folding included. Every component problem in a plugin is collected into one `ComponentsInvalid`, so a single build reports them all, and a host-block problem, wrong for every target, is reported once.[^component]
+- **Translation tables.** A `translate` entry maps a value through the target's `tools.names` (de-duplicated, with `drop` leaving a tool out and a Claude `mcp__<server>__<tool>` name rewritten to the target's MCP spelling) or its `models` table (where `drop` leaves the field out, as Copilot does for `inherit`).[^frontmatter]
+- **`build` and `validate`.** `build` renders every selected target into `<plugin root>/builds/<id>/`; with `check` it writes nothing and fails with `BuildStale` on any difference. `validate` requires current builds, then runs each host's check unless `skipHosts`: `claude plugin validate`, and for Copilot, which has no validate command, a `--plugin-dir` plugin listing that must load the build under its manifest name and version.[^operations] MCP servers are not built yet.
 - **`doctor`.** `runDoctor` never fails; every problem is a check in the `DoctorReport`. It checks Node.js against the `24.11.0` floor, the package manager it detects from the nearest lockfile (npm when there is none), each host CLI (`claude`, `copilot`), `bats`, `git`, and the config. A host CLI is `required` only when a loaded config targets that host, and `info` otherwise. A missing package manager, `bats` or `git` is a `warning`. A missing config is `info`, because doctor runs anywhere, but a config that fails to load is `required`. Each probe and each config load times out after 10 seconds. `DoctorReport.ok` is false only when a `required` check fails.[^doctor]
 
 ## Rules
@@ -87,4 +99,7 @@ The six-stage pipeline, its errors and `check` mode are designed in [the roadmap
 [^emit]: `../../packages/engine/src/emit.ts`
 [^hooks]: `../../packages/engine/src/hooks.ts`
 [^skills]: `../../packages/engine/src/skills.ts`
+[^agents]: `../../packages/engine/src/agents.ts`
+[^component]: `../../packages/engine/src/component.ts`
+[^frontmatter]: `../../packages/engine/src/frontmatter.ts`
 [^operations]: `../../packages/engine/src/operations.ts`

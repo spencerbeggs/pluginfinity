@@ -15,8 +15,8 @@ sources:
     title: The Phase 1 design agreed with the repository owner, section by section
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T01:36:39Z
-  body_sha256: cf0741604fa91747d3cc4ca5e7ec63c198275ff37b82c04cfa2f4a4a58f1a4ac
+  at: 2026-10-03T01:53:17Z
+  body_sha256: 4feb42e6f843d68ef8733cea9254a599219e343072ce6905d0dc4f9159fde5ac
 ---
 
 # Plugin source model
@@ -41,7 +41,7 @@ The first release covers four component kinds: skills, agents, hooks and MCP ser
 - **`Agent`.** Its name is its file stem and must equal the frontmatter `name`, which satisfies both Claude Code (identity by `name`) and Copilot (identity by file name). It holds an `AgentFrontmatter` and a body.
 - **Frontmatter** uses Claude Code's field names. An unknown field fails decoding, so a misspelt field never ships silently.
 - **`targets` block.** Optional in either frontmatter, keyed by target id. `false` excludes the component from that target; an object holds fields for that host only, including fields Claude Code lacks (`handoffs` for Copilot). The block is always stripped on emit, and an unknown target id fails.
-- **Frontmatter is YAML.** It must parse as YAML 1.2. A plain scalar holding `:` does not, though Claude Code's own reader tolerates it; fold or quote it. Built frontmatter is re-serialized, quoting what needs it.
+- **Frontmatter is YAML.** It must parse as YAML 1.2. A plain scalar holding a colon and a space does not, and one holding a space and `#` loses the rest of its line to a comment. Claude Code's own reader tolerates both, so fold or quote such values. Frontmatter a target keeps whole is written as the author wrote it; any other is re-serialized in the author's key order, quoting what needs it.
 - **A `description` in a target block** replaces the base one for that host, and no field is degraded into it, since the author wrote that host's description. A built `description` over 1,024 characters fails.
 - **Support files** in a skill directory are copied verbatim, except `.md` files, which get the same body processing as `SKILL.md`.
 

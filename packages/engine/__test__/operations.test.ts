@@ -296,11 +296,13 @@ describe("build with skills", () => {
 			return yield* fs.readFileString(path.join(root, file));
 		});
 
+	/** The one component problem a build reports. */
 	const failure = (root: string) =>
 		Effect.flip(build({ selection: nearest(root), targets: [], check: false })).pipe(
 			Effect.map((error) => {
-				if (error._tag !== "ComponentInvalid") throw new Error(`expected ComponentInvalid, got ${error._tag}`);
-				return error;
+				if (error._tag !== "ComponentsInvalid") throw new Error(`expected ComponentsInvalid, got ${error._tag}`);
+				assert.strictEqual(error.components.length, 1);
+				return error.components[0] as (typeof error.components)[number];
 			}),
 		);
 
@@ -347,6 +349,23 @@ describe("build with skills", () => {
 			}),
 		);
 
+		it.effect("every broken skill in the plugin is reported by one build", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": "---\ndescription: x\ncolour: red\n---\n",
+					"skills/beta/SKILL.md": "---\nname: gamma\ndescription: x\n---\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ComponentsInvalid");
+				if (error._tag !== "ComponentsInvalid") return;
+				assert.deepStrictEqual(
+					error.components.map((component) => component.issues.map((found) => found.key)),
+					[["colour"], ["name"]],
+				);
+				assert.include(error.message, "2 components are invalid");
+			}),
+		);
+
 		it.effect("an unknown frontmatter field is ComponentInvalid naming it", () =>
 			Effect.gen(function* () {
 				const root = yield* skillPlugin({ "skills/alpha/SKILL.md": "---\ndescription: x\ncolour: red\n---\n" });
@@ -366,6 +385,28 @@ describe("build with skills", () => {
 				const error = yield* failure(root);
 				assert.include(error.message, "not valid YAML");
 				assert.match(error.issues[0]?.key ?? "", /^line 3, column \d+$/);
+			}),
+		);
+
+		it.effect("a plain value holding a YAML comment is ComponentInvalid, not silently cut short", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": "---\ndescription: x\nwhen_to_use: parsing refs (Closes #12) from a message\n---\n",
+				});
+				const error = yield* failure(root);
+				assert.strictEqual(error.issues[0]?.key, "line 3");
+				assert.include(error.message, "reads as a comment");
+			}),
+		);
+
+		it.effect("a quoted value or a comment line is not mistaken for a cut-short value", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md":
+						'---\n# a comment line\ndescription: "Closes #12 safely"\nwhen_to_use: >-\n  folded #12\n---\n',
+				});
+				yield* build({ selection: nearest(root), targets: ["claude"], check: false });
+				assert.include(yield* read(root, "builds/claude/skills/alpha/SKILL.md"), "Closes #12 safely");
 			}),
 		);
 
@@ -410,6 +451,139 @@ describe("build with skills", () => {
 				const error = yield* failure(root);
 				assert.strictEqual(error.path, path.join(root, "skills/alpha/references/guide.md"));
 				assert.include(error.message, "line 2");
+			}),
+		);
+	});
+});
+
+describe("build with agents", () => {
+	const AGENT = [
+		"---",
+		"name: helper",
+		"description: Helps.",
+		"tools:",
+		"  - Read",
+		"  - Write",
+		"  - Edit",
+		"  - Bash",
+		"  - Skill",
+		"  - ToolSearch",
+		"  - mcp__docs__search",
+		"  - mcp__plugin_other_server__run",
+		"skills:",
+		"  - alpha",
+		"model: inherit",
+		"color: blue",
+		"---",
+		"",
+		"You help.",
+		"",
+	].join("\n");
+
+	const agentPlugin = (files: Readonly<Record<string, string>> = {}) =>
+		writeTree({
+			"pluginfinity.config.ts": VALID,
+			"package.json": PACKAGE_JSON,
+			"agents/helper.md": AGENT,
+			...files,
+		});
+
+	const read = (root: string, file: string) =>
+		Effect.gen(function* () {
+			const fs = yield* FileSystem.FileSystem;
+			const path = yield* Path.Path;
+			return yield* fs.readFileString(path.join(root, file));
+		});
+
+	layer(NodeServices.layer)((it) => {
+		it.effect("claude gets the agent as written, under agents/<name>.md", () =>
+			Effect.gen(function* () {
+				const root = yield* agentPlugin();
+				yield* build({ selection: nearest(root), targets: ["claude"], check: false });
+				assert.strictEqual(yield* read(root, "builds/claude/agents/helper.md"), AGENT);
+			}),
+		);
+
+		it.effect("copilot gets aliased tools, its MCP spelling, no inherit model or color, and skills as a section", () =>
+			Effect.gen(function* () {
+				const root = yield* agentPlugin();
+				yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+				assert.strictEqual(
+					yield* read(root, "builds/copilot/com.github.copilot/agents/helper.agent.md"),
+					[
+						"---",
+						"name: helper",
+						"description: Helps.",
+						"tools:",
+						"  - read",
+						"  - edit",
+						"  - execute",
+						"  - ToolSearch",
+						"  - docs/search",
+						"  - mcp__plugin_other_server__run",
+						"---",
+						"",
+						"You help.",
+						"",
+						"## Skills",
+						"",
+						"- alpha",
+						"",
+					].join("\n"),
+				);
+			}),
+		);
+
+		it.effect(
+			"frontmatter a target keeps whole is written as the author wrote it; one it changes is re-serialized",
+			() =>
+				Effect.gen(function* () {
+					const source =
+						"---\nname: helper\n# why it exists\ndescription: >\n  Folded\n  text.\ncolor: blue\n---\nBody.\n";
+					const root = yield* agentPlugin({ "agents/helper.md": source });
+					yield* build({ selection: nearest(root), targets: [], check: false });
+					assert.strictEqual(yield* read(root, "builds/claude/agents/helper.md"), source);
+					assert.notInclude(
+						yield* read(root, "builds/copilot/com.github.copilot/agents/helper.agent.md"),
+						"# why it exists",
+					);
+				}),
+		);
+
+		it.effect("an agent whose name differs from its file is reported", () =>
+			Effect.gen(function* () {
+				const root = yield* agentPlugin({ "agents/helper.md": "---\nname: other\ndescription: x\n---\n" });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ComponentsInvalid");
+				assert.include(error.message, `must equal the file name "helper"`);
+			}),
+		);
+
+		it.effect("mcpServers is unresolved on copilot, reported for copilot only", () =>
+			Effect.gen(function* () {
+				const root = yield* agentPlugin({
+					"agents/helper.md": "---\nname: helper\ndescription: x\nmcpServers:\n  - docs\n---\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ComponentsInvalid");
+				if (error._tag !== "ComponentsInvalid") return;
+				assert.deepStrictEqual(
+					error.components.map((component) => [component.target, component.issues[0]?.key]),
+					[["copilot", "mcpServers"]],
+				);
+			}),
+		);
+
+		it.effect("targets.copilot: false leaves the agent out of the Copilot build", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* agentPlugin({
+					"agents/helper.md": "---\nname: helper\ndescription: x\ntargets:\n  copilot: false\n---\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/com.github.copilot/agents")));
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/claude/agents/helper.md")));
 			}),
 		);
 	});

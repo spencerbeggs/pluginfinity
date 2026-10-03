@@ -72,6 +72,13 @@ describe("mapFrontmatter", () => {
 });
 
 describe("appendSections", () => {
+	it("marks the list like the body's first bullet list", () => {
+		assert.strictEqual(
+			appendSections("+ one\n+ two\n", [{ field: "skills", value: ["x"] }]),
+			"+ one\n+ two\n\n## Skills\n\n+ x\n",
+		);
+	});
+
 	it("appends each section as a heading and a bullet list", () => {
 		assert.strictEqual(
 			appendSections("Body.\n", [{ field: "skills", value: ["x", "y"] }]),

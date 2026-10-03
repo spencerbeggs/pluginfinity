@@ -43,6 +43,17 @@ const toolNames = (value: unknown): ReadonlyArray<string> =>
 				.filter((name) => name.length > 0);
 
 /**
+ * A Claude Code MCP tool name, `mcp__<server>__<tool>`, in the target's MCP
+ * spelling. A server named `plugin_…` belongs to another plugin, whose name on
+ * the target is unknown, so it passes through, as does any other tool name.
+ */
+const mcpToolName = (target: Target, name: string): string => {
+	const match = /^mcp__(.+?)__(.+)$/.exec(name);
+	if (match === null || (match[1] ?? "").startsWith("plugin_")) return name;
+	return target.tools.mcp.replace("{server}", match[1] ?? "").replace("{tool}", match[2] ?? "");
+};
+
+/**
  * A field the target's field map leaves open, set on a component: the build
  * cannot decide what to write.
  *
@@ -111,12 +122,20 @@ export const mapFrontmatter = (
 			case "drop":
 				break;
 			case "translate": {
+				if (entry.table === "models") {
+					const mapped = target.models[String(value)];
+					if (mapped === undefined) fields[field] = value;
+					else if (typeof mapped === "string") fields[field] = mapped;
+					break;
+				}
 				const names: Array<string> = [];
 				for (const name of toolNames(value)) {
-					const mapped = target.tools.names[name];
-					if (mapped === undefined) names.push(name);
-					else if (typeof mapped === "string") names.push(mapped);
-					else unresolved.push({ field: `${field}: ${name}`, note: mapped.note });
+					const mapped = target.tools.names[name] ?? mcpToolName(target, name);
+					if (typeof mapped === "string") {
+						if (!names.includes(mapped)) names.push(mapped);
+					} else if (mapped._tag === "unresolved") {
+						unresolved.push({ field: `${field}: ${name}`, note: mapped.note });
+					}
 				}
 				fields[field] = names;
 				break;
@@ -145,15 +164,18 @@ const SECTION_TITLES: Readonly<Record<string, string>> = { skills: "Skills" };
 
 /**
  * Append each degraded field to `body` as a section: a level-two heading and
- * the value as a bullet list.
+ * the value as a bullet list, marked like the body's first bullet list (`-`
+ * when it has none), so a linter that wants one marker per document passes.
  *
  * @public
  */
 export const appendSections = (
 	body: string,
 	sections: ReadonlyArray<{ readonly field: string; readonly value: unknown }>,
-): string =>
-	sections.reduce((text, { field, value }) => {
-		const items = (Array.isArray(value) ? value : [value]).map((item) => `- ${String(item)}`).join("\n");
+): string => {
+	const marker = /^[-+*](?= )/m.exec(body)?.[0] ?? "-";
+	return sections.reduce((text, { field, value }) => {
+		const items = (Array.isArray(value) ? value : [value]).map((item) => `${marker} ${String(item)}`).join("\n");
 		return `${text.trimEnd()}\n\n## ${SECTION_TITLES[field] ?? field}\n\n${items}\n`;
 	}, body);
+};

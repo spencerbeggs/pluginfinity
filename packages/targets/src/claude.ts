@@ -72,4 +72,5 @@ export const CLAUDE: Target = Target.make({
 	mcp: { path: ".mcp.json", format: "claude-mcp-json" },
 	references: { style: "path" },
 	tools: { names: {}, mcp: "mcp__{server}__{tool}" },
+	models: {},
 });
