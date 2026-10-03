@@ -78,14 +78,21 @@ _pf_marker=$(mktemp "${TMPDIR:-/tmp}/pluginfinity-emitted.XXXXXX" 2>/dev/null) |
 
 # A Claude field name, read from either payload form: as written, then the
 # camelCase spelling (tool_input from a toolArgs object or JSON string,
-# tool_name from toolName, anything else camelCased at the top level).
+# tool_name from toolName, anything else camelCased at the top level). A
+# tool_input key also falls back to Copilot's own spelling of it, since Copilot
+# keeps its key names (path, file_text, old_str, new_str) under Claude event
+# and tool names.
 _PF_INPUT_FILTER='
 def camel: gsub("_(?<c>[a-z])"; .c | ascii_upcase);
 def args: if type == "string" then (fromjson? // .) else . end;
+def alias: {file_path: "path", content: "file_text", old_string: "old_str", new_string: "new_str"};
 . as $in
 | ($path | if . == "" then [] else split(".") end) as $p
 | (try ($in | getpath($p)) catch null) as $v
 | (if $v != null then $v
+   elif $p[0] == "tool_input" and ($p | length) == 2 and (alias[$p[1]] != null)
+        and (try ($in | getpath([$p[0], alias[$p[1]]])) catch null) != null
+     then ($in | getpath([$p[0], alias[$p[1]]]))
    elif $p[0] == "tool_input" then (try (($in.toolArgs | args) | getpath($p[1:])) catch null)
    elif $p[0] == "tool_name" then $in.toolName
    else (try ($in | getpath([$p[0] | camel] + $p[1:])) catch null) end)
@@ -310,3 +317,5 @@ hook_raw() {
 }
 
 trap _pf_on_exit EXIT
+
+hook_debug "input: $(printf '%s' "$_pf_input" | head -c 4000)"

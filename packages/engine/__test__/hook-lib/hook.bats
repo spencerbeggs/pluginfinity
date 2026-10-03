@@ -47,6 +47,34 @@ load helpers
 	[ "$output" = "bash|ls -la|s-1" ]
 }
 
+@test "hook_input reads Copilot's path key as file_path" {
+	make_plugin copilot
+	hook_script 'hook_input tool_input.file_path'
+	run_script "$FIXTURES/pretooluse.read.copilot.json"
+	[ "$output" = "/tmp/x" ]
+}
+
+@test "hook_input reads Copilot's file_text key as content" {
+	make_plugin copilot
+	hook_script 'hook_input tool_input.content'
+	run_script "$FIXTURES/pretooluse.write.copilot.json"
+	[ "$output" = "hello" ]
+}
+
+@test "hook_input reads Copilot's old_str and new_str keys as old_string and new_string" {
+	make_plugin copilot
+	hook_script 'printf "%s|%s\n" "$(hook_input tool_input.old_string)" "$(hook_input tool_input.new_string)"'
+	run_script "$FIXTURES/pretooluse.edit.copilot.json"
+	[ "$output" = "a|b" ]
+}
+
+@test "hook_input still reads Claude's file_path key" {
+	make_plugin claude
+	hook_script 'hook_input tool_input.file_path'
+	run_script "$FIXTURES/pretooluse.read.claude.json"
+	[ "$output" = "/tmp/y" ]
+}
+
 @test "hook_input prints false, not nothing, for a false field" {
 	make_plugin claude
 	hook_script 'hook_input stop_hook_active'
@@ -460,6 +488,16 @@ echo done'
 	[ -z "$(debug_log)" ]
 	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
 	[[ "$(debug_log)" == *"quiet"* ]]
+}
+
+@test "with debug on, the raw input is written to the debug log; with it off, nothing is" {
+	make_plugin claude
+	hook_script 'true'
+	run_script "$FIXTURES/stop.json"
+	[ -z "$(debug_log)" ]
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	[[ "$(debug_log)" == *"input: {"* ]]
+	[[ "$(debug_log)" == *'"hook_event_name":"Stop"'* ]]
 }
 
 # --- meta ---
