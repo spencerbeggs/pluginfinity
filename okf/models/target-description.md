@@ -15,8 +15,8 @@ sources:
     title: The Phase 1 design agreed with the repository owner, section by section
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T22:36:46Z
-  body_sha256: 2120513b647274751a42a11696b938ea06832f288b6c1023f554a10d658103d6
+  at: 2026-10-03T01:28:45Z
+  body_sha256: dee5b27e3cd6d292c54bf13016e93dbfadbff8b9bf42d4def065484a46458606
 ---
 
 # Target description
@@ -58,7 +58,7 @@ The degrade forms are a closed set owned by the engine, for now `"description-su
 | Root in hooks and MCP | `${CLAUDE_PLUGIN_ROOT}` | `${PLUGIN_ROOT}` |
 | Root in bodies | `${CLAUDE_PLUGIN_ROOT}` | unresolved, so references render as prose |
 
-The Copilot hook cells rest on two measurements: hooks run from the plugin root with `${PLUGIN_ROOT}` substituted ([environment](../measurements/copilot-plugin-hook-environment.md)), and a PascalCase `PreToolUse` deny in Claude's shape is honoured ([deny](../measurements/copilot-claude-style-pretooluse-deny.md)). Host facts come from the [references](../references/index.md), and where SchemaStore and the host docs disagree, the docs win.
+The Copilot hook cells rest on two measurements: hooks run from the plugin root with `${PLUGIN_ROOT}` substituted ([environment](../measurements/copilot-plugin-hook-environment.md)), a PascalCase `PreToolUse` deny in Claude's shape is honoured ([deny](../measurements/copilot-claude-style-pretooluse-deny.md)), and a PascalCase `SessionStart` hook's flat `additionalContext` reaches the model ([session start](../measurements/copilot-pascalcase-sessionstart-context.md)). Host facts come from the [references](../references/index.md), and where SchemaStore and the host docs disagree, the docs win.
 
 ## Invariants the tests pin
 
