@@ -78,6 +78,16 @@ if hook_supports context; then hook_context "hello"; fi
 `toolArgs` as an object or a JSON string), so `hook_input tool_input.command` works on both. The
 capabilities are `context`, `deny`, `allow`, `ask`, `block`, `system_message`, `noop` and `raw`.
 
+A `tool_input` key is read by its Claude name on both hosts. Copilot keeps its own key names under Claude
+event and tool names, so a lookup that finds nothing tries Copilot's spelling:
+
+| Claude key | Copilot key |
+| :-- | :-- |
+| `file_path` | `path` |
+| `content` | `file_text` |
+| `old_string` | `old_str` |
+| `new_string` | `new_str` |
+
 ### Responding
 
 Call one of these to answer the host. What each does depends on the host:
@@ -92,6 +102,9 @@ Call one of these to answer the host. What each does depends on the host:
 | `hook_system_message "t"` | `systemMessage` | no-op |
 | `hook_noop` | `{}` | `{}` |
 | `hook_raw <host> <json>` | compacted and sent as is, only when `<host>` is `claude` | compacted and sent as is, only when `<host>` is `copilot` |
+
+`hook_allow '<json>'` passes `updatedInput` or `modifiedArgs` through unchanged, so on Copilot write the
+replacement input with Copilot's key names (`path`, `file_text`, `old_str`, `new_str`).
 
 The rules:
 
@@ -128,8 +141,9 @@ where a failing `preToolUse` hook denies the tool call.
   carries on with an empty value.
 
 Logs live in `${XDG_STATE_HOME:-~/.local/state}/pluginfinity/<plugin>/`. `hook-error.log` holds failures and
-`hook-debug.log` holds debug lines, written when `PLUGINFINITY_HOOK_DEBUG=1`. `hook_log` and `hook_debug`
-append to them from your own script.
+`hook-debug.log` holds debug lines, written when `PLUGINFINITY_HOOK_DEBUG=1`, which also logs each hook's
+raw input as an `input:` line. Use it to see what a host sends. `hook_log` and `hook_debug` append to the
+logs from your own script.
 
 ## Testing hooks
 
@@ -202,6 +216,13 @@ config.
 
 Every Copilot entry the build writes carries `env: { PLUGINFINITY_EVENT: "<Claude event name>" }`, which
 the library reads for `hook_event`, because camelCase payloads carry no event name.
+
+Host notes from live runs:
+
+- Copilot puts `SubagentStart` context at the top of the subagent's first prompt.
+- Copilot also fires `UserPromptSubmit` for a subagent's prompt, under the subagent's own session id.
+- Claude Code 2.1.288 was seen not showing a `UserPromptSubmit` `systemMessage` to the user. This was
+  observed once and is unconfirmed.
 
 Copilot's output contract differs per event; a script that serves both hosts may need to print a
 different shape on each. Copilot honours a flat `{ "additionalContext": ... }` from `SessionStart`, and
