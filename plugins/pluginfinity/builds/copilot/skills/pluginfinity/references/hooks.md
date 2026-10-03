@@ -28,8 +28,9 @@ An entry has exactly one of `script` or `command`.
 With `scripts.invoke: "bash"`, the default, a script entry runs through `bash`, so the file needs no
 executable bit. On Claude Code it is written in exec form, `"command": "bash"` with the script path in
 `args`, so no shell parses the path. On Copilot it is the shell string `bash "<root>/<script>"`, with a
-path the shell would read, such as one holding `$` or a space, single-quoted. A `command` entry is
-written as the shell string you gave. That suits repositories that keep scripts in git without it. With `"exec"`, the
+path the shell would read, such as one holding `$` or a space, single-quoted. Running through `bash` suits
+repositories that keep scripts in git without the executable bit. A `command` entry is written as the
+shell string you gave. With `"exec"`, the
 command is the quoted path alone, and the build fails if the script is not executable.
 
 The plugin root is `${CLAUDE_PLUGIN_ROOT}` on Claude Code and `${PLUGIN_ROOT}` on Copilot. Copilot also
