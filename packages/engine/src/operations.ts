@@ -8,7 +8,7 @@ import { ChildProcess } from "effect/process";
 import type { EmitPlan, EmittedFile } from "./emit.js";
 import { applyEmit, planEmit } from "./emit.js";
 import type { ConfigError } from "./errors.js";
-import { BuildOutOfDate, HostRejected, PackageVersionMissing, TargetDrift } from "./errors.js";
+import { BuildStale, HostRejected, PackageVersionMissing, TargetDrift } from "./errors.js";
 import { renderManifest, serializeManifest } from "./manifest.js";
 import type { ConfigSelection, PreparedPlugin } from "./selection.js";
 import { preparePlugins } from "./selection.js";
@@ -117,20 +117,20 @@ const planPlugin = (
 		return planned;
 	});
 
-/** Fail with `BuildOutOfDate` when any target's build directory differs. */
-const requireClean = (config: string, planned: ReadonlyArray<PlannedTarget>): Effect.Effect<void, BuildOutOfDate> => {
+/** Fail with `BuildStale` when any target's build directory differs. */
+const requireClean = (config: string, planned: ReadonlyArray<PlannedTarget>): Effect.Effect<void, BuildStale> => {
 	const drift = planned
 		.filter((target) => !target.plan.clean)
 		.map(({ target, plan }) =>
 			TargetDrift.make({ target, added: plan.added, changed: plan.changed, removed: plan.removed }),
 		);
-	return drift.length === 0 ? Effect.void : Effect.fail(new BuildOutOfDate({ path: config, targets: drift }));
+	return drift.length === 0 ? Effect.void : Effect.fail(new BuildStale({ path: config, targets: drift }));
 };
 
 /**
  * Regenerate `builds/<id>/` for every selected plugin and target, writing
  * only what differs. With `check`, write nothing and fail with
- * `BuildOutOfDate` when anything differs.
+ * `BuildStale` when anything differs.
  *
  * @public
  */
@@ -138,7 +138,7 @@ export const build = (
 	input: BuildInput,
 ): Effect.Effect<
 	ReadonlyArray<TargetBuild>,
-	ConfigError | PackageVersionMissing | BuildOutOfDate | PlatformError.PlatformError,
+	ConfigError | PackageVersionMissing | BuildStale | PlatformError.PlatformError,
 	FileSystem.FileSystem | Path.Path
 > =>
 	Effect.gen(function* () {
@@ -225,7 +225,7 @@ export const validate = (
 	input: ValidateInput,
 ): Effect.Effect<
 	ReadonlyArray<TargetValidation>,
-	ConfigError | PackageVersionMissing | BuildOutOfDate | HostRejected | PlatformError.PlatformError,
+	ConfigError | PackageVersionMissing | BuildStale | HostRejected | PlatformError.PlatformError,
 	FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
 > =>
 	Effect.gen(function* () {

@@ -100,6 +100,19 @@ describe("planEmit and applyEmit", () => {
 			}),
 		);
 
+		it.effect("a stray empty directory is planned as removed and removed", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const out = path.join(yield* writeTree({}), "builds", "claude");
+				yield* emit(out, FILES);
+				yield* fs.makeDirectory(path.join(out, "stray", "deeper"), { recursive: true });
+				const plan = yield* emit(out, FILES);
+				assert.deepStrictEqual(plan.removed, ["stray/deeper/"]);
+				assert.isFalse(yield* fs.exists(path.join(out, "stray")));
+			}),
+		);
+
 		it.effect("planning writes nothing, and applying leaves no staging directory behind", () =>
 			Effect.gen(function* () {
 				const fs = yield* FileSystem.FileSystem;

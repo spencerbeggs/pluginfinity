@@ -30,7 +30,7 @@ export class EmitPlan extends Schema.Class<EmitPlan>("EmitPlan")({
 	added: Schema.Array(Schema.String),
 	/** On disk with other bytes or another mode. */
 	changed: Schema.Array(Schema.String),
-	/** On disk, no longer produced. */
+	/** On disk, no longer produced; an empty directory ends in `/`. */
 	removed: Schema.Array(Schema.String),
 	/** On disk with the same bytes and mode; never touched, so its mtime stays. */
 	unchanged: Schema.Array(Schema.String),
@@ -46,7 +46,11 @@ const encoder = new TextEncoder();
 const sameBytes = (a: Uint8Array, b: Uint8Array): boolean =>
 	a.length === b.length && a.every((byte, i) => byte === b[i]);
 
-/** Every non-directory under `dir`, as sorted `/`-separated relative paths. */
+/**
+ * Every non-directory under `dir`, and every empty directory with a trailing
+ * `/`, as sorted `/`-separated relative paths. A build never produces an empty
+ * directory, so one on disk is always a leftover to remove.
+ */
 const inventory = (
 	dir: string,
 ): Effect.Effect<ReadonlyArray<string>, PlatformError.PlatformError, FileSystem.FileSystem | Path.Path> =>
@@ -56,8 +60,10 @@ const inventory = (
 		if (!(yield* fs.exists(dir))) return [];
 		const files: Array<string> = [];
 		for (const entry of yield* fs.readDirectory(dir, { recursive: true })) {
-			const info = yield* fs.stat(path.join(dir, entry));
-			if (info.type !== "Directory") files.push(entry.split(path.sep).join("/"));
+			const absolute = path.join(dir, entry);
+			const relative = entry.split(path.sep).join("/");
+			if ((yield* fs.stat(absolute)).type !== "Directory") files.push(relative);
+			else if ((yield* fs.readDirectory(absolute)).length === 0) files.push(`${relative}/`);
 		}
 		return files.sort();
 	});
@@ -137,7 +143,7 @@ export const applyEmit = (
 				yield* fs.rename(path.join(staging, file.path), target);
 			}
 			for (const file of plan.removed) {
-				yield* fs.remove(path.join(dir, file));
+				yield* fs.remove(path.join(dir, file), { recursive: file.endsWith("/") });
 				let current = path.dirname(path.join(dir, file));
 				while (current !== dir && current.startsWith(dir) && (yield* fs.readDirectory(current)).length === 0) {
 					// Empty, so recursive removes nothing but the directory itself.

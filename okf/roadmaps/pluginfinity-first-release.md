@@ -30,8 +30,8 @@ sources:
     title: impeccable's post-build rewrite of the Claude Code plugin copy
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T22:37:34Z
-  body_sha256: aa8347903dc3faa08c0d2a6a2110e58a16cde9f7594ae9ce58179563ab44e7cc
+  at: 2026-10-03T00:09:53Z
+  body_sha256: 088352b4cdcd3bca0794018965f483cbfa730d7ed7f37d4e7f2bbcddbec1554c
 ---
 
 # pluginfinity first release
@@ -113,7 +113,7 @@ What to avoid: impeccable's main output is a project install, and the Claude Cod
 
 0. **Workspace.** Done on 2026-10-02: the template became a workspace with the CLI split into carrier-pattern layer packages under `packages/` ([decision](../decisions/pluginfinity-ships-as-a-carrier-package.md)) and two plugin workspaces, `plugins/pluginfinity/` (the companion) and `plugins/dogfood/` (the end-to-end fixture), each depending on the `pluginfinity` carrier through `workspace:*`; and this bundle was seeded.
 1. **Design.** Done on 2026-10-02. The command surface and the first `pluginfinity.config.ts` shape landed first ([CLI interface](../interfaces/cli.md), [config interface](../interfaces/config.md)); the [plugin source model](../models/plugin-source-model.md), the [target description](../models/target-description.md), the pipeline and the test plan above complete it.
-2. **Builder.** Config discovery, loading and `doctor` work, and `build` and `validate` stop with `NotImplemented` after loading the config. What remains is the pipeline and `check` mode in `@pluginfinity/engine`, the Claude Code and Copilot capability descriptions in `@pluginfinity/targets`, the `init` and `plugin add` scaffolding, and the host-CLI half of `validate`. Grow `plugins/dogfood/` alongside, so every CLI feature is exercised end to end even when the companion does not use it.
+2. **Builder.** Config discovery, loading and `doctor` work. `build` emits each target's manifest through the reconciling emit, `build --check` reports `BuildStale`, and `validate` runs both hosts' checks. The effected plugin is the acceptance test, built in slices: the bare plugin, then hooks, skills and agents. What remains is the pipeline and `check` mode in `@pluginfinity/engine`, the Claude Code and Copilot capability descriptions in `@pluginfinity/targets`, the `init` and `plugin add` scaffolding, and the host-CLI half of `validate`. Grow `plugins/dogfood/` alongside, so every CLI feature is exercised end to end even when the companion does not use it.
 3. **Companion plugin.** Author `plugins/pluginfinity/` as a single source from the start, drawing on plugin-bot's content in the bot repository as a reference rather than copying its two target folders. Compare its generated `builds/` with plugin-bot's hand-maintained targets to check that the build reproduces what porting produced by hand.
 4. **Guards and docs.** Wire `check` into CI. Teach the companion plugin the pluginfinity authoring pattern, including a hook that blocks direct edits under `plugins/*/builds/**`.
 5. **First publish.** The name is settled as pluginfinity ([decision](../decisions/pluginfinity-name.md)). Write the README, make the carrier publishable (its manifest is still `private: true`), and publish to npm.

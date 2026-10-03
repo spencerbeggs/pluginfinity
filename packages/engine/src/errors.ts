@@ -99,7 +99,8 @@ export class ConfigInvalid extends Schema.TaggedError<ConfigInvalid>()("ConfigIn
 
 /**
  * The config sets a top-level key that is neither a base field nor a known
- * target id.
+ * target id. Base fields and target ids share one key space, so the key may
+ * be a misspelt field as easily as an unknown target; the message lists both.
  *
  * @public
  */
@@ -109,13 +110,16 @@ export class UnknownTarget extends Schema.TaggedError<UnknownTarget>()("UnknownT
 	targets: Schema.Array(Schema.String),
 	/** Every known target id. */
 	known: Schema.Array(Schema.String),
+	/** Every base config field. */
+	fields: Schema.Array(Schema.String),
 }) {
 	override get message(): string {
-		return `${this.path} enables unknown target ${this.targets.map((target) => `"${target}"`).join(", ")}; known targets: ${this.known.join(", ")}`;
+		const keys = this.targets.map((target) => `"${target}"`).join(", ");
+		return `${this.path} has unknown key ${keys}: not a config field (${this.fields.join(", ")}) or a known target (${this.known.join(", ")})`;
 	}
 
 	get remediation(): Remediation {
-		return { hint: `Rename or remove the key in ${this.path}; known targets are ${this.known.join(", ")}.` };
+		return { hint: `Fix the spelling of the key in ${this.path}, or remove it.` };
 	}
 }
 
@@ -222,18 +226,24 @@ export class TargetDrift extends Schema.Class<TargetDrift>("TargetDrift")({
  *
  * @public
  */
-export class BuildOutOfDate extends Schema.TaggedError<BuildOutOfDate>()("BuildOutOfDate", {
+export class BuildStale extends Schema.TaggedError<BuildStale>()("BuildStale", {
 	/** The config whose builds drifted. */
 	path: Schema.String,
 	targets: Schema.Array(TargetDrift),
 }) {
 	override get message(): string {
+		const describe = (drift: TargetDrift): string =>
+			[
+				["added", drift.added],
+				["changed", drift.changed],
+				["removed", drift.removed],
+			]
+				.filter(([, files]) => files.length > 0)
+				.map(([verb, files]) => `${verb} ${(files as ReadonlyArray<string>).join(", ")}`)
+				.join("; ");
 		return `builds are out of date for ${this.path}: ${this.targets
-			.map(
-				(drift) =>
-					`${drift.target} (${drift.added.length} added, ${drift.changed.length} changed, ${drift.removed.length} removed)`,
-			)
-			.join(", ")}`;
+			.map((drift) => `${drift.target} would have ${describe(drift)}`)
+			.join("; ")}`;
 	}
 
 	get remediation(): Remediation {
@@ -269,9 +279,9 @@ export class HostRejected extends Schema.TaggedError<HostRejected>()("HostReject
  *
  * @public
  */
-export type BuildError = PackageVersionMissing | BuildOutOfDate | HostRejected;
+export type BuildError = PackageVersionMissing | BuildStale | HostRejected;
 
-const BUILD_ERROR_TAGS: ReadonlyArray<string> = ["PackageVersionMissing", "BuildOutOfDate", "HostRejected"];
+const BUILD_ERROR_TAGS: ReadonlyArray<string> = ["PackageVersionMissing", "BuildStale", "HostRejected"];
 
 /**
  * Whether `error` is one of the {@link BuildError} members.

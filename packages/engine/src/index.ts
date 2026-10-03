@@ -26,7 +26,7 @@ export type { EmittedFile } from "./emit.js";
 export { EmitPlan, GENERATED_MODE, applyEmit, planEmit } from "./emit.js";
 export type { BuildError, ConfigError } from "./errors.js";
 export {
-	BuildOutOfDate,
+	BuildStale,
 	ConfigAmbiguous,
 	ConfigInvalid,
 	ConfigIssue,

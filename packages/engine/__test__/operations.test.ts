@@ -111,7 +111,7 @@ describe("build", () => {
 			}),
 		);
 
-		it.effect("--check with drift is BuildOutOfDate naming each drifted file, and writes nothing", () =>
+		it.effect("--check with drift is BuildStale naming each drifted file, and writes nothing", () =>
 			Effect.gen(function* () {
 				const fs = yield* FileSystem.FileSystem;
 				const path = yield* Path.Path;
@@ -120,8 +120,8 @@ describe("build", () => {
 				yield* fs.writeFileString(path.join(root, COPILOT_MANIFEST), "{}\n");
 				yield* fs.writeFileString(path.join(root, "builds/claude/stray.md"), "stray\n");
 				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: true }));
-				assert.strictEqual(error._tag, "BuildOutOfDate");
-				if (error._tag !== "BuildOutOfDate") return;
+				assert.strictEqual(error._tag, "BuildStale");
+				if (error._tag !== "BuildStale") return;
 				assert.deepStrictEqual(
 					error.targets.map((drift) => [drift.target, drift.changed, drift.removed]),
 					[
@@ -129,6 +129,8 @@ describe("build", () => {
 						["copilot", ["plugin.json"], []],
 					],
 				);
+				assert.include(error.message, "claude would have removed stray.md");
+				assert.include(error.message, "copilot would have changed plugin.json");
 				assert.strictEqual(yield* fs.readFileString(path.join(root, COPILOT_MANIFEST)), "{}\n");
 			}),
 		);
@@ -180,14 +182,14 @@ describe("validate", () => {
 			}),
 		);
 
-		it.effect("an out-of-date build fails BuildOutOfDate before any host runs", () =>
+		it.effect("an out-of-date build fails BuildStale before any host runs", () =>
 			Effect.gen(function* () {
 				const root = yield* plugin();
 				const spawner = acceptingHosts();
 				const error = yield* Effect.flip(
 					validate({ selection: nearest(root), targets: [], skipHosts: false }).pipe(Effect.provide(spawner.layer)),
 				);
-				assert.strictEqual(error._tag, "BuildOutOfDate");
+				assert.strictEqual(error._tag, "BuildStale");
 				assert.strictEqual(spawner.spawns.length, 0);
 			}),
 		);

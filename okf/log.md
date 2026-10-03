@@ -1,5 +1,12 @@
 # Log
 
+## 2026-10-03
+
+* Updated @pluginfinity/cli
+* Updated @pluginfinity/engine
+* Updated The pluginfinity command line
+* Updated pluginfinity first release
+
 ## 2026-10-02
 
 * Added @pluginfinity/cli

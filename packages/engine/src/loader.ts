@@ -1,3 +1,4 @@
+import { BASE_CONFIG_KEYS } from "@pluginfinity/core";
 import type { KnownTargetId } from "@pluginfinity/targets";
 import { CONFIG_KEYS, KNOWN_TARGET_IDS, PluginfinityConfig, enabledTargets } from "@pluginfinity/targets";
 import { Effect, Path, Schema, SchemaIssue } from "effect";
@@ -72,7 +73,9 @@ export class ConfigLoader {
 			if (typeof value === "object" && value !== null && !Array.isArray(value)) {
 				const unknown = Object.keys(value).filter((key) => !CONFIG_KEYS.includes(key));
 				if (unknown.length > 0) {
-					return yield* Effect.fail(new UnknownTarget({ path, targets: unknown, known: [...KNOWN_TARGET_IDS] }));
+					return yield* Effect.fail(
+						new UnknownTarget({ path, targets: unknown, known: [...KNOWN_TARGET_IDS], fields: [...BASE_CONFIG_KEYS] }),
+					);
 				}
 			}
 

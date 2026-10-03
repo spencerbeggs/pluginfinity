@@ -109,7 +109,7 @@ describe("build and validate", () => {
 			}),
 		);
 
-		it.effect("build --check before any build is BuildOutOfDate, exit 1", () =>
+		it.effect("build --check before any build is BuildStale, exit 1", () =>
 			Effect.gen(function* () {
 				const cwd = yield* writeTree({ "pluginfinity.config.ts": BOTH_TARGETS, "package.json": PACKAGE_JSON });
 				const result = yield* runCli(["build", "--check", "--human"], { cwd });
