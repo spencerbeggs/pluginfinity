@@ -168,8 +168,8 @@ echo done'
 
 @test "hook_supports claude:block lists" {
 	make_plugin claude
-	hook_script 'for e in UserPromptSubmit UserPromptExpansion PostToolUse PostToolUseFailure PostToolBatch Stop SubagentStop ConfigChange PreCompact TaskCreated PreModelSwitch; do hook_supports block "$e" || echo "missing $e"; done
-for e in SessionStart PreToolUse Notification; do ! hook_supports block "$e" || echo "extra $e"; done
+	hook_script 'for e in UserPromptSubmit UserPromptExpansion PostToolUse PostToolBatch Stop SubagentStop ConfigChange PreCompact TaskCreated PreModelSwitch; do hook_supports block "$e" || echo "missing $e"; done
+for e in SessionStart PreToolUse Notification PostToolUseFailure; do ! hook_supports block "$e" || echo "extra $e"; done
 echo done'
 	run_script "$FIXTURES/stop.json"
 	[ "$output" = "done" ]
@@ -212,6 +212,15 @@ echo done'
 	hook_script 'hook_supports system_message Stop || echo no'
 	run_script "$FIXTURES/stop.json"
 	[ "$output" = "no" ]
+}
+
+@test "hook_supports claude:system_message is false where Claude discards it" {
+	make_plugin claude
+	hook_script 'for e in Stop SessionStart UserPromptSubmit PreToolUse PostToolUse; do hook_supports system_message "$e" || echo "missing $e"; done
+for e in Notification SessionEnd PreCompact ConfigChange; do ! hook_supports system_message "$e" || echo "extra $e"; done
+echo done'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = "done" ]
 }
 
 # --- output ---
@@ -285,6 +294,16 @@ echo done'
 	hook_script 'hook_allow "{\"command\":\"ls\"}"'
 	run_script "$FIXTURES/pretooluse.bash.json"
 	[ "$(jq -c .modifiedArgs <<<"$output")" = '{"command":"ls"}' ]
+}
+
+@test "hook_allow with invalid updated input under set -e logs and writes nothing" {
+	make_plugin claude
+	hook_script 'hook_allow "not json"'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+	[ -z "$stderr" ]
+	[[ "$(error_log)" == *"hook_allow"* ]]
 }
 
 @test "hook_ask on both hosts" {
@@ -398,6 +417,16 @@ echo done'
 	[ "$(jq -r .decision <<<"$output")" = "block" ]
 }
 
+@test "hook_fail_closed on Stop fails open when stop_hook_active is true" {
+	make_plugin claude
+	hook_script 'hook_fail_closed; false'
+	run_script '{"hook_event_name":"Stop","stop_hook_active":true}'
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+	run_script '{"hook_event_name":"SubagentStop","stop_hook_active":true}'
+	[ -z "$output" ]
+}
+
 @test "hook_fail_closed keeps a response already sent" {
 	make_plugin copilot
 	hook_script 'hook_fail_closed; hook_allow; false'
@@ -498,6 +527,21 @@ echo done'
 	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
 	[[ "$(debug_log)" == *"input: {"* ]]
 	[[ "$(debug_log)" == *'"hook_event_name":"Stop"'* ]]
+}
+
+@test "a large input with debug off is silent, even with SIGPIPE ignored" {
+	make_plugin claude
+	hook_script 'true'
+	{
+		printf '{"hook_event_name":"Stop","pad":"'
+		head -c 1000000 /dev/zero | tr '\0' x
+		printf '"}'
+	} >"$BATS_TEST_TMPDIR/big.json"
+	run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
+		XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" \
+		bash -c 'trap "" PIPE; exec bash "$0"' "$PLUGIN/hooks/test.sh" <"$BATS_TEST_TMPDIR/big.json"
+	[ "$status" -eq 0 ]
+	[ -z "$stderr" ]
 }
 
 # --- meta ---

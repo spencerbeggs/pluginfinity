@@ -121,7 +121,13 @@ _pf_on_exit() {
 	if [ "$code" -ne 0 ]; then
 		hook_log "exited $code during ${_pf_event:-an unknown event}"
 		if [ "$_pf_fail_closed" = 1 ] && ! _pf_has_emitted; then
-			_pf_closed_response "$code" || true
+			# A Stop hook that crashes while stop_hook_active is true must not block again, or it loops.
+			case "$_pf_event" in
+			Stop | SubagentStop)
+				[ "$(hook_input stop_hook_active)" = true ] || _pf_closed_response "$code" || true
+				;;
+			*) _pf_closed_response "$code" || true ;;
+			esac
 		fi
 	fi
 	_pf_cleanup
@@ -177,7 +183,11 @@ hook_project_dir() {
 hook_supports() {
 	local cap="${1:-}" event="${2:-$_pf_event}"
 	case "$PLUGINFINITY_HOST:$cap" in
-	*:noop | *:raw | claude:system_message) return 0 ;;
+	*:noop | *:raw) return 0 ;;
+	claude:system_message)
+		case "$event" in Notification | SessionEnd | PreCompact | ConfigChange) return 1 ;; esac
+		return 0
+		;;
 	*:deny | *:allow | *:ask) [ "$event" = PreToolUse ] && return 0 ;;
 	claude:context)
 		case "$event" in
@@ -190,7 +200,7 @@ hook_supports() {
 		;;
 	claude:block)
 		case "$event" in
-		UserPromptSubmit | UserPromptExpansion | PostToolUse | PostToolUseFailure | PostToolBatch | Stop | \
+		UserPromptSubmit | UserPromptExpansion | PostToolUse | PostToolBatch | Stop | \
 			SubagentStop | ConfigChange | PreCompact | TaskCreated | PreModelSwitch) return 0 ;;
 		esac
 		;;
@@ -222,12 +232,18 @@ _pf_unsupported() { # function-name
 }
 
 _pf_permission() { # decision reason [updated-input-json]
-	local key=updatedInput body
+	local key=updatedInput body u=null
 	[ "$PLUGINFINITY_HOST" = copilot ] && key=modifiedArgs
-	body=$(jq -nc --arg d "$1" --arg r "${2:-}" --argjson u "${3:-null}" --arg k "$key" \
+	if [ -n "${3:-}" ]; then
+		u=$(printf '%s' "$3" | jq -c . 2>/dev/null) || {
+			hook_log "hook_allow: not JSON: $3"
+			return 1
+		}
+	fi
+	body=$(jq -nc --arg d "$1" --arg r "${2:-}" --argjson u "$u" --arg k "$key" \
 		'{permissionDecision: $d}
 		 + (if $r == "" then {} else {permissionDecisionReason: $r} end)
-		 + (if $u == null then {} else {($k): $u} end)') || return 1
+		 + (if $u == null then {} else {($k): $u} end)' 2>/dev/null) || return 1
 	if [ "$PLUGINFINITY_HOST" != copilot ]; then
 		body=$(jq -nc --argjson b "$body" '{hookSpecificOutput: ({hookEventName: "PreToolUse"} + $b)}') || return 1
 	fi
@@ -318,4 +334,4 @@ hook_raw() {
 
 trap _pf_on_exit EXIT
 
-hook_debug "input: $(printf '%s' "$_pf_input" | head -c 4000)"
+if [ "${PLUGINFINITY_HOOK_DEBUG:-0}" = 1 ]; then hook_debug "input: ${_pf_input:0:4000}"; fi
