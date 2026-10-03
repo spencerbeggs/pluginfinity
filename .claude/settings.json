@@ -3,6 +3,7 @@
 	"enabledPlugins": {
 		"effected@spencerbeggs": true,
 		"okfit@spencerbeggs": true,
+		"pluginfinity@spencerbeggs": true,
 		"silk@savvy-web-systems": true,
 		"vitest-agent@spencerbeggs": true
 	},

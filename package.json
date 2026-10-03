@@ -22,6 +22,8 @@
 		"build": "turbo run build:dev build:prod --log-order=grouped --log-prefix=none",
 		"ci:build": "CI=\"true\" turbo run build:dev build:prod --log-order=grouped --output-logs=full --log-prefix=none",
 		"ci:test": "CI=\"true\" vitest run --passWithNoTests",
+		"claude": "claude --plugin-dir plugins/pluginfinity/builds/claude --plugin-dir plugins/dogfood/builds/claude",
+		"copilot": "copilot --plugin-dir plugins/pluginfinity/builds/copilot --plugin-dir plugins/dogfood/builds/copilot",
 		"lint": "biome check --max-diagnostics=none",
 		"lint:fix": "biome check --write --max-diagnostics=none",
 		"lint:fix:unsafe": "biome check --write --unsafe --max-diagnostics=none",
@@ -37,7 +39,7 @@
 	"devDependencies": {
 		"@okfit/plugin": "^0.5.11",
 		"@savvy-web/silk": "^4.3.3",
-		"@vitest-agent/plugin": "^5.2.1"
+		"@vitest-agent/plugin": "^5.2.2"
 	},
 	"engines": {
 		"node": ">=24.11.0"
