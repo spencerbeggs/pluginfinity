@@ -112,11 +112,35 @@ export const hookCommand = (entry: HookEntry, root: string, invoke: "bash" | "ex
 	return [...(invoke === "bash" ? ["bash", path] : [path]), ...args].join(" ");
 };
 
-type HooksRenderer = (events: ReadonlyArray<TargetHookEvent>, command: (entry: HookEntry) => string) => unknown;
+/**
+ * A `script` entry in exec form, for a host that spawns `command` with `args`
+ * and no shell: `bash` with the script path as its first argument, or under
+ * `scripts.invoke: "exec"` the script itself. The root placeholder is
+ * substituted by the host in `args`, and no shell ever parses the path.
+ *
+ * @public
+ */
+export const hookExec = (
+	entry: Extract<HookEntry, { readonly script: string }>,
+	root: string,
+	invoke: "bash" | "exec",
+): { readonly command: string; readonly args: ReadonlyArray<string> } => {
+	const path = `${root}/${entry.script}`;
+	const args = [...(entry.args ?? [])];
+	return invoke === "bash" ? { command: "bash", args: [path, ...args] } : { command: path, args };
+};
+
+type HooksRenderer = (
+	events: ReadonlyArray<TargetHookEvent>,
+	command: (entry: HookEntry) => string,
+	exec: (entry: Extract<HookEntry, { readonly script: string }>) => { command: string; args: ReadonlyArray<string> },
+) => unknown;
 
 // One renderer per hooks format, total over HOOKS_FORMATS.
 const FORMATS: Record<Target["hooks"]["format"], HooksRenderer> = {
-	"claude-hooks-json": (events, command) => ({
+	// Claude Code runs a script entry in exec form, with no shell; a command
+	// entry stays the shell string its author wrote.
+	"claude-hooks-json": (events, command, exec) => ({
 		hooks: Object.fromEntries(
 			events.map(({ name, entries }) => [
 				name,
@@ -125,7 +149,7 @@ const FORMATS: Record<Target["hooks"]["format"], HooksRenderer> = {
 					hooks: [
 						{
 							type: "command",
-							command: command(entry),
+							...("script" in entry ? exec(entry) : { command: command(entry) }),
 							...(entry.timeout === undefined ? {} : { timeout: entry.timeout }),
 						},
 					],
@@ -166,7 +190,11 @@ export const renderHooks = (
 		throw new Error(`target has no plugin-root spelling for hook commands: ${root.note}`);
 	}
 	return `${JSON.stringify(
-		FORMATS[target.hooks.format](events, (entry) => hookCommand(entry, root, invoke)),
+		FORMATS[target.hooks.format](
+			events,
+			(entry) => hookCommand(entry, root, invoke),
+			(entry) => hookExec(entry, root, invoke),
+		),
 		null,
 		"\t",
 	)}\n`;

@@ -60,12 +60,13 @@ const toolNames = (value: unknown): ReadonlyArray<string> => {
 
 /**
  * A Claude Code MCP tool name, `mcp__<server>__<tool>`, in the target's MCP
- * spelling. A server named `plugin_…` belongs to another plugin, whose name on
- * the target is unknown, so it passes through, as does any other tool name.
+ * spelling, or `undefined` when it is not one the target can spell: any other
+ * name, or a server named `plugin_…`, which belongs to another plugin whose
+ * server name on the target is unknown.
  */
-const mcpToolName = (target: Target, name: string): string => {
+const mcpToolName = (target: Target, name: string): string | undefined => {
 	const match = /^mcp__(.+?)__(.+)$/.exec(name);
-	if (match === null || (match[1] ?? "").startsWith("plugin_")) return name;
+	if (match === null || (match[1] ?? "").startsWith("plugin_")) return undefined;
 	return target.tools.mcp.replace("{server}", match[1] ?? "").replace("{tool}", match[2] ?? "");
 };
 
@@ -161,7 +162,11 @@ export const mapFrontmatter = (
 						});
 						continue;
 					}
-					const mapped = target.tools.names[name] ?? mcpToolName(target, name);
+					const mapped =
+						target.tools.names[name] ??
+						mcpToolName(target, name) ??
+						(target.tools.unlisted === "keep" ? name : undefined);
+					if (mapped === undefined) continue;
 					if (typeof mapped === "string") {
 						if (!names.includes(mapped)) names.push(mapped);
 					} else if (mapped._tag === "unresolved") {

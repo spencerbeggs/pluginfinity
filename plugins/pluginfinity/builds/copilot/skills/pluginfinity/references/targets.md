@@ -59,7 +59,7 @@ On Copilot each Claude Code tool name becomes its documented alias, with duplica
 | `mcp__<server>__<tool>` | `<server>/<tool>` |
 
 A rule such as `Bash(git log:*)` on a renamed tool is unresolved: Copilot has no per-command rules, and
-dropping the rule would widen the tool, so set the field under `targets.copilot`. Any other name passes
-through unchanged; Copilot ignores names it does not recognize. A
-`mcp__plugin_...` name belongs to another plugin, whose server name on Copilot is unknown, so it passes
-through too.
+dropping the rule would widen the tool, so set the field under `targets.copilot`. Any other name is
+dropped on Copilot: a Claude-only tool such as `ToolSearch`, `SendMessage` or the `Task` tools, and a
+`mcp__plugin_...` name, which belongs to another plugin whose server name on Copilot is unknown. Claude
+Code keeps every name as written.

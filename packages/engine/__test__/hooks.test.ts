@@ -1,7 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { CLAUDE, COPILOT, PluginfinityConfig } from "@pluginfinity/targets";
 import { Schema } from "effect";
-import { hookCommand, hookScripts, renderHooks, targetHooks } from "../src/hooks.js";
+import { hookCommand, hookExec, hookScripts, renderHooks, targetHooks } from "../src/hooks.js";
 
 const config = (input: typeof PluginfinityConfig.Encoded) => Schema.decodeUnknownSync(PluginfinityConfig)(input);
 
@@ -92,6 +92,20 @@ describe("hookCommand", () => {
 		);
 	});
 
+	it("hookExec runs a script through bash, or as itself under exec, with no shell to quote for", () => {
+		assert.deepStrictEqual(
+			hookExec({ script: "hooks/run $(id).sh", args: ["--a b"] }, `\${CLAUDE_PLUGIN_ROOT}`, "bash"),
+			{
+				command: "bash",
+				args: [`\${CLAUDE_PLUGIN_ROOT}/hooks/run $(id).sh`, "--a b"],
+			},
+		);
+		assert.deepStrictEqual(hookExec({ script: "hooks/a.sh" }, `\${CLAUDE_PLUGIN_ROOT}`, "exec"), {
+			command: `\${CLAUDE_PLUGIN_ROOT}/hooks/a.sh`,
+			args: [],
+		});
+	});
+
 	it("under exec, runs the script path itself", () => {
 		assert.strictEqual(
 			hookCommand({ script: "hooks/a.sh" }, `\${CLAUDE_PLUGIN_ROOT}`, "exec"),
@@ -110,12 +124,14 @@ describe("hookCommand", () => {
 describe("renderHooks", () => {
 	const hooked = config({ ...BASE, claude: true, copilot: true });
 
-	it("claude: one matcher group per entry, command and timeout in seconds", () => {
+	it("claude: one matcher group per entry, a script in exec form, a command as written, timeout in seconds", () => {
 		const text = renderHooks(CLAUDE, targetHooks(CLAUDE, "claude", hooked).events, "bash") ?? "";
 		assert.deepStrictEqual(JSON.parse(text), {
 			hooks: {
 				SessionStart: [
-					{ hooks: [{ type: "command", command: `bash "\${CLAUDE_PLUGIN_ROOT}/hooks/start.sh"`, timeout: 5 }] },
+					{
+						hooks: [{ type: "command", command: "bash", args: [`\${CLAUDE_PLUGIN_ROOT}/hooks/start.sh`], timeout: 5 }],
+					},
 				],
 				PreToolUse: [
 					{

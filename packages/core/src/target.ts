@@ -133,8 +133,8 @@ const FieldMap = Schema.Record(Schema.String, FieldMapEntry);
  * so a malformed host description fails when `@pluginfinity/targets` loads.
  * Field maps are typed as string records here; `@pluginfinity/targets` checks
  * their totality over `SKILL_FIELDS` and `AGENT_FIELDS` at compile time and in
- * tests. A tool name absent from `tools.names`, or a value absent from `models`
- * or `efforts`, passes through unchanged.
+ * tests. A tool name absent from `tools.names` follows `tools.unlisted`; a value
+ * absent from `models` or `efforts` passes through unchanged.
  *
  * @public
  */
@@ -161,7 +161,16 @@ export class Target extends Schema.Class<Target>("Target")({
 	}),
 	mcp: Schema.Struct({ path: Schema.String, format: McpFormat, schema: Schema.optionalKey(Schema.String) }),
 	references: Schema.Struct({ style: Schema.Literals(["path", "prose"]) }),
-	tools: Schema.Struct({ names: Schema.Record(Schema.String, ToolMapping), mcp: Schema.String }),
+	tools: Schema.Struct({
+		names: Schema.Record(Schema.String, ToolMapping),
+		mcp: Schema.String,
+		/**
+		 * What happens to a tool name the table does not list and that is not a
+		 * Claude MCP name the target can spell: `keep` writes it unchanged, `drop`
+		 * leaves it out, for a host that has no such tool.
+		 */
+		unlisted: Schema.Literals(["keep", "drop"]),
+	}),
 	models: Schema.Record(Schema.String, ValueMapping),
 	efforts: Schema.Record(Schema.String, ValueMapping),
 }) {}

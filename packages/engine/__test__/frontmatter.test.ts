@@ -103,6 +103,32 @@ describe("mapFrontmatter", () => {
 	});
 });
 
+describe("unlisted tools", () => {
+	const tools = ["Read", "ToolSearch", "TaskCreate", "mcp__docs__search", "mcp__plugin_x_y__run"];
+
+	it("copilot drops a Claude-only tool and another plugin's MCP tool", () => {
+		const mapped = mapFrontmatter(
+			COPILOT,
+			COPILOT.agents.fields,
+			COPILOT.agents.hostFields,
+			{ name: "a", description: "x", tools },
+			{},
+		);
+		assert.deepStrictEqual(mapped.fields.tools, ["read", "docs/search"]);
+	});
+
+	it("claude keeps every tool name", () => {
+		const mapped = mapFrontmatter(
+			CLAUDE,
+			CLAUDE.agents.fields,
+			CLAUDE.agents.hostFields,
+			{ name: "a", description: "x", tools },
+			{},
+		);
+		assert.deepStrictEqual(mapped.fields.tools, tools);
+	});
+});
+
 describe("mapFrontmatter values on copilot", () => {
 	const agent = (fields: Record<string, unknown>) =>
 		mapFrontmatter(
