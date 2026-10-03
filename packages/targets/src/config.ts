@@ -1,7 +1,29 @@
-import { BASE_CONFIG_KEYS, BaseConfigFields, TargetSetting } from "@pluginfinity/core";
+import {
+	BASE_CONFIG_KEYS,
+	BaseConfigFields,
+	CLAUDE_HOOK_EVENTS,
+	Hooks,
+	makeHooks,
+	makeTargetSetting,
+} from "@pluginfinity/core";
 import { Schema } from "effect";
+import { COPILOT_OWN_EVENTS } from "./copilot.js";
 import type { KnownTargetId } from "./registry.js";
 import { KNOWN_TARGET_IDS } from "./registry.js";
+
+/**
+ * The `claude` key's value: hooks overrides use Claude Code events only.
+ *
+ * @public
+ */
+export const ClaudeSetting = makeTargetSetting(Hooks);
+
+/**
+ * The `copilot` key's value: hooks overrides may also use Copilot's own events.
+ *
+ * @public
+ */
+export const CopilotSetting = makeTargetSetting(makeHooks([...CLAUDE_HOOK_EVENTS, ...COPILOT_OWN_EVENTS] as const));
 
 /**
  * The whole `pluginfinity.config.ts` shape: the plugin-wide fields from
@@ -16,8 +38,8 @@ import { KNOWN_TARGET_IDS } from "./registry.js";
  */
 export const PluginfinityConfig = Schema.Struct({
 	...BaseConfigFields,
-	claude: Schema.optionalKey(TargetSetting),
-	copilot: Schema.optionalKey(TargetSetting),
+	claude: Schema.optionalKey(ClaudeSetting),
+	copilot: Schema.optionalKey(CopilotSetting),
 });
 
 /**

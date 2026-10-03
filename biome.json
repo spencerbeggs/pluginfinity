@@ -1,5 +1,19 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
 	"extends": ["@savvy-web/silk/biome"],
+	"overrides": [
+		{
+			"assist": {
+				"enabled": false
+			},
+			"formatter": {
+				"enabled": false
+			},
+			"includes": ["plugins/*/builds/**"],
+			"linter": {
+				"enabled": false
+			}
+		}
+	],
 	"root": true
 }

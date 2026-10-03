@@ -15,8 +15,8 @@ sources:
     title: The Phase 1 design agreed with the repository owner, section by section
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T22:36:46Z
-  body_sha256: 36d7233ba88b4e38d5f309e6c16fe371eccd1684e02842ecf573aa2986c531a0
+  at: 2026-10-03T02:18:07Z
+  body_sha256: 85fb666ec6b92707f06fc0f2eb1b792947a3bd676acbf05b9adf3c94eee4e5f6
 ---
 
 # Plugin source model
@@ -30,7 +30,7 @@ plugins/<name>/
   pluginfinity.config.ts      name, metadata, targets, hooks, mcpServers, scripts
   skills/<skill>/SKILL.md      plus any scripts/, references/, assets/
   agents/<agent>.md
-  hooks/*.sh                  any path, referenced from the config
+  hooks/                      shipped whole; scripts referenced from the config
 ```
 
 The first release covers four component kinds: skills, agents, hooks and MCP servers. Commands, LSP servers, output styles, themes and monitors are out of scope. Runtime content is markdown, JSON and bash only ([decision](../decisions/plugins-carry-no-node-dependencies.md)).
@@ -41,12 +41,15 @@ The first release covers four component kinds: skills, agents, hooks and MCP ser
 - **`Agent`.** Its name is its file stem and must equal the frontmatter `name`, which satisfies both Claude Code (identity by `name`) and Copilot (identity by file name). It holds an `AgentFrontmatter` and a body.
 - **Frontmatter** uses Claude Code's field names. An unknown field fails decoding, so a misspelt field never ships silently.
 - **`targets` block.** Optional in either frontmatter, keyed by target id. `false` excludes the component from that target; an object holds fields for that host only, including fields Claude Code lacks (`handoffs` for Copilot). The block is always stripped on emit, and an unknown target id fails.
+- **Frontmatter is YAML.** It must parse as YAML 1.2. A plain scalar holding a colon and a space does not, and one holding a space and `#` loses the rest of its line to a comment. Claude Code's own reader tolerates both, so fold or quote such values. Frontmatter a target keeps whole is written as the author wrote it; any other is re-serialized in the author's key order, quoting what needs it.
+- **A `description` in a target block** replaces the base one for that host, and no field is degraded into it, since the author wrote that host's description. A built `description` over 1,024 characters fails.
 - **Support files** in a skill directory are copied verbatim, except `.md` files, which get the same body processing as `SKILL.md`.
 
 ## Body constructs
 
 - **Host blocks.** `<!-- pluginfinity:only <id> [<id>…] -->` … `<!-- /pluginfinity:only -->` keeps the enclosed passage for the listed targets and strips it for the rest. Blocks do not nest; an unclosed block or an unknown id fails.
-- **References.** A markdown link destination `pluginfinity://skill/<skill>[/<path>]` or `pluginfinity://agent/<agent>` must name a component, and a file, that exists. Each target rewrites it ([target description](target-description.md)). Both forms pass the repository's markdownlint config.
+- **References.** A markdown link destination `pluginfinity://skill/<skill>[/<path>]` or `pluginfinity://agent/<agent>` must name a component, and a file, that exists. Each target rewrites it ([target description](target-description.md)). Both forms pass the repository's markdownlint config. They are not built yet, so a build refuses any such link outside code rather than ship it as text.
+- **Code is text.** A host-block marker or a reference inside fenced code or an inline code span is shown, not acted on.
 
 Whole-file overrides per target are out of scope until a plugin needs them.[^owner-direction]
 
@@ -67,17 +70,19 @@ export default defineConfig({
   },
   claude: true,
   copilot: {
-    hooks: { subagentStart: [{ script: "hooks/brief.sh" }] },
+    hooks: { userPromptTransformed: [{ script: "hooks/brief.sh" }] },
   },
 });
 ```
 
 - **Metadata.** `description` is required; `author`, `homepage`, `repository`, `license` and `keywords` are optional. `version` is still copied from `package.json`.
 - **A hook entry** has exactly one of `script` (a path from the plugin root) or `command` (a string whose one placeholder is `${PLUGIN_ROOT}`), and optional `matcher`, `args` (with `script` only), `timeout` in seconds and `fallback`. HTTP and prompt hook types are out of scope.
+- **Files a `command` names** as `${PLUGIN_ROOT}/<path>` ship and are checked like `script` paths.
+- **The `hooks/` directory** ships whole to every target, so a script can source helpers the config never names, except scripts that only another target's hooks run. Test data belongs outside it. A script outside `hooks/` ships to the targets that run it.
 - **`fallback`** says what a target that lacks the event does: `"fail"` (the default) or `"omit"`.
 - **`scripts.invoke`.** `"bash"`, the default, emits `bash "<root>/<path>"` and ignores the file mode, because this repository keeps scripts in git without the executable bit and restores it locally. `"exec"` emits the bare quoted path and fails a build whose shipped `.sh` files are not executable in the source.
 - **`mcpServers`** uses Claude Code's `.mcp.json` server shape: `command`, `args`, `env`, or `type` with `url` and `headers`. `${PLUGIN_ROOT}` is the one placeholder in `args`, `env` and `cwd`.
-- **Target overrides.** `TargetOverride` grows from `name` to `name`, `hooks` and `mcpServers`, typed per target. An event under a target's `hooks` replaces the base entries for that event on that target, `[]` removes them, and a target may name its own events Claude Code lacks. A server under a target's `mcpServers` replaces the base server of that name.
+- **Target overrides.** A target key's override object grows from `name` to `name`, `hooks` and `mcpServers`, typed per target. An event under a target's `hooks` replaces the base entries for that event on that target, `[]` removes them, and a Copilot override uses Claude Code event names, plus `userPromptTransformed` and `errorOccurred`, which only Copilot has. A server under a target's `mcpServers` replaces the base server of that name.
 
 The current contract, before these additions, is the [config interface](../interfaces/config.md).
 

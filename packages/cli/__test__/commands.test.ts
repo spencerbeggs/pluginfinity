@@ -1,7 +1,7 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it, layer } from "@effect/vitest";
 import { Effect } from "effect";
-import { BOTH_TARGETS, ONLY_COPILOT } from "./fixtures/configs.js";
+import { BOTH_TARGETS, ONLY_COPILOT, PACKAGE_JSON } from "./fixtures/configs.js";
 import { runCli } from "./utils/run.js";
 import { writeTree } from "./utils/tree.js";
 
@@ -95,31 +95,60 @@ describe("stubs stop with NotImplemented (exit 1)", () => {
 	}
 });
 
-describe("build and validate run the front half", () => {
+describe("build and validate", () => {
 	layer(NodeServices.layer)((it) => {
-		it.effect("build with a valid config reaches NotImplemented", () =>
+		it.effect("build prints one line per target with what it wrote, exit 0", () =>
 			Effect.gen(function* () {
-				const cwd = yield* writeTree({ "pluginfinity.config.ts": BOTH_TARGETS });
-				const result = yield* runCli(["build", "--target", "claude", "--check"], { cwd });
-				assert.strictEqual(result.code, 1);
-				assert.isTrue(result.stderr.some((line) => line.includes("pluginfinity build is not implemented yet")));
+				const cwd = yield* writeTree({ "pluginfinity.config.ts": BOTH_TARGETS, "package.json": PACKAGE_JSON });
+				const result = yield* runCli(["build", "--human"], { cwd });
+				assert.strictEqual(result.code, 0);
+				assert.deepStrictEqual(result.stdout, [
+					`✓ claude: ${cwd}/builds/claude (1 added, 0 changed, 0 removed)`,
+					`✓ copilot: ${cwd}/builds/copilot (1 added, 0 changed, 0 removed)`,
+				]);
 			}),
 		);
 
-		it.effect("validate --no-host with a valid config reaches NotImplemented", () =>
+		it.effect("build --check before any build is BuildStale, exit 1", () =>
 			Effect.gen(function* () {
-				const cwd = yield* writeTree({ "pluginfinity.config.ts": BOTH_TARGETS });
-				const result = yield* runCli(["validate", "--no-host"], { cwd });
+				const cwd = yield* writeTree({ "pluginfinity.config.ts": BOTH_TARGETS, "package.json": PACKAGE_JSON });
+				const result = yield* runCli(["build", "--check", "--human"], { cwd });
 				assert.strictEqual(result.code, 1);
-				assert.isTrue(result.stderr.some((line) => line.includes("pluginfinity validate is not implemented yet")));
+				assert.include(result.stderr[0] ?? "", "builds are out of date");
+				assert.include(result.stderr[1] ?? "", "pluginfinity build");
+			}),
+		);
+
+		it.effect("build --agent prints one JSON object listing each target's files", () =>
+			Effect.gen(function* () {
+				const cwd = yield* writeTree({ "pluginfinity.config.ts": BOTH_TARGETS, "package.json": PACKAGE_JSON });
+				const result = yield* runCli(["build", "--target", "claude", "--agent"], { cwd });
+				assert.strictEqual(result.code, 0);
+				const report = JSON.parse(result.stdout[0] ?? "");
+				assert.strictEqual(report.ok, true);
+				assert.deepStrictEqual(report.builds[0].added, [".claude-plugin/plugin.json"]);
+			}),
+		);
+
+		it.effect("validate --no-host after a build passes, exit 0", () =>
+			Effect.gen(function* () {
+				const cwd = yield* writeTree({ "pluginfinity.config.ts": BOTH_TARGETS, "package.json": PACKAGE_JSON });
+				yield* runCli(["build"], { cwd });
+				const result = yield* runCli(["validate", "--no-host", "--human"], { cwd });
+				assert.strictEqual(result.code, 0);
+				assert.strictEqual(result.stdout.length, 2);
 			}),
 		);
 
 		it.effect("[path] is resolved against the launch directory", () =>
 			Effect.gen(function* () {
-				const cwd = yield* writeTree({ "plugins/a/pluginfinity.config.ts": BOTH_TARGETS });
-				const result = yield* runCli(["build", "plugins/a"], { cwd });
-				assert.isTrue(result.stderr.some((line) => line.includes("not implemented yet")));
+				const cwd = yield* writeTree({
+					"plugins/a/pluginfinity.config.ts": BOTH_TARGETS,
+					"plugins/a/package.json": PACKAGE_JSON,
+				});
+				const result = yield* runCli(["build", "plugins/a", "--human"], { cwd });
+				assert.strictEqual(result.code, 0);
+				assert.include(result.stdout[0] ?? "", `${cwd}/plugins/a/builds/claude`);
 			}),
 		);
 
@@ -178,10 +207,13 @@ describe("build and validate run the front half", () => {
 
 		it.effect("a relative --config resolves against the launch directory", () =>
 			Effect.gen(function* () {
-				const cwd = yield* writeTree({ "plugins/a/pluginfinity.config.ts": BOTH_TARGETS });
-				const result = yield* runCli(["build", "--config", "plugins/a/pluginfinity.config.ts"], { cwd });
-				assert.strictEqual(result.code, 1);
-				assert.isTrue(result.stderr.some((line) => line.includes("pluginfinity build is not implemented yet")));
+				const cwd = yield* writeTree({
+					"plugins/a/pluginfinity.config.ts": BOTH_TARGETS,
+					"plugins/a/package.json": PACKAGE_JSON,
+				});
+				const result = yield* runCli(["build", "--config", "plugins/a/pluginfinity.config.ts", "--human"], { cwd });
+				assert.strictEqual(result.code, 0);
+				assert.include(result.stdout[0] ?? "", `${cwd}/plugins/a/builds/claude`);
 			}),
 		);
 	});

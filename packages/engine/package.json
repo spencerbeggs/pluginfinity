@@ -37,6 +37,7 @@
 		"@effected/glob": "catalog:effected",
 		"@effected/semver": "catalog:effected",
 		"@effected/walker": "catalog:effected",
+		"@effected/yaml": "catalog:effected",
 		"@pluginfinity/core": "workspace:*",
 		"@pluginfinity/targets": "workspace:*",
 		"jiti": "^2.6.1"

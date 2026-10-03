@@ -39,6 +39,7 @@ describe("ConfigLoader.load", () => {
 				assert.strictEqual(result.success.root, root);
 				assert.deepStrictEqual(result.success.config, {
 					name: "valid-plugin",
+					description: "Fixture plugin.",
 					claude: { name: "valid-claude" },
 					copilot: true,
 				});
@@ -100,14 +101,15 @@ describe("ConfigLoader.load", () => {
 			}),
 		);
 
-		it.effect("an unknown top-level key is UnknownTarget listing the known targets", () =>
+		it.effect("an unknown top-level key is UnknownTarget listing both the config fields and the known targets", () =>
 			Effect.gen(function* () {
 				const { result } = yield* loadFrom({ "pluginfinity.config.ts": UNKNOWN_KEY });
 				if (result._tag !== "Failure" || result.failure._tag !== "UnknownTarget")
 					return assert.fail("expected UnknownTarget");
 				assert.deepStrictEqual(result.failure.targets, ["claud"]);
 				assert.deepStrictEqual(result.failure.known, ["claude", "copilot"]);
-				assert.include(result.failure.message, "known targets: claude, copilot");
+				assert.include(result.failure.message, "a known target (claude, copilot)");
+				assert.include(result.failure.message, "not a config field (name, description,");
 			}),
 		);
 

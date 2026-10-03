@@ -1,4 +1,6 @@
 import { Schema } from "effect";
+import { Hooks } from "./hooks.js";
+import { McpServers } from "./mcp.js";
 
 /**
  * A plugin name as every host spells it: kebab-case, lowercase letters and
@@ -13,6 +15,14 @@ export const PluginName = Schema.String.check(
 );
 
 /**
+ * How a `script` hook is invoked: through `bash`, which ignores the file
+ * mode, or directly, which needs the executable bit.
+ *
+ * @public
+ */
+export const ScriptInvoke = Schema.Literals(["bash", "exec"]);
+
+/**
  * The plugin-wide fields of a pluginfinity config, before any target key.
  *
  * @remarks
@@ -25,6 +35,25 @@ export const PluginName = Schema.String.check(
 export const BaseConfigFields = {
 	/** The plugin's name for every host. Not read from `package.json`. */
 	name: PluginName,
+	/** What the plugin does, shown by every host. */
+	description: Schema.String.check(Schema.isMinLength(1)),
+	author: Schema.optionalKey(
+		Schema.Struct({
+			name: Schema.String,
+			email: Schema.optionalKey(Schema.String),
+			url: Schema.optionalKey(Schema.String),
+		}),
+	),
+	homepage: Schema.optionalKey(Schema.String),
+	repository: Schema.optionalKey(Schema.String),
+	license: Schema.optionalKey(Schema.String),
+	keywords: Schema.optionalKey(Schema.Array(Schema.String)),
+	/** How `script` hooks are invoked. Defaults to `{ invoke: "bash" }`. */
+	scripts: Schema.optionalKey(Schema.Struct({ invoke: Schema.optionalKey(ScriptInvoke) })),
+	/** Hooks keyed by Claude Code event names, generated per target. */
+	hooks: Schema.optionalKey(Hooks),
+	/** MCP servers in Claude Code's `.mcp.json` server shape. */
+	mcpServers: Schema.optionalKey(McpServers),
 } as const;
 
 /**
@@ -35,33 +64,24 @@ export const BaseConfigFields = {
 export const BASE_CONFIG_KEYS: ReadonlyArray<string> = Object.keys(BaseConfigFields);
 
 /**
- * What a target key may override for that host.
- *
- * @public
- */
-export const TargetOverride = Schema.Struct({
-	/** The plugin's name on this host, when it differs from the base `name`. */
-	name: Schema.optionalKey(PluginName),
-});
-
-/**
- * The decoded `TargetOverride`.
- *
- * @public
- */
-export type TargetOverride = typeof TargetOverride.Type;
-
-/**
  * A target key's value: `true` to enable the target with no overrides, or an
  * override object. An absent key means the target is off; `false` is rejected.
  *
- * @public
- */
-export const TargetSetting = Schema.Union([Schema.Literal(true), TargetOverride]);
-
-/**
- * The decoded `TargetSetting`.
+ * @remarks
+ * `hooks` is the target's own hooks schema, so each target admits the events
+ * it has: a hook under it replaces the base entries for that event on that
+ * target, and `[]` removes them. A server under `mcpServers` replaces the base
+ * server of that name.
  *
  * @public
  */
-export type TargetSetting = typeof TargetSetting.Type;
+export const makeTargetSetting = <H extends Schema.Top>(hooks: H) =>
+	Schema.Union([
+		Schema.Literal(true),
+		Schema.Struct({
+			/** The plugin's name on this host, when it differs from the base `name`. */
+			name: Schema.optionalKey(PluginName),
+			hooks: Schema.optionalKey(hooks),
+			mcpServers: Schema.optionalKey(McpServers),
+		}),
+	]);

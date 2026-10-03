@@ -1,0 +1,14 @@
+import { defineConfig } from "pluginfinity";
+
+export default defineConfig({
+	name: "pluginfinity",
+	description:
+		"How to author an agent plugin as one pluginfinity source and build it for Claude Code and GitHub Copilot: the config, skill and agent frontmatter, targets and host blocks, hooks, and every build finding with its fix.",
+	author: { name: "C. Spencer Beggs", email: "spencer@beggs.codes", url: "https://spencerbeg.gs" },
+	homepage: "https://github.com/spencerbeggs/pluginfinity",
+	repository: "https://github.com/spencerbeggs/pluginfinity.git",
+	license: "MIT",
+	keywords: ["pluginfinity", "agent-plugin", "claude-code", "copilot", "skills"],
+	claude: true,
+	copilot: true,
+});

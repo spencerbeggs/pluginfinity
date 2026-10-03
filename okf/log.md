@@ -1,5 +1,18 @@
 # Log
 
+## 2026-10-03
+
+* Updated @pluginfinity/cli
+* Updated @pluginfinity/engine
+* Updated The pluginfinity command line
+* Updated pluginfinity first release
+* Updated Plugin source model
+* Added Copilot honours flat additionalContext from a PascalCase SessionStart hook, 2026-10-03
+* Updated Target description
+* Updated pluginfinity companion plugin
+* Updated A workspace plugin gets no pluginfinity bin unless the carrier is relinked after its build
+* Updated dogfood plugin fixture
+
 ## 2026-10-02
 
 * Added @pluginfinity/cli

@@ -21,12 +21,13 @@ export type { KnownTargetId, PluginfinityConfig, PluginfinityConfigInput } from 
  *
  * export default defineConfig({
  * 	name: "foo",
+ * 	description: "What foo does",
  * 	claude: { name: "baz" },
  * 	copilot: true,
  * });
  * ```
  *
- * @param config - the plugin's name and one key per enabled target
+ * @param config - the plugin's name, description and one key per enabled target
  * @returns `config`, unchanged: pluginfinity decodes it when it loads the file
  *
  * @public

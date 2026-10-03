@@ -8,7 +8,7 @@ import { CliAudience } from "@effected/cli";
 import type { ToolDiscovery } from "@effected/commands";
 import type { Audience } from "@effected/env";
 import type { NotImplemented } from "@pluginfinity/engine";
-import type { Effect } from "effect";
+import type { Effect, PlatformError } from "effect";
 import type { CliError } from "effect/cli";
 import { Command } from "effect/cli";
 import { buildCommand } from "../commands/build.js";
@@ -56,5 +56,8 @@ const root = (launch: LaunchFacts) =>
 export const program = (
 	args: ReadonlyArray<string>,
 	deps: ProgramDeps,
-): Effect.Effect<void, CliError.CliError | NotImplemented, Audience | CliExit | ToolDiscovery | Command.Environment> =>
-	CliAudience.runWith(root(deps), { version: deps.version })(args);
+): Effect.Effect<
+	void,
+	CliError.CliError | NotImplemented | PlatformError.PlatformError,
+	Audience | CliExit | ToolDiscovery | Command.Environment
+> => CliAudience.runWith(root(deps), { version: deps.version })(args);

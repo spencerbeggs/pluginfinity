@@ -29,8 +29,8 @@ sources:
     title: The usage-error and NotImplemented exit-code cases
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T19:34:21Z
-  body_sha256: 9ece500892b4dbc17cb6ba90b6a6e1760086324969938c032df0309544f0bcf6
+  at: 2026-10-03T01:53:17Z
+  body_sha256: 24d7f4126469e27f8adcd7b067002f99de367bb82e2ecfe219578b3212affde2
 ---
 
 # The pluginfinity command line
@@ -43,8 +43,8 @@ The promise the `pluginfinity` bin makes to the people, agents and CI jobs that 
 | :-- | :-- |
 | `pluginfinity init [dir]` | Stub. Takes `--layout root\|plugin\|plugins`, `--name`, `--pm pnpm\|npm\|yarn\|bun`, `--target`, `--no-changesets`, `--no-ci` and `--yes`, checks them, then fails with `NotImplemented`. |
 | `pluginfinity plugin add <name>` | Stub. Takes `--target` and `--dir`, checks the name, then fails with `NotImplemented`. A bare `pluginfinity plugin` prints the group's help. |
-| `pluginfinity build [path]` | Finds and loads the config(s) and checks the targets, then fails with `NotImplemented`. Takes `--target`, `--all`, `--config` and `--check` (rebuild in memory and compare with `builds/`). |
-| `pluginfinity validate [path]` | Finds and loads the config(s) and checks the targets, then fails with `NotImplemented`. Takes `--target`, `--all`, `--config` and `--no-host` (skip the host CLIs). |
+| `pluginfinity build [path]` | Renders each enabled target's manifest, hooks, skills and agents, with the shipped hook scripts and skill files, into `builds/<id>/` beside the config, writing only files that differ, and prints what it added, changed and removed. Takes `--target`, `--all`, `--config` and `--check` (rebuild in memory, compare with `builds/`, and fail with `BuildStale` on any difference, writing nothing). |
+| `pluginfinity validate [path]` | Requires current builds (`BuildStale` otherwise), then runs each host's check: `claude plugin validate` on `builds/claude/`, and a `copilot --plugin-dir` plugin listing that must load `builds/copilot/` under its manifest name and version (`HostRejected` otherwise). Takes `--target`, `--all`, `--config` and `--no-host` (skip the host CLIs). |
 | `pluginfinity doctor [path]` | Works. Reports on the runtime, the host CLIs, the tools and the config. Takes `--all`, `--config` and `--strict`. |
 
 The commands that read a config share their inputs:[^shared]
@@ -58,15 +58,15 @@ The root command shares `--human`, `--agent` and `--ci` with every subcommand an
 ## Exit codes
 
 - **0**: success. `doctor` exits 0 even when a check fails, unless `--strict` is given.
-- **1**: a finding. Every config failure (`ConfigNotFound`, `ConfigAmbiguous`, `ConfigLoadFailed`, `ConfigInvalid`, `UnknownTarget`, `TargetNotEnabled`) is reported as a finding and exits 1.[^render-config-error] So does a stub's `NotImplemented`, and `doctor --strict` when a `required` check fails.
+- **1**: a finding. Every config failure (`ConfigNotFound`, `ConfigAmbiguous`, `ConfigLoadFailed`, `ConfigInvalid`, `UnknownTarget`, `TargetNotEnabled`) is reported as a finding and exits 1.[^render-config-error] So is every build failure (`PackageVersionMissing`, `HookEventUnsupported`, `HookScriptInvalid`, `PathConflict`, `ComponentsInvalid`, `BuildStale`, `HostRejected`), a stub's `NotImplemented`, and `doctor --strict` when a `required` check fails.
 - **64**: a usage error. Examples are an unknown flag, an unknown `--target`, `--layout` or `--pm` value, `--config` with `--all`, a `[path]` that does not exist, and a plugin name that is not kebab-case.[^commands-test]
 
 ## Output and audiences
 
 The audience decides the output form. It comes from `--human`, `--agent` or `--ci`, from `PLUGINFINITY_AUDIENCE`, or from detection of an agent or CI environment.[^run] `PLUGINFINITY_LOG_LEVEL` sets the log level.
 
-- **For people**, a config error is a `✗` line and a hint on stderr, and `doctor` prints a checklist grouped into Runtime, Hosts, Tools and Config.[^render-doctor]
-- **For agents and CI**, a config error or a doctor report is one JSON object on stdout. It carries `engine_version`, `distribution` and `ok`, plus `error` (`tag`, `path`, `message`, `remediation`) or `checks` (`id`, `status`, `severity`, `version`, `path`, `remediation`).
+- **For people**, a finding is a `✗` line and a hint on stderr, `build` and `validate` print one `✓` line per target, and `doctor` prints a checklist grouped into Runtime, Hosts, Tools and Config.[^render-doctor]
+- **For agents and CI**, a finding, a doctor report, or a build or validate result is one JSON object on stdout. It carries `engine_version`, `distribution` and `ok`, plus `error` (`tag`, `path`, `message`, `remediation`), `checks` (`id`, `status`, `severity`, `version`, `path`, `remediation`), `builds` (`config`, `target`, `out`, `added`, `changed`, `removed`) or `validations` (`config`, `target`, `out`, `host`).
 - stdout carries only that structured output. A usage error's help goes to stderr with the error, and `--help` alone goes to stdout. A `NotImplemented` failure is reported on stderr for every audience.
 
 `--version` prints `pluginfinity v<version>` and, when the bin was launched through the carrier, `via pluginfinity <version>`.

@@ -9,13 +9,16 @@ tags:
   - portability
   - dx
 sources:
+  - id: skill
+    resource: ../../plugins/pluginfinity/skills/pluginfinity/SKILL.md
+    title: The pluginfinity skill
   - id: package-manifest
     resource: ../../plugins/pluginfinity/package.json
     title: Companion plugin tracking package
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T19:34:21Z
-  body_sha256: 39970777f59759d2967d760a17bec766a774b964069cc2e3196653beb0b447dd
+  at: 2026-10-03T03:08:38Z
+  body_sha256: 4cc239e705ec22d94baa7191ad536f75f3b60ab968dbec95d192b7d4b5bba007
 ---
 
 # pluginfinity companion plugin
@@ -26,16 +29,17 @@ generated:
 
 ## Shape
 
-- `package.json` is a private tracking package, `pluginfinity-plugin`, that is never published to npm. It gives changesets a version to bump, and the build copies that version into each generated manifest.[^package-manifest]
+- `package.json` is a private tracking package, `@pluginfinity/ai-plugins`, that is never published to npm. A changeset against it bumps its version, which the build copies into each generated manifest, and CI cuts a GitHub-only release that the marketplaces track; `.changeset/config.json` lists both built manifests as its version files.[^package-manifest]
 - It depends on the CLI as `"pluginfinity": "workspace:*"` in `devDependencies`, so its scripts run the locally built `pluginfinity`. See [the bin-link gotcha](../gotchas/workspace-bin-needs-built-cli.md).
 - Once there is a source to build, it follows the target layout in [the roadmap](../roadmaps/pluginfinity-first-release.md): host-neutral source at the root, `pluginfinity.config.ts`, and generated, committed output under `builds/<id>/`.
 
 ## Status
 
-Only the package manifest exists. It is authored in phase 3 of the roadmap, as a single source from the start, using plugin-bot's content as a reference.
+The first release holds one skill, `pluginfinity`, which teaches an agent to author and build a plugin with pluginfinity: the source layout and config, skill and agent frontmatter, `targets` blocks and host blocks, hooks, what each host gets, and every finding with its fix, split into references the skill loads on demand.[^skill] It is built with pluginfinity into `builds/claude/` and `builds/copilot/`, which are committed and skipped by Biome and markdownlint. plugin-bot's host-reference and authoring skills are left for a later release, rewritten for one source.
 
 ## Boundary with dogfood
 
 The companion uses only the CLI features a real plugin needs. CLI features it has no use for are exercised by the [dogfood fixture](dogfood.md) instead, never by adding them to the companion for coverage.
 
 [^package-manifest]: `../../plugins/pluginfinity/package.json`
+[^skill]: `../../plugins/pluginfinity/skills/pluginfinity/SKILL.md`

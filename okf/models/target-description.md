@@ -15,8 +15,8 @@ sources:
     title: The Phase 1 design agreed with the repository owner, section by section
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T22:36:46Z
-  body_sha256: 2120513b647274751a42a11696b938ea06832f288b6c1023f554a10d658103d6
+  at: 2026-10-03T02:18:07Z
+  body_sha256: 78629228913665080c208cd6f5d484a5bde3b4180c2b7998add7c657edc46740
 ---
 
 # Target description
@@ -31,7 +31,8 @@ This is the agreed design for Phase 1 of [the roadmap](../roadmaps/pluginfinity-
 - **`hooks`.** A `path`, a `format` (`"claude-hooks-json"` or `"copilot-hooks-v1"`), a table from each Claude Code event to the target's name or `absent`, and the target's own event names.
 - **`mcp`.** A `path` and a `format` (`"claude-mcp-json"` or `"agent-plugins-mcp-1.0"`).
 - **`references`.** How a `pluginfinity://` link renders: as a path under the root's body spelling, or as prose ("the `<skill>` skill's `<path>`"), plugin-bot's Copilot convention.
-- **`tools`.** A table translating Claude Code tool names for agent `tools` and hook matchers.
+- **`tools`.** A table translating Claude Code tool names in agent `tools` and skill `allowed-tools`; a name maps to the target's name, `drop`, or `unresolved`, and an unlisted name passes through. Claude's `mcp__<server>__<tool>` names are rewritten to the target's MCP spelling, and a rule such as `Bash(git log:*)` on a tool the target renames is unresolved, since dropping the rule would widen the tool. Hook matchers are written unchanged: Copilot applies Claude matcher semantics to Claude tool names under the PascalCase events.
+- **`models` and `efforts`.** Tables translating Claude Code model names and effort levels; a value maps to the target's value, `drop`, which leaves the field out, or `unresolved`. Copilot drops `inherit`, since an agent with no model inherits the session's, leaves Claude's model aliases and the `xhigh` and `max` efforts unresolved, and writes `effort` as `reasoningEffort`.
 
 ## Field-map entries
 
@@ -58,7 +59,7 @@ The degrade forms are a closed set owned by the engine, for now `"description-su
 | Root in hooks and MCP | `${CLAUDE_PLUGIN_ROOT}` | `${PLUGIN_ROOT}` |
 | Root in bodies | `${CLAUDE_PLUGIN_ROOT}` | unresolved, so references render as prose |
 
-The Copilot hook cells rest on two measurements: hooks run from the plugin root with `${PLUGIN_ROOT}` substituted ([environment](../measurements/copilot-plugin-hook-environment.md)), and a PascalCase `PreToolUse` deny in Claude's shape is honoured ([deny](../measurements/copilot-claude-style-pretooluse-deny.md)). Host facts come from the [references](../references/index.md), and where SchemaStore and the host docs disagree, the docs win.
+The Copilot hook cells rest on two measurements: hooks run from the plugin root with `${PLUGIN_ROOT}` substituted ([environment](../measurements/copilot-plugin-hook-environment.md)), a PascalCase `PreToolUse` deny in Claude's shape is honoured ([deny](../measurements/copilot-claude-style-pretooluse-deny.md)), and a PascalCase `SessionStart` hook's flat `additionalContext` reaches the model ([session start](../measurements/copilot-pascalcase-sessionstart-context.md)). Host facts come from the [references](../references/index.md), and where SchemaStore and the host docs disagree, the docs win.
 
 ## Invariants the tests pin
 

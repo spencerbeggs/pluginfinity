@@ -22,8 +22,8 @@ sources:
     title: The doctor smoke test that runs inside the fixture
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T19:34:21Z
-  body_sha256: a2d2dcbc0e1e2f756236d25870f103aa94dabc9674072c7eaaca5ca8b8e7cd9d
+  at: 2026-10-03T03:08:38Z
+  body_sha256: dca34612216cc7ec1c756bf780b45fd10c6d1061f0aaed12b31fdc6c7f649013
 ---
 
 # dogfood plugin fixture
@@ -34,7 +34,7 @@ generated:
 
 ## Shape
 
-- `package.json` is the private package `pluginfinity-dogfood`, depending on the CLI as `"pluginfinity": "workspace:*"`.[^package-manifest]
+- `package.json` is the private package `@pluginfinity/dogfood-plugin`, ignored by changesets, depending on the CLI as `"pluginfinity": "workspace:*"`.[^package-manifest]
 - It is listed under `ignore` in `.changeset/config.json`, so it is never versioned or released.[^changeset-config]
 - It is not distributed through any marketplace. It is unrelated to the `plugins/dogfood/` sandbox in the bot repository.
 

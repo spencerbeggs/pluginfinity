@@ -19,10 +19,16 @@ sources:
   - id: config
     resource: ../../packages/targets/src/config.ts
     title: The assembled PluginfinityConfig schema
+  - id: claude
+    resource: ../../packages/targets/src/claude.ts
+    title: The CLAUDE description
+  - id: copilot
+    resource: ../../packages/targets/src/copilot.ts
+    title: The COPILOT description
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T22:36:46Z
-  body_sha256: 88582b050b33c829fca5e4fa7634d23f433b0a959d29c314b192f2d28cab8cc2
+  at: 2026-10-02T23:30:51Z
+  body_sha256: 1da75a99e3a3f7011ca5afecde2b7dd99f5800da051dc2cdac2b4db8417ea70d
 ---
 
 # @pluginfinity/targets
@@ -33,7 +39,7 @@ generated:
 
 ## What it holds today
 
-- **The registry.** `TARGETS` lists `claude` (Claude Code) and `copilot` (GitHub Copilot), and `KNOWN_TARGET_IDS` lists their ids in registry order. One id names a target everywhere: the config key, `builds/<id>/` and `--target <id>`.[^registry] An entry is only an id and a display name for now.
+- **The registry.** `TARGETS` lists `claude` (Claude Code) and `copilot` (GitHub Copilot), and `KNOWN_TARGET_IDS` lists their ids in registry order. One id names a target everywhere: the config key, `builds/<id>/` and `--target <id>`.[^registry] Each entry also carries the host's description: `CLAUDE` and `COPILOT`, values of core's `Target` schema.[^claude][^copilot]
 - **The assembled config.** `PluginfinityConfig` joins [core](core.md)'s base fields with one optional key per target. The target keys are written out by name rather than mapped from the registry, so an editor shows each one, and a test pins them to `KNOWN_TARGET_IDS`. `CONFIG_KEYS` is every legal top-level key, and `enabledTargets` returns the targets a config turns on, in registry order.[^config] The [engine](engine.md) decodes against this schema, and the [carrier](pluginfinity.md)'s `defineConfig` is typed against its encoded form. The promise to plugin authors is the [config interface](../interfaces/config.md).
 
 Adding a host means a registry entry and a config key here, in one release.
@@ -45,8 +51,10 @@ Adding a host means a registry entry and a config key here, in one release.
 
 ## Status
 
-The capability description of each target (frontmatter keys per component kind, manifest location and keys, plugin-relative path spelling, hook events, missing features such as `paths:` auto-loading) is designed as the [target description](../models/target-description.md) and lands with core's `Target` schema in the builder phase of [the roadmap](../roadmaps/pluginfinity-first-release.md).
+The descriptions are complete for the first release's component kinds. A test pins that every field map covers every core frontmatter field and every event table covers every Claude Code event.
 
 [^package-manifest]: `../../packages/targets/package.json`
 [^registry]: `../../packages/targets/src/registry.ts`
 [^config]: `../../packages/targets/src/config.ts`
+[^claude]: `../../packages/targets/src/claude.ts`
+[^copilot]: `../../packages/targets/src/copilot.ts`

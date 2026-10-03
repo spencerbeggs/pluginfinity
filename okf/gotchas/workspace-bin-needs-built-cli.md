@@ -14,15 +14,15 @@ sources:
     title: Carrier manifest with publishConfig.linkDirectory and the postprepare relink
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T19:34:21Z
-  body_sha256: 1d0f1ced58fe25602370daed923cad13b9ef3e2db1e756785fb9fbb43479ecbd
+  at: 2026-10-03T03:08:38Z
+  body_sha256: 385e0b8a32bce1a5048b43ac72df53ceeb96351c1e66e65db170b1327b6d1764
 ---
 
 # A workspace plugin gets no pluginfinity bin unless the carrier is relinked after its build
 
 ## What you see
 
-After a clean install, `plugins/dogfood/node_modules/pluginfinity` exists as a symlink but there is no `node_modules/.bin/pluginfinity`, and `pnpm --filter pluginfinity-dogfood exec pluginfinity` fails with `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL`. The install log shows every package's `prepare` build succeeding in layer order. Running `pnpm install` again reports "Already up to date", and `pnpm build` or a test run that builds first leaves `dist/` in place, but neither creates the shim.
+After a clean install, `plugins/dogfood/node_modules/pluginfinity` exists as a symlink but there is no `node_modules/.bin/pluginfinity`, and `pnpm --filter @pluginfinity/dogfood-plugin exec pluginfinity` fails with `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL`. The install log shows every package's `prepare` build succeeding in layer order. Running `pnpm install` again reports "Already up to date", and `pnpm build` or a test run that builds first leaves `dist/` in place, but neither creates the shim.
 
 ## What you will wrongly conclude
 

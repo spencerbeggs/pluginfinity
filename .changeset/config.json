@@ -5,11 +5,25 @@
 	"changelog": [
 		"@savvy-web/changelog",
 		{
+			"packages": {
+				"@pluginfinity/ai-plugins": {
+					"versionFiles": [
+						{
+							"glob": "plugins/pluginfinity/builds/claude/.claude-plugin/plugin.json",
+							"paths": ["$.version"]
+						},
+						{
+							"glob": "plugins/pluginfinity/builds/copilot/plugin.json",
+							"paths": ["$.version"]
+						}
+					]
+				}
+			},
 			"repo": "spencerbeggs/pluginfinity"
 		}
 	],
 	"commit": false,
-	"ignore": ["pluginfinity-dogfood"],
+	"ignore": ["@pluginfinity/dogfood-plugin"],
 	"privatePackages": {
 		"tag": true,
 		"version": true

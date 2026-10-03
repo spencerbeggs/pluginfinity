@@ -14,7 +14,7 @@ sources:
     title: The assembled PluginfinityConfig schema
   - id: core-config
     resource: ../../packages/core/src/config.ts
-    title: PluginName and TargetSetting
+    title: PluginName, BaseConfigFields and makeTargetSetting
   - id: carrier-index
     resource: ../../packages/pluginfinity/src/index.ts
     title: defineConfig
@@ -27,10 +27,16 @@ sources:
   - id: errors
     resource: ../../packages/engine/src/errors.ts
     title: The config errors
+  - id: core-hooks
+    resource: ../../packages/core/src/hooks.ts
+    title: Hooks and HookEntry
+  - id: core-mcp
+    resource: ../../packages/core/src/mcp.ts
+    title: McpServers
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T19:34:21Z
-  body_sha256: dbae5939e2eb33fb5f2edcb65579596d7367b0e9e053b0deb2167f4211294250
+  at: 2026-10-02T23:38:04Z
+  body_sha256: 9fb78e4aad57b6aba05fa9c4e375d6358d067106d651b89e140507090206c1e6
 ---
 
 # pluginfinity.config.ts
@@ -44,6 +50,7 @@ import { defineConfig } from "pluginfinity";
 
 export default defineConfig({
   name: "foo",
+  description: "What foo does",
   claude: { name: "baz" },
   copilot: true,
 });
@@ -52,7 +59,11 @@ export default defineConfig({
 - **The file name** is `pluginfinity.config.ts`, `.mts`, `.js` or `.mjs`. A directory with more than one of them fails as `ConfigAmbiguous`.[^discovery]
 - **The default export** is the config. A file with no default export fails as `ConfigInvalid`.[^loader]
 - **`name`** is required. It is the plugin's name on every host, must be kebab-case (lowercase letters and digits separated by single hyphens), and is not read from `package.json`.[^core-config]
-- **Target keys** are top-level, one per known target: `claude` (Claude Code) and `copilot` (GitHub Copilot). Each is `true`, or an object that may set `name` to override the plugin's name on that host. An absent key turns the target off, and `false` is rejected. At least one target must be enabled.[^targets-config]
+- **`description`** is required and non-empty; every host shows it. `author` (`name`, optional `email` and `url`), `homepage`, `repository`, `license` and `keywords` are optional and are written into each target's manifest.[^core-config]
+- **`hooks`** maps Claude Code event names to hook entries. An entry has exactly one of `script` (a path relative to the plugin root, with optional `args`) or `command` (a string whose one placeholder is `${PLUGIN_ROOT}`), and optional `matcher`, `timeout` (positive whole seconds) and `fallback` (`"fail"`, the default, or `"omit"`).[^core-hooks]
+- **`mcpServers`** maps server names to Claude Code's `.mcp.json` server shape: `command` with optional `args`, `env` and `cwd`, or `type` (`http` or `sse`) with `url` and optional `headers`.[^core-mcp]
+- **`scripts.invoke`** is `"bash"` (the default) or `"exec"`, how `script` hooks run.[^core-config]
+- **Target keys** are top-level, one per known target: `claude` (Claude Code) and `copilot` (GitHub Copilot). Each is `true`, or an object that may set `name`, `hooks` and `mcpServers` for that host. An event under a target's `hooks` replaces the base entries for that event on that target, and `[]` removes them; `claude` admits Claude Code events only, and a `copilot` override uses Claude Code event names, plus `userPromptTransformed` and `errorOccurred`, which only Copilot has. A server under a target's `mcpServers` replaces the base server of that name. An absent key turns the target off, and `false` is rejected. At least one target must be enabled.[^targets-config]
 - **Nothing else** is accepted. An unknown top-level key fails as `UnknownTarget`, and an unknown key inside a target object fails as `ConfigInvalid`.
 
 `defineConfig` returns its argument unchanged and is typed against the schema, so a misspelt target key, `false` as a target value, or a missing `name` is a type error in the editor before pluginfinity ever loads the file.[^carrier-index]
@@ -65,7 +76,7 @@ export default defineConfig({
 
 ## What may change
 
-The base fields and the per-target override object are expected to grow as the `Target` schema and the build pipeline land ([roadmap](../roadmaps/pluginfinity-first-release.md)). A new host adds a new top-level key. Base keys and target ids share one key space, so no base field will ever take a target's id.
+Further base fields and per-target override keys arrive with the build pipeline ([roadmap](../roadmaps/pluginfinity-first-release.md)); hooks, MCP servers, scripts and manifest metadata have landed ([source model](../models/plugin-source-model.md)). A new host adds a new top-level key. Base keys and target ids share one key space, so no base field will ever take a target's id.
 
 [^targets-config]: `../../packages/targets/src/config.ts`
 [^core-config]: `../../packages/core/src/config.ts`
@@ -73,3 +84,5 @@ The base fields and the per-target override object are expected to grow as the `
 [^discovery]: `../../packages/engine/src/discovery.ts`
 [^loader]: `../../packages/engine/src/loader.ts`
 [^errors]: `../../packages/engine/src/errors.ts`
+[^core-hooks]: `../../packages/core/src/hooks.ts`
+[^core-mcp]: `../../packages/core/src/mcp.ts`

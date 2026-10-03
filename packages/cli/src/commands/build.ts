@@ -1,7 +1,10 @@
-import { build, isConfigError } from "@pluginfinity/engine";
-import { Effect } from "effect";
+import { CurrentDistribution } from "@effected/engine";
+import { Audience } from "@effected/env";
+import { ENGINE_VERSION, build } from "@pluginfinity/engine";
+import { Console, Effect, Option } from "effect";
 import { Command, Flag } from "effect/cli";
-import { reportConfigError } from "../render/config-error.js";
+import { buildJson, buildLines } from "../render/build.js";
+import { reportFindings } from "../render/config-error.js";
 import type { LaunchFacts } from "./shared.js";
 import { allFlag, configFlag, pathArgument, targetFlag, toSelection } from "./shared.js";
 
@@ -22,8 +25,20 @@ export const buildCommand = (launch: LaunchFacts) =>
 		(input) =>
 			Effect.gen(function* () {
 				const selection = yield* toSelection(launch, input);
-				yield* build({ selection, targets: input.target, check: input.check }).pipe(
-					Effect.catchIf(isConfigError, reportConfigError),
-				);
-			}),
+				const builds = yield* build({ selection, targets: input.target, check: input.check });
+				const audience = yield* Audience;
+				if (audience.kind === "human") {
+					for (const line of buildLines(builds, input.check)) yield* Console.log(line);
+				} else {
+					const distribution = yield* CurrentDistribution;
+					yield* Console.log(
+						JSON.stringify({
+							engine_version: ENGINE_VERSION,
+							distribution: Option.getOrNull(distribution),
+							ok: true,
+							builds: builds.map(buildJson),
+						}),
+					);
+				}
+			}).pipe(reportFindings),
 	).pipe(Command.withDescription("Regenerate builds/<id>/ from source"));

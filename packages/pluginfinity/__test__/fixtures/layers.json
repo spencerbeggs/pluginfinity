@@ -1,6 +1,6 @@
 {
 	"layers": [
-		["pluginfinity-plugin", "pluginfinity-dogfood"],
+		["@pluginfinity/ai-plugins", "@pluginfinity/dogfood-plugin"],
 		["pluginfinity"],
 		["@pluginfinity/cli"],
 		["@pluginfinity/engine"],
@@ -10,8 +10,8 @@
 	"tooling": [],
 	"unconstrained": ["pluginfinity-workspace"],
 	"requiredEdges": [
-		"pluginfinity-plugin -> pluginfinity",
-		"pluginfinity-dogfood -> pluginfinity",
+		"@pluginfinity/ai-plugins -> pluginfinity",
+		"@pluginfinity/dogfood-plugin -> pluginfinity",
 		"pluginfinity -> @pluginfinity/cli",
 		"@pluginfinity/cli -> @pluginfinity/engine",
 		"@pluginfinity/engine -> @pluginfinity/targets",
