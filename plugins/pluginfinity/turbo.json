@@ -1,4 +1,9 @@
 {
 	"extends": ["//"],
-	"tasks": {}
+	"tasks": {
+		"build:dev": {
+			"inputs": ["package.json", "pluginfinity.config.ts", "skills/**", "agents/**", "hooks/**"],
+			"outputs": ["builds/**"]
+		}
+	}
 }

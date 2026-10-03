@@ -6,9 +6,10 @@
 	"license": "MIT",
 	"type": "module",
 	"scripts": {
-		"build:dev": "echo 'Skipping build:dev'",
+		"build:dev": "pluginfinity build",
 		"build:prod": "echo 'Skipping build:prod'",
-		"types:check": "tsc --noEmit"
+		"types:check": "tsc --noEmit",
+		"validate": "pluginfinity validate"
 	},
 	"devDependencies": {
 		"pluginfinity": "workspace:*"
