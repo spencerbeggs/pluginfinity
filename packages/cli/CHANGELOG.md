@@ -1,5 +1,15 @@
 # @pluginfinity/cli
 
+## 0.1.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @pluginfinity/core | dependency | updated | 0.1.0 | 0.1.1 |
+| @pluginfinity/engine | dependency | updated | 0.1.0 | 0.1.1 |
+| @pluginfinity/targets | dependency | updated | 0.1.0 | 0.1.1 |
+
 ## 0.1.0
 
 ### Features
