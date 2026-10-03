@@ -40,6 +40,13 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 	[ -z "$output" ]
 }
 
+@test "a crashing PreToolUse hook fails open on Copilot's Read shape" {
+	run_hook copilot hooks/crash.sh pretooluse.crash.copilot.json
+	assert_hook_exit 0
+	[ -z "$output" ]
+	grep -q "exited 1" "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/hook-error.log"
+}
+
 @test "PostToolUse adds context after the marker command on both targets" {
 	run_hook claude hooks/post-tool-use.sh posttooluse.context.json
 	assert_hook_json .hookSpecificOutput.additionalContext "pluginfinity-dogfood saw pf-dogfood-context"
