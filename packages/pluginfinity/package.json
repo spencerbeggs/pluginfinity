@@ -1,6 +1,6 @@
 {
 	"name": "pluginfinity",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"private": true,
 	"description": "Build one agent-plugin source into every host's format: Claude Code, GitHub Copilot and more, from a single config.",
 	"keywords": ["claude-code", "copilot", "agent-plugin", "plugin", "cli", "effect"],
