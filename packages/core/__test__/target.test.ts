@@ -36,7 +36,11 @@ const minimalTarget = {
 	},
 	mcp: { path: "mcp.json", format: "agent-plugins-mcp-1.0" as const },
 	references: { style: "prose" as const },
-	tools: { names: { Agent: "agent", Skill: drop, Task: unresolved("no alias") }, mcp: "{server}/{tool}" },
+	tools: {
+		names: { Agent: "agent", Skill: drop, Task: unresolved("no alias") },
+		mcp: "{server}/{tool}",
+		unlisted: "drop" as const,
+	},
 	models: { inherit: drop, sonnet: "claude-sonnet", opus: unresolved("no alias") },
 	efforts: { max: unresolved("no max") },
 };

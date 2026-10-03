@@ -625,34 +625,34 @@ describe("build with agents", () => {
 			}),
 		);
 
-		it.effect("copilot gets aliased tools, its MCP spelling, no inherit model or color, and skills as a section", () =>
-			Effect.gen(function* () {
-				const root = yield* agentPlugin();
-				yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
-				assert.strictEqual(
-					yield* read(root, "builds/copilot/com.github.copilot/agents/helper.agent.md"),
-					[
-						"---",
-						"name: helper",
-						"description: Helps.",
-						"tools:",
-						"  - read",
-						"  - edit",
-						"  - execute",
-						"  - ToolSearch",
-						"  - docs/search",
-						"  - mcp__plugin_other_server__run",
-						"---",
-						"",
-						"You help.",
-						"",
-						"## Skills",
-						"",
-						"- alpha",
-						"",
-					].join("\n"),
-				);
-			}),
+		it.effect(
+			"copilot gets aliased tools, its MCP spelling, no Claude-only tools, no inherit model or color, and skills as a section",
+			() =>
+				Effect.gen(function* () {
+					const root = yield* agentPlugin();
+					yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+					assert.strictEqual(
+						yield* read(root, "builds/copilot/com.github.copilot/agents/helper.agent.md"),
+						[
+							"---",
+							"name: helper",
+							"description: Helps.",
+							"tools:",
+							"  - read",
+							"  - edit",
+							"  - execute",
+							"  - docs/search",
+							"---",
+							"",
+							"You help.",
+							"",
+							"## Skills",
+							"",
+							"- alpha",
+							"",
+						].join("\n"),
+					);
+				}),
 		);
 
 		it.effect(

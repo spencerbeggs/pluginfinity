@@ -54,7 +54,7 @@ export {
 export type { MappedFrontmatter, SplitMarkdown, UnresolvedField } from "./frontmatter.js";
 export { appendSections, mapFrontmatter, splitFrontmatter } from "./frontmatter.js";
 export type { TargetHookEvent, UnsupportedHookEvent } from "./hooks.js";
-export { hookCommand, hookCommandFiles, hookScripts, renderHooks, targetHooks } from "./hooks.js";
+export { hookCommand, hookCommandFiles, hookExec, hookScripts, renderHooks, targetHooks } from "./hooks.js";
 export type { LoadedConfig } from "./loader.js";
 export { ConfigLoader } from "./loader.js";
 export type { Manifest } from "./manifest.js";

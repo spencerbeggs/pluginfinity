@@ -132,9 +132,9 @@ export const COPILOT: Target = Target.make({
 	references: { style: "prose" },
 	tools: {
 		// Copilot's primary aliases for the Claude Code tools it documents a
-		// compatible alias for. Skill has no alias and is dropped; any other
-		// Claude-only name passes through, since Copilot ignores names it does
-		// not recognize.
+		// compatible alias for. Skill has no alias and is dropped, as is any
+		// other Claude-only name (ToolSearch, SendMessage, the Task tools) and
+		// another plugin's MCP tool, whose server name on Copilot is unknown.
 		names: {
 			Agent: "agent",
 			Task: "agent",
@@ -154,6 +154,7 @@ export const COPILOT: Target = Target.make({
 			Skill: drop,
 		},
 		mcp: "{server}/{tool}",
+		unlisted: "drop",
 	},
 	// Copilot inherits the session's model when an agent sets none. Claude Code's
 	// model aliases have no Copilot spelling; a full model ID passes through.
