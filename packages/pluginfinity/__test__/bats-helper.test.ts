@@ -1,13 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assert, describe, it } from "@effect/vitest";
-import { HOOK_LIB_FILES } from "../../engine/src/hook-lib.generated.js";
 
 const HELPER = fileURLToPath(new URL("../bats/pluginfinity.bash", import.meta.url));
 const FIXTURE = fileURLToPath(new URL("./fixtures/bats-helper/plugin dir", import.meta.url));
+const LIB_SOURCE = fileURLToPath(new URL("../../engine/hook-lib/", import.meta.url));
 const onPath = (command: string): boolean => spawnSync("sh", ["-c", `command -v ${command}`]).status === 0;
 
 const STOP = `#!/usr/bin/env bash
@@ -24,7 +24,9 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 		for (const host of ["claude", "copilot"]) {
 			const lib = join(plugin, "builds", host, "hooks", "lib", "pluginfinity");
 			mkdirSync(lib, { recursive: true });
-			for (const file of HOOK_LIB_FILES) writeFileSync(join(lib, file.name), file.content);
+			for (const name of readdirSync(LIB_SOURCE).filter((entry) => entry.endsWith(".sh"))) {
+				writeFileSync(join(lib, name), readFileSync(join(LIB_SOURCE, name), "utf8"));
+			}
 			writeFileSync(join(lib, "host.sh"), `PLUGINFINITY_HOST=${host}\nPLUGINFINITY_PLUGIN='fixture'\n`);
 			writeFileSync(join(plugin, "builds", host, "hooks", "stop.sh"), STOP);
 		}
