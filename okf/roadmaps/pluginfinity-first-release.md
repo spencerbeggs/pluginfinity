@@ -30,8 +30,8 @@ sources:
     title: impeccable's post-build rewrite of the Claude Code plugin copy
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T00:09:53Z
-  body_sha256: 088352b4cdcd3bca0794018965f483cbfa730d7ed7f37d4e7f2bbcddbec1554c
+  at: 2026-10-03T19:33:34Z
+  body_sha256: 9899f00849b72d7e54ece1d3cee77db5d1095aa79827d194bf3f073222ff8807
 ---
 
 # pluginfinity first release
@@ -121,7 +121,7 @@ What to avoid: impeccable's main output is a project install, and the Claude Cod
 ## Open questions
 
 - **The local dev loop.** `pnpm claude --plugin-dir plugins/pluginfinity/builds/claude` needs a rebuild (or a watch mode) before a source edit shows.
-- **Where tests live.** Source and schema tests would sit at the plugin root. Host-specific checks (`claude plugin validate --strict`, install tests) would run against `builds/<target>/`.
+- **Where tests live.** Settled for hook scripts. A plugin's bats tests live in `plugins/<name>/__test__/` and their fixtures in `plugins/<name>/__test__/fixtures/`. They run against `builds/<target>/` through pluginfinity's bats helper, so a hook is tested as built, with the helper library [injected at build time](../decisions/hook-library-is-build-injected.md) and the [fail-open](../decisions/hooks-fail-open.md) behaviour in force. Still open: where source and schema tests sit, and where host-specific checks (`claude plugin validate --strict`, install tests) run; they would run against `builds/<target>/` as well.
 - **Distributing the companion.** How the companion plugin reaches users (which marketplace, and how its entries are pinned on release) is undecided. Whether plugin-bot is removed from the owner's marketplaces after pluginfinity ships is also undecided.
 - **Marketplace pinning.** The bot repository repins through `spencerbeggs/ai-plugin-marketplace-manager`. Whether pluginfinity should eventually absorb that step, or stay a pure builder as the [project](../project.md) currently says, is undecided.
 
