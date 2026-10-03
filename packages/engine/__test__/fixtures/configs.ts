@@ -32,3 +32,26 @@ export const FUNCTION_DEFAULT = `export default () => ({ name: "lazy", descripti
 export const HANGS_ON_LOAD = `await new Promise(() => {});\nexport default { name: "hangs", description: "Fixture plugin.", claude: true };\n`;
 
 export const PACKAGE_JSON = `{ "name": "fixture-package", "version": "1.2.3" }\n`;
+
+export const HOOKED = `export default {
+	name: "hooked",
+	description: "Fixture plugin.",
+	hooks: { SessionStart: [{ script: "hooks/start.sh", timeout: 5 }] },
+	claude: true,
+	copilot: { hooks: { SessionStart: [{ script: "hooks/start.copilot.sh" }] } },
+};\n`;
+
+export const HOOKED_EXEC = `export default {
+	name: "hooked",
+	description: "Fixture plugin.",
+	scripts: { invoke: "exec" },
+	hooks: { SessionStart: [{ script: "hooks/start.sh" }] },
+	claude: true,
+};\n`;
+
+export const HOOKED_UNSUPPORTED = `export default {
+	name: "hooked",
+	description: "Fixture plugin.",
+	hooks: { Setup: [{ script: "hooks/start.sh" }] },
+	copilot: true,
+};\n`;

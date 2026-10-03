@@ -8,7 +8,17 @@ import { ChildProcess } from "effect/process";
 import type { EmitPlan, EmittedFile } from "./emit.js";
 import { applyEmit, planEmit } from "./emit.js";
 import type { ConfigError } from "./errors.js";
-import { BuildStale, HostRejected, PackageVersionMissing, TargetDrift } from "./errors.js";
+import {
+	BuildStale,
+	HookEventUnsupported,
+	HookScriptInvalid,
+	HostRejected,
+	PackageVersionMissing,
+	PathConflict,
+	TargetDrift,
+} from "./errors.js";
+import { hookScripts, renderHooks, targetHooks } from "./hooks.js";
+import type { LoadedConfig } from "./loader.js";
 import { renderManifest, serializeManifest } from "./manifest.js";
 import type { ConfigSelection, PreparedPlugin } from "./selection.js";
 import { preparePlugins } from "./selection.js";
@@ -93,23 +103,123 @@ const targetOf = (id: KnownTargetId) => {
 	return entry.target;
 };
 
-/** Render every requested target of one plugin and compare each with its build directory. */
+/**
+ * Every failure planning a plugin's builds can produce.
+ *
+ * @public
+ */
+export type PlanError =
+	| PackageVersionMissing
+	| HookEventUnsupported
+	| HookScriptInvalid
+	| PathConflict
+	| PlatformError.PlatformError;
+
+/** Every file under `dir`, as `/`-separated paths relative to `root`; none when `dir` is absent. */
+const sourceFiles = (
+	root: string,
+	dir: string,
+): Effect.Effect<ReadonlyArray<string>, PlatformError.PlatformError, FileSystem.FileSystem | Path.Path> =>
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+		const absolute = path.join(root, dir);
+		if (!(yield* fs.exists(absolute))) return [];
+		const files: Array<string> = [];
+		for (const entry of yield* fs.readDirectory(absolute, { recursive: true })) {
+			if ((yield* fs.stat(path.join(absolute, entry))).type === "File") {
+				files.push(`${dir}/${entry.split(path.sep).join("/")}`);
+			}
+		}
+		return files.sort();
+	});
+
+/** A source file copied verbatim: its bytes and its own mode. */
+const copyFile = (
+	root: string,
+	file: string,
+): Effect.Effect<EmittedFile, PlatformError.PlatformError, FileSystem.FileSystem | Path.Path> =>
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+		const absolute = path.join(root, file);
+		const info = yield* fs.stat(absolute);
+		return { path: file, content: yield* fs.readFile(absolute), mode: info.mode & 0o777 };
+	});
+
+/** Fail with `HookScriptInvalid` unless `script` exists, and is executable under `exec`. */
+const checkScript = (
+	config: LoadedConfig,
+	script: string,
+	invoke: "bash" | "exec",
+): Effect.Effect<void, HookScriptInvalid, FileSystem.FileSystem | Path.Path> =>
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+		const info = yield* fs.stat(path.join(config.root, script)).pipe(Effect.option);
+		if (info._tag === "None" || info.value.type !== "File") {
+			return yield* Effect.fail(new HookScriptInvalid({ path: config.path, script, problem: "missing" }));
+		}
+		if (invoke === "exec" && (info.value.mode & 0o111) === 0) {
+			return yield* Effect.fail(new HookScriptInvalid({ path: config.path, script, problem: "not-executable" }));
+		}
+	});
+
+/**
+ * Render every requested target of one plugin and compare each with its build
+ * directory.
+ *
+ * @remarks
+ * Each target ships the source `hooks/` directory whole, so a script can
+ * source its own helpers, except scripts only another target's hooks run; a
+ * script outside `hooks/` ships to the targets that run it.
+ */
 const planPlugin = (
 	prepared: PreparedPlugin,
-): Effect.Effect<
-	ReadonlyArray<PlannedTarget>,
-	PackageVersionMissing | PlatformError.PlatformError,
-	FileSystem.FileSystem | Path.Path
-> =>
+): Effect.Effect<ReadonlyArray<PlannedTarget>, PlanError, FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
 		const path = yield* Path.Path;
 		const config = prepared.config;
 		const version = yield* readVersion(config.root);
-		const planned: Array<PlannedTarget> = [];
-		for (const id of prepared.targets) {
+		const invoke = config.config.scripts?.invoke ?? "bash";
+
+		const hooks = prepared.targets.map((id) => {
 			const target = targetOf(id);
+			return { id, target, ...targetHooks(target, id, config.config) };
+		});
+		for (const { id, unsupported } of hooks) {
+			if (unsupported.length > 0) {
+				return yield* Effect.fail(
+					new HookEventUnsupported({ path: config.path, target: id, events: unsupported.map((u) => u.event) }),
+				);
+			}
+		}
+		const everyScript = new Set(hooks.flatMap(({ events }) => hookScripts(events)));
+		for (const script of everyScript) yield* checkScript(config, script, invoke);
+		const hooksDir = yield* sourceFiles(config.root, "hooks");
+
+		const planned: Array<PlannedTarget> = [];
+		for (const { id, target, events } of hooks) {
+			const own = new Set(hookScripts(events));
+			const shipped = [
+				...hooksDir.filter((file) => own.has(file) || !everyScript.has(file)),
+				...[...own].filter((script) => !script.startsWith("hooks/")),
+			];
+			const copied: Array<EmittedFile> = [];
+			for (const file of shipped) copied.push(yield* copyFile(config.root, file));
+
 			const manifest = renderManifest(target, id, config.config, version);
-			const files: ReadonlyArray<EmittedFile> = [{ path: target.manifest.path, content: serializeManifest(manifest) }];
+			const generated: Array<EmittedFile> = [{ path: target.manifest.path, content: serializeManifest(manifest) }];
+			const hooksFile = renderHooks(target, events, invoke);
+			if (hooksFile !== undefined) generated.push({ path: target.hooks.path, content: hooksFile });
+
+			const copiedPaths = new Set(copied.map((file) => file.path));
+			const conflict = generated.find((file) => copiedPaths.has(file.path));
+			if (conflict !== undefined) {
+				return yield* Effect.fail(new PathConflict({ path: config.path, target: id, file: conflict.path }));
+			}
+
+			const files = [...generated, ...copied];
 			const out = path.join(config.root, "builds", id);
 			const plan = yield* planEmit(out, files);
 			planned.push({ config: config.path, target: id, out, plan, files, name: String(manifest.name), version });
@@ -136,11 +246,7 @@ const requireClean = (config: string, planned: ReadonlyArray<PlannedTarget>): Ef
  */
 export const build = (
 	input: BuildInput,
-): Effect.Effect<
-	ReadonlyArray<TargetBuild>,
-	ConfigError | PackageVersionMissing | BuildStale | PlatformError.PlatformError,
-	FileSystem.FileSystem | Path.Path
-> =>
+): Effect.Effect<ReadonlyArray<TargetBuild>, ConfigError | PlanError | BuildStale, FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
 		const builds: Array<TargetBuild> = [];
 		for (const prepared of yield* preparePlugins(input)) {
@@ -225,7 +331,7 @@ export const validate = (
 	input: ValidateInput,
 ): Effect.Effect<
 	ReadonlyArray<TargetValidation>,
-	ConfigError | PackageVersionMissing | BuildStale | HostRejected | PlatformError.PlatformError,
+	ConfigError | PlanError | BuildStale | HostRejected,
 	FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
 > =>
 	Effect.gen(function* () {

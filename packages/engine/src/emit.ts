@@ -8,16 +8,25 @@ import { Effect, FileSystem, Path, Schema } from "effect";
  */
 export const GENERATED_MODE = 0o644;
 
+const encoder = new TextEncoder();
+
 /**
  * One file a build produces: a `/`-separated path relative to the output
- * directory, and its text.
+ * directory, its text or bytes, and its mode.
  *
  * @public
  */
 export interface EmittedFile {
 	readonly path: string;
-	readonly content: string;
+	readonly content: string | Uint8Array;
+	/** The permission bits; a generated file's are {@link GENERATED_MODE}, a copied file keeps its source's. */
+	readonly mode?: number;
 }
+
+const bytesOf = (file: EmittedFile): Uint8Array =>
+	typeof file.content === "string" ? encoder.encode(file.content) : file.content;
+
+const modeOf = (file: EmittedFile): number => file.mode ?? GENERATED_MODE;
 
 /**
  * How an output directory differs from what a build produces. Every list is
@@ -40,8 +49,6 @@ export class EmitPlan extends Schema.Class<EmitPlan>("EmitPlan")({
 		return this.added.length === 0 && this.changed.length === 0 && this.removed.length === 0;
 	}
 }
-
-const encoder = new TextEncoder();
 
 const sameBytes = (a: Uint8Array, b: Uint8Array): boolean =>
 	a.length === b.length && a.every((byte, i) => byte === b[i]);
@@ -93,8 +100,8 @@ export const planEmit = (
 			const info = yield* fs.stat(target);
 			const same =
 				info.type === "File" &&
-				(info.mode & 0o777) === GENERATED_MODE &&
-				sameBytes(yield* fs.readFile(target), encoder.encode(file.content));
+				(info.mode & 0o777) === modeOf(file) &&
+				sameBytes(yield* fs.readFile(target), bytesOf(file));
 			(same ? unchanged : changed).push(file.path);
 		}
 		const produced = new Set(files.map((file) => file.path));
@@ -134,8 +141,8 @@ export const applyEmit = (
 			for (const file of staged) {
 				const target = path.join(staging, file.path);
 				yield* fs.makeDirectory(path.dirname(target), { recursive: true });
-				yield* fs.writeFileString(target, file.content);
-				yield* fs.chmod(target, GENERATED_MODE);
+				yield* fs.writeFile(target, bytesOf(file));
+				yield* fs.chmod(target, modeOf(file));
 			}
 			for (const file of staged) {
 				const target = path.join(dir, file.path);

@@ -275,13 +275,103 @@ export class HostRejected extends Schema.TaggedError<HostRejected>()("HostReject
 }
 
 /**
+ * A target lacks a hook event the config uses, and an entry for it does not
+ * set `fallback: "omit"`.
+ *
+ * @public
+ */
+export class HookEventUnsupported extends Schema.TaggedError<HookEventUnsupported>()("HookEventUnsupported", {
+	/** The config. */
+	path: Schema.String,
+	target: Schema.String,
+	events: Schema.Array(Schema.String),
+}) {
+	override get message(): string {
+		return `${this.target} has no hook event ${this.events.map((event) => `"${event}"`).join(", ")}, used in ${this.path}`;
+	}
+
+	get remediation(): Remediation {
+		return {
+			hint: `Set \`fallback: "omit"\` on those entries to skip them on ${this.target}, or give ${this.target} its own hooks for the event.`,
+		};
+	}
+}
+
+/**
+ * What is wrong with a hook script: absent from the plugin, or lacking the
+ * executable bit under `scripts.invoke: "exec"`.
+ *
+ * @public
+ */
+export const HookScriptProblem = Schema.Literals(["missing", "not-executable"]);
+
+/**
+ * A hook `script` cannot be shipped as configured.
+ *
+ * @public
+ */
+export class HookScriptInvalid extends Schema.TaggedError<HookScriptInvalid>()("HookScriptInvalid", {
+	/** The config. */
+	path: Schema.String,
+	/** The script, relative to the plugin root. */
+	script: Schema.String,
+	problem: HookScriptProblem,
+}) {
+	override get message(): string {
+		return this.problem === "missing"
+			? `hook script ${this.script} named in ${this.path} does not exist`
+			: `hook script ${this.script} is not executable, and ${this.path} sets scripts.invoke to "exec"`;
+	}
+
+	get remediation(): Remediation {
+		return this.problem === "missing"
+			? { hint: `Create ${this.script} under the plugin root, or fix the path in ${this.path}.` }
+			: { hint: `Run \`chmod +x ${this.script}\`, or drop scripts.invoke so hooks run through bash.` };
+	}
+}
+
+/**
+ * A copied source file and a generated file would land on the same build path.
+ *
+ * @public
+ */
+export class PathConflict extends Schema.TaggedError<PathConflict>()("PathConflict", {
+	/** The config. */
+	path: Schema.String,
+	target: Schema.String,
+	/** The build path both claim, relative to `builds/<target>/`. */
+	file: Schema.String,
+}) {
+	override get message(): string {
+		return `${this.target} generates ${this.file}, but the plugin also ships a source file at that path`;
+	}
+
+	get remediation(): Remediation {
+		return { hint: `Delete or move the source ${this.file}; pluginfinity writes that file itself.` };
+	}
+}
+
+/**
  * Every finding a build or validation can produce after its config loaded.
  *
  * @public
  */
-export type BuildError = PackageVersionMissing | BuildStale | HostRejected;
+export type BuildError =
+	| PackageVersionMissing
+	| BuildStale
+	| HostRejected
+	| HookEventUnsupported
+	| HookScriptInvalid
+	| PathConflict;
 
-const BUILD_ERROR_TAGS: ReadonlyArray<string> = ["PackageVersionMissing", "BuildStale", "HostRejected"];
+const BUILD_ERROR_TAGS: ReadonlyArray<string> = [
+	"PackageVersionMissing",
+	"BuildStale",
+	"HostRejected",
+	"HookEventUnsupported",
+	"HookScriptInvalid",
+	"PathConflict",
+];
 
 /**
  * Whether `error` is one of the {@link BuildError} members.

@@ -1,7 +1,7 @@
 ---
 type: Module
 title: "@pluginfinity/engine"
-description: The pluginfinity logic shared by every front end; today config discovery, loading and strict decoding, the typed config and build errors, the doctor program, build and validate for manifests, the reconciling emit, and ENGINE_VERSION.
+description: The pluginfinity logic shared by every front end; today config discovery, loading and strict decoding, the typed config and build errors, the doctor program, build and validate for manifests and hooks, the reconciling emit, and ENGINE_VERSION.
 kind: package
 layer: engine
 resource: ../../packages/engine
@@ -36,10 +36,13 @@ sources:
   - id: emit
     resource: ../../packages/engine/src/emit.ts
     title: planEmit, applyEmit and EmitPlan
+  - id: hooks
+    resource: ../../packages/engine/src/hooks.ts
+    title: targetHooks, hookCommand and renderHooks
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T00:09:53Z
-  body_sha256: d88bc43817f7e80ef89f4eb003afc0dcde7bd92786ff3262e56958494b32a9ad
+  at: 2026-10-03T01:26:25Z
+  body_sha256: 7aa11b312e6c9cac66001e63fc8cd3193f7404304ec04f9c29b93bbeca3a7432
 ---
 
 # @pluginfinity/engine
@@ -56,7 +59,8 @@ generated:
 - **Errors.** `ConfigNotFound`, `ConfigAmbiguous`, `ConfigLoadFailed`, `ConfigInvalid`, `UnknownTarget` and `TargetNotEnabled` together form `ConfigError`. Each one carries a path, a message and a one-line remediation hint, so a front end can render it for any audience. `PackageVersionMissing`, `BuildStale` (with one `TargetDrift` per drifted target) and `HostRejected` form `BuildError`, with the same three parts. `NotImplemented` marks an operation that exists in the command surface but is not built yet.[^errors]
 - **Manifests.** `renderManifest` builds a target's manifest from the config, the target's name override and the `package.json` version, through one function per manifest format, cut to the target's key allowlist in its order.[^manifest]
 - **Emit.** `planEmit` compares the files a build produces with what a build directory holds, by bytes and mode, and returns an `EmitPlan` of added, changed, removed and unchanged paths. `applyEmit` stages added and changed files in a sibling temporary directory, then renames each into place, deletes removed files and stray empty directories, and prunes the directories that leaves empty. Unchanged files are never written, so their mtimes stay, and generated files are `0644`.[^emit]
-- **`build` and `validate`.** `build` renders every selected target into `<plugin root>/builds/<id>/`; with `check` it writes nothing and fails with `BuildStale` on any difference. `validate` requires current builds, then runs each host's check unless `skipHosts`: `claude plugin validate`, and for Copilot, which has no validate command, a `--plugin-dir` plugin listing that must load the build under its manifest name and version.[^operations] Skills, agents, hooks and MCP servers are not built yet.
+- **Hooks.** `targetHooks` applies a target's per-event overrides to the base `hooks` and maps each event to the target's name. An event the target lacks drops its `fallback: "omit"` entries and otherwise fails the build with `HookEventUnsupported`. `hookCommand` renders an entry as a shell command at the target's plugin root, through `bash` unless `scripts.invoke` is `"exec"`, and `renderHooks` writes the hooks file through one renderer per hooks format.[^hooks] Each target ships the source `hooks/` directory whole, so a script can source its helpers, except scripts that only another target's hooks run. Copied files keep their source mode. A missing script, or one without the executable bit under `exec`, is `HookScriptInvalid`. A source file on a path the build generates, such as `hooks/hooks.json` on Claude Code, is `PathConflict`.[^operations]
+- **`build` and `validate`.** `build` renders every selected target into `<plugin root>/builds/<id>/`; with `check` it writes nothing and fails with `BuildStale` on any difference. `validate` requires current builds, then runs each host's check unless `skipHosts`: `claude plugin validate`, and for Copilot, which has no validate command, a `--plugin-dir` plugin listing that must load the build under its manifest name and version.[^operations] Skills, agents and MCP servers are not built yet.
 - **`doctor`.** `runDoctor` never fails; every problem is a check in the `DoctorReport`. It checks Node.js against the `24.11.0` floor, the package manager it detects from the nearest lockfile (npm when there is none), each host CLI (`claude`, `copilot`), `bats`, `git`, and the config. A host CLI is `required` only when a loaded config targets that host, and `info` otherwise. A missing package manager, `bats` or `git` is a `warning`. A missing config is `info`, because doctor runs anywhere, but a config that fails to load is `required`. Each probe and each config load times out after 10 seconds. `DoctorReport.ok` is false only when a `required` check fails.[^doctor]
 
 ## Rules
@@ -77,4 +81,5 @@ The six-stage pipeline, its errors and `check` mode are designed in [the roadmap
 [^doctor]: `../../packages/engine/src/doctor.ts`
 [^manifest]: `../../packages/engine/src/manifest.ts`
 [^emit]: `../../packages/engine/src/emit.ts`
+[^hooks]: `../../packages/engine/src/hooks.ts`
 [^operations]: `../../packages/engine/src/operations.ts`

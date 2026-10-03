@@ -15,8 +15,8 @@ sources:
     title: The Phase 1 design agreed with the repository owner, section by section
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T23:38:04Z
-  body_sha256: 267e2ba727c12e9e0be3ed882dc8b8dd20d04099bac91ee4624c4f4a901cde2a
+  at: 2026-10-03T01:26:25Z
+  body_sha256: 1cbc78071dbca4ae6e8f752c5e030601e10dcda4cf21ec82e21d781e0e824258
 ---
 
 # Plugin source model
@@ -30,7 +30,7 @@ plugins/<name>/
   pluginfinity.config.ts      name, metadata, targets, hooks, mcpServers, scripts
   skills/<skill>/SKILL.md      plus any scripts/, references/, assets/
   agents/<agent>.md
-  hooks/*.sh                  any path, referenced from the config
+  hooks/                      shipped whole; scripts referenced from the config
 ```
 
 The first release covers four component kinds: skills, agents, hooks and MCP servers. Commands, LSP servers, output styles, themes and monitors are out of scope. Runtime content is markdown, JSON and bash only ([decision](../decisions/plugins-carry-no-node-dependencies.md)).
@@ -74,6 +74,7 @@ export default defineConfig({
 
 - **Metadata.** `description` is required; `author`, `homepage`, `repository`, `license` and `keywords` are optional. `version` is still copied from `package.json`.
 - **A hook entry** has exactly one of `script` (a path from the plugin root) or `command` (a string whose one placeholder is `${PLUGIN_ROOT}`), and optional `matcher`, `args` (with `script` only), `timeout` in seconds and `fallback`. HTTP and prompt hook types are out of scope.
+- **The `hooks/` directory** ships whole to every target, so a script can source helpers the config never names, except scripts that only another target's hooks run. Test data belongs outside it. A script outside `hooks/` ships to the targets that run it.
 - **`fallback`** says what a target that lacks the event does: `"fail"` (the default) or `"omit"`.
 - **`scripts.invoke`.** `"bash"`, the default, emits `bash "<root>/<path>"` and ignores the file mode, because this repository keeps scripts in git without the executable bit and restores it locally. `"exec"` emits the bare quoted path and fails a build whose shipped `.sh` files are not executable in the source.
 - **`mcpServers`** uses Claude Code's `.mcp.json` server shape: `command`, `args`, `env`, or `type` with `url` and `headers`. `${PLUGIN_ROOT}` is the one placeholder in `args`, `env` and `cwd`.

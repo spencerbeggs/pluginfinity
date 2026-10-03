@@ -3,7 +3,15 @@ import { assert, describe, layer } from "@effect/vitest";
 import { ScriptedSpawner } from "@effected/commands";
 import { Effect, FileSystem, Path } from "effect";
 import { build, preparePlugins, validate } from "../src/index.js";
-import { ONLY_COPILOT, PACKAGE_JSON, SYNTAX_ERROR, VALID } from "./fixtures/configs.js";
+import {
+	HOOKED,
+	HOOKED_EXEC,
+	HOOKED_UNSUPPORTED,
+	ONLY_COPILOT,
+	PACKAGE_JSON,
+	SYNTAX_ERROR,
+	VALID,
+} from "./fixtures/configs.js";
 import { writeTree } from "./utils/tree.js";
 
 describe("preparePlugins", () => {
@@ -159,6 +167,96 @@ describe("build", () => {
 				const root = yield* writeTree({ "pluginfinity.config.ts": ONLY_COPILOT });
 				const error = yield* Effect.flip(build({ selection: nearest(root), targets: ["claude"], check: false }));
 				assert.strictEqual(error._tag, "TargetNotEnabled");
+			}),
+		);
+	});
+});
+
+describe("build with hooks", () => {
+	/** A hooked plugin: a script per host, a helper both source, and a non-executable mode on one. */
+	const hookedPlugin = (config: string = HOOKED, extra: Readonly<Record<string, string>> = {}) =>
+		writeTree({
+			"pluginfinity.config.ts": config,
+			"package.json": PACKAGE_JSON,
+			"hooks/start.sh": "#!/usr/bin/env bash\n",
+			"hooks/start.copilot.sh": "#!/usr/bin/env bash\n",
+			"hooks/lib/output.sh": "emit() { :; }\n",
+			...extra,
+		});
+
+	layer(NodeServices.layer)((it) => {
+		it.effect("each target gets its hooks file, its own scripts and the shared helpers, not the other's script", () =>
+			Effect.gen(function* () {
+				const root = yield* hookedPlugin();
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.deepStrictEqual(
+					builds.map((entry) => [entry.target, entry.plan.added]),
+					[
+						["claude", [".claude-plugin/plugin.json", "hooks/hooks.json", "hooks/lib/output.sh", "hooks/start.sh"]],
+						[
+							"copilot",
+							["com.github.copilot/hooks/hooks.json", "hooks/lib/output.sh", "hooks/start.copilot.sh", "plugin.json"],
+						],
+					],
+				);
+			}),
+		);
+
+		it.effect("a copied script keeps its source mode", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* hookedPlugin();
+				yield* fs.chmod(path.join(root, "hooks/start.sh"), 0o755);
+				yield* build({ selection: nearest(root), targets: ["claude"], check: false });
+				const info = yield* fs.stat(path.join(root, "builds/claude/hooks/start.sh"));
+				assert.strictEqual(info.mode & 0o777, 0o755);
+			}),
+		);
+
+		it.effect("a missing script is HookScriptInvalid naming it", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* hookedPlugin();
+				yield* fs.remove(path.join(root, "hooks/start.copilot.sh"));
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookScriptInvalid");
+				if (error._tag !== "HookScriptInvalid") return;
+				assert.deepStrictEqual([error.script, error.problem], ["hooks/start.copilot.sh", "missing"]);
+			}),
+		);
+
+		it.effect("under exec, a script without the executable bit is HookScriptInvalid", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* hookedPlugin(HOOKED_EXEC);
+				yield* fs.chmod(path.join(root, "hooks/start.sh"), 0o644);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookScriptInvalid");
+				if (error._tag !== "HookScriptInvalid") return;
+				assert.strictEqual(error.problem, "not-executable");
+			}),
+		);
+
+		it.effect("an event the target lacks is HookEventUnsupported naming it", () =>
+			Effect.gen(function* () {
+				const root = yield* hookedPlugin(HOOKED_UNSUPPORTED);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookEventUnsupported");
+				if (error._tag !== "HookEventUnsupported") return;
+				assert.deepStrictEqual([error.target, error.events], ["copilot", ["Setup"]]);
+			}),
+		);
+
+		it.effect("a source hooks/hooks.json is a PathConflict on Claude, which generates that file", () =>
+			Effect.gen(function* () {
+				const root = yield* hookedPlugin(HOOKED, { "hooks/hooks.json": "{}\n" });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.deepStrictEqual([error.target, error.file], ["claude", "hooks/hooks.json"]);
 			}),
 		);
 	});

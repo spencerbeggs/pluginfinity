@@ -4,8 +4,8 @@
  * @remarks
  * Config discovery and loading, the `doctor` program, and `build` and
  * `validate`. Reads no `process`: a front end passes the start directory and
- * the Node.js version down. Builds emit each target's manifest so far; skills,
- * agents, hooks and MCP servers follow.
+ * the Node.js version down. Builds emit each target's manifest and hooks so far;
+ * skills, agents and MCP servers follow.
  *
  * @packageDocumentation
  */
@@ -32,20 +32,26 @@ export {
 	ConfigIssue,
 	ConfigLoadFailed,
 	ConfigNotFound,
+	HookEventUnsupported,
+	HookScriptInvalid,
+	HookScriptProblem,
 	HostRejected,
 	NotImplemented,
 	PackageVersionMissing,
+	PathConflict,
 	TargetDrift,
 	TargetNotEnabled,
 	UnknownTarget,
 	isBuildError,
 	isConfigError,
 } from "./errors.js";
+export type { TargetHookEvent, UnsupportedHookEvent } from "./hooks.js";
+export { hookCommand, hookScripts, renderHooks, targetHooks } from "./hooks.js";
 export type { LoadedConfig } from "./loader.js";
 export { ConfigLoader } from "./loader.js";
 export type { Manifest } from "./manifest.js";
 export { renderManifest, serializeManifest } from "./manifest.js";
-export type { BuildInput, TargetBuild, TargetValidation, ValidateInput } from "./operations.js";
+export type { BuildInput, PlanError, TargetBuild, TargetValidation, ValidateInput } from "./operations.js";
 export { build, validate } from "./operations.js";
 export type { ConfigSelection, PreparedPlugin } from "./selection.js";
 export { preparePlugins, selectConfigPaths } from "./selection.js";

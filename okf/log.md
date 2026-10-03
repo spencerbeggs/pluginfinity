@@ -6,6 +6,7 @@
 * Updated @pluginfinity/engine
 * Updated The pluginfinity command line
 * Updated pluginfinity first release
+* Updated Plugin source model
 
 ## 2026-10-02
 
