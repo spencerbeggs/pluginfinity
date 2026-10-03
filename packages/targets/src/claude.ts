@@ -73,4 +73,5 @@ export const CLAUDE: Target = Target.make({
 	references: { style: "path" },
 	tools: { names: {}, mcp: "mcp__{server}__{tool}" },
 	models: {},
+	efforts: {},
 });

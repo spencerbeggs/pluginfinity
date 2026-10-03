@@ -5,12 +5,14 @@ import { Effect, FileSystem, Path } from "effect";
 import { build, preparePlugins, validate } from "../src/index.js";
 import {
 	HOOKED,
+	HOOKED_COMMAND,
 	HOOKED_EXEC,
 	HOOKED_UNSUPPORTED,
 	ONLY_COPILOT,
 	PACKAGE_JSON,
 	SYNTAX_ERROR,
 	VALID,
+	WITH_MCP,
 } from "./fixtures/configs.js";
 import { writeTree } from "./utils/tree.js";
 
@@ -162,6 +164,14 @@ describe("build", () => {
 			}),
 		);
 
+		it.effect("a config that sets mcpServers is NotImplemented, not a build without them", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({ "pluginfinity.config.ts": WITH_MCP, "package.json": PACKAGE_JSON });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "NotImplemented");
+			}),
+		);
+
 		it.effect("a config error comes before any build work", () =>
 			Effect.gen(function* () {
 				const root = yield* writeTree({ "pluginfinity.config.ts": ONLY_COPILOT });
@@ -250,6 +260,30 @@ describe("build with hooks", () => {
 			}),
 		);
 
+		it.effect("a file a command hook names after the root ships, and a missing one is HookScriptInvalid", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* hookedPlugin(HOOKED_COMMAND, { "scripts/stop.sh": "echo stop\n" });
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/claude/scripts/stop.sh")));
+				yield* fs.remove(path.join(root, "scripts/stop.sh"));
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookScriptInvalid");
+			}),
+		);
+
+		it.effect("operating-system clutter in hooks/ never ships", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* hookedPlugin(HOOKED, { "hooks/.DS_Store": "junk", "hooks/start.sh~": "backup" });
+				yield* build({ selection: nearest(root), targets: ["claude"], check: false });
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/hooks/.DS_Store")));
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/hooks/start.sh~")));
+			}),
+		);
+
 		it.effect("a source hooks/hooks.json is a PathConflict on Claude, which generates that file", () =>
 			Effect.gen(function* () {
 				const root = yield* hookedPlugin(HOOKED, { "hooks/hooks.json": "{}\n" });
@@ -325,6 +359,28 @@ describe("build with skills", () => {
 					"Guide.\nCopilot only.\n",
 				);
 				assert.strictEqual(yield* read(root, "builds/copilot/skills/alpha/assets/data.json"), "{}\n");
+			}),
+		);
+
+		it.effect("a CRLF skill builds with LF line endings throughout", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": "---\r\ndescription: Does alpha.\r\n---\r\n\r\nBody.\r\n",
+					"skills/alpha/references/guide.md": "Guide.\r\n",
+				});
+				yield* build({ selection: nearest(root), targets: ["claude"], check: false });
+				assert.notInclude(yield* read(root, "builds/claude/skills/alpha/SKILL.md"), "\r");
+				assert.strictEqual(yield* read(root, "builds/claude/skills/alpha/references/guide.md"), "Guide.\n");
+			}),
+		);
+
+		it.effect("clutter in a skill directory never ships", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* skillPlugin({ "skills/alpha/.DS_Store": "junk" });
+				yield* build({ selection: nearest(root), targets: ["claude"], check: false });
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/skills/alpha/.DS_Store")));
 			}),
 		);
 
@@ -427,6 +483,25 @@ describe("build with skills", () => {
 				assert.deepStrictEqual(
 					error.issues.map((found) => found.key),
 					["targets.vscode"],
+				);
+			}),
+		);
+
+		it.effect("a mistyped override in a targets block is reported under targets.<id>", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md":
+						"---\ndescription: x\ntargets:\n  claude:\n    effort: bogus\n  copilot:\n    description: ''\n---\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ComponentsInvalid");
+				if (error._tag !== "ComponentsInvalid") return;
+				assert.deepStrictEqual(
+					error.components.map((component) => [component.target, component.issues.map((found) => found.key)]),
+					[
+						["claude", ["targets.claude.effort"]],
+						["copilot", ["targets.copilot.description"]],
+					],
 				);
 			}),
 		);

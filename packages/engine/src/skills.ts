@@ -1,9 +1,18 @@
 import type { Target } from "@pluginfinity/core";
-import { ComponentName, SkillFrontmatter } from "@pluginfinity/core";
+import { ComponentName, SKILL_FIELDS, SkillFrontmatter } from "@pluginfinity/core";
 import type { PlatformError } from "effect";
 import { Effect, FileSystem, Path, Schema } from "effect";
 import { applyHostBlocks } from "./body.js";
-import { decodeComponent, frontmatterText, invalid, issue, unknownTargets } from "./component.js";
+import {
+	decodeComponent,
+	frontmatterText,
+	invalid,
+	isJunk,
+	issue,
+	overlayIssues,
+	toLf,
+	unknownTargets,
+} from "./component.js";
 import type { EmittedFile } from "./emit.js";
 import type { ComponentInvalid, ConfigIssue } from "./errors.js";
 import { appendSections, mapFrontmatter } from "./frontmatter.js";
@@ -47,6 +56,7 @@ const filesUnder = (
 		const path = yield* Path.Path;
 		const files: Array<string> = [];
 		for (const entry of yield* fs.readDirectory(dir, { recursive: true })) {
+			if (isJunk(path.basename(entry))) continue;
 			if ((yield* fs.stat(path.join(dir, entry))).type === "File") files.push(entry.split(path.sep).join("/"));
 		}
 		return files.sort();
@@ -150,6 +160,7 @@ export const renderSkill = (
 			block ?? {},
 		);
 		const problems: Array<ConfigIssue> = [
+			...(yield* overlayIssues(SkillFrontmatter, SKILL_FIELDS, skill.frontmatter, block ?? {}, id)),
 			...mapped.unresolved.map((field) => issue(field.field, `${id} leaves this field unresolved (${field.note})`)),
 			...mapped.unknown.map((key) => issue(`targets.${id}.${key}`, `not a skill field or a ${id} skill field`)),
 		];
@@ -188,7 +199,7 @@ export const renderSkill = (
 				files.push({ path: `${out}/${file}`, content: yield* fs.readFile(absolute), mode });
 				continue;
 			}
-			const processed = applyHostBlocks(yield* fs.readFileString(absolute), id, known);
+			const processed = applyHostBlocks(toLf(yield* fs.readFileString(absolute)), id, known);
 			if ("problem" in processed) {
 				return yield* Effect.fail(
 					invalid(absolute, [issue(`line ${processed.problem.line}`, processed.problem.message)]),

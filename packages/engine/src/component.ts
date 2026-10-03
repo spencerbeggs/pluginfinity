@@ -61,7 +61,8 @@ export const decodeComponent = <S extends SchemaNs.Codec<unknown, unknown>>(
 	ComponentInvalid
 > =>
 	Effect.gen(function* () {
-		const split = splitFrontmatter(text);
+		const lf = toLf(text);
+		const split = splitFrontmatter(lf);
 		if (split === undefined) {
 			return yield* Effect.fail(invalid(path, [issue("", "the file must open with a --- frontmatter block")]));
 		}
@@ -102,7 +103,7 @@ export const decodeComponent = <S extends SchemaNs.Codec<unknown, unknown>>(
 				.map((key) => [key, decoded[key]]),
 		) as S["Type"];
 		// The lines before the body, so a body line N is file line N + bodyOffset.
-		const bodyOffset = text.slice(0, text.length - split.body.length).split("\n").length - 1;
+		const bodyOffset = lf.slice(0, lf.length - split.body.length).split("\n").length - 1;
 		return { frontmatter: ordered, frontmatterText: split.frontmatter, body: split.body, bodyOffset };
 	});
 
@@ -149,3 +150,53 @@ export const frontmatterText = (
 	JSON.stringify(fields) === JSON.stringify(source.frontmatter)
 		? Effect.succeed(`${source.frontmatterText}\n`)
 		: Yaml.stringify(fields, STRINGIFY).pipe(Effect.orDie);
+
+/**
+ * Check the core fields a component's `targets.<id>` block sets, together with
+ * the base fields they overlay, against the component schema, so an override
+ * is held to the same rules as the base. Problems are keyed
+ * `targets.<id>.<field>`.
+ *
+ * @internal
+ */
+export const overlayIssues = <S extends SchemaNs.Codec<unknown, unknown>>(
+	schema: S,
+	coreFields: ReadonlyArray<string>,
+	frontmatter: Readonly<Record<string, unknown>>,
+	block: Readonly<Record<string, unknown>>,
+	id: string,
+): Effect.Effect<ReadonlyArray<ConfigIssue>> => {
+	const overlay = Object.fromEntries(Object.entries(block).filter(([key]) => coreFields.includes(key)));
+	if (Object.keys(overlay).length === 0) return Effect.succeed([]);
+	const { targets: _targets, ...base } = frontmatter;
+	return Schema.decodeUnknownEffect(schema)({ ...base, ...overlay }, { errors: "all", onExcessProperty: "error" }).pipe(
+		Effect.as([]),
+		Effect.catchTag("SchemaError", (error) =>
+			Effect.succeed(
+				formatter(error.issue).issues.map((found) => {
+					const path = (found.path ?? []).map(String);
+					const key = path.join(".");
+					return issue(path[0] !== undefined && path[0] in overlay ? `targets.${id}.${key}` : key, found.message);
+				}),
+			),
+		),
+	);
+};
+
+/**
+ * Whether a file name is operating-system clutter that never ships, such as
+ * a Finder or Explorer index, or an editor backup.
+ *
+ * @internal
+ */
+export const isJunk = (name: string): boolean => JUNK.has(name) || name.endsWith("~");
+
+const JUNK = new Set([".DS_Store", "Thumbs.db", "desktop.ini"]);
+
+/**
+ * Text with every CRLF line ending turned to LF, so a build's line endings do
+ * not depend on the machine that wrote the source.
+ *
+ * @internal
+ */
+export const toLf = (text: string): string => text.replaceAll("\r\n", "\n");

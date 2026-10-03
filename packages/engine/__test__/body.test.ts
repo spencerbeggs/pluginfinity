@@ -66,6 +66,13 @@ describe("applyHostBlocks", () => {
 		assert.deepStrictEqual(applyHostBlocks(text, "copilot", KNOWN), { text: "End." });
 	});
 
+	it("a pluginfinity:// link is a problem until references are built; one in code is text", () => {
+		const result = applyHostBlocks("Intro.\nSee [the guide](pluginfinity://skill/alpha/guide.md).", "claude", KNOWN);
+		assert.deepStrictEqual("problem" in result ? result.problem.line : undefined, 2);
+		const shown = "Write `[x](pluginfinity://skill/a)`.\n```\n[x](pluginfinity://skill/a)\n```";
+		assert.deepStrictEqual(applyHostBlocks(shown, "claude", KNOWN), { text: shown });
+	});
+
 	const problems: ReadonlyArray<readonly [string, string, number, string]> = [
 		[
 			"an unknown id",

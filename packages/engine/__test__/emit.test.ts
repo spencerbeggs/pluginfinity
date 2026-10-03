@@ -113,6 +113,32 @@ describe("planEmit and applyEmit", () => {
 			}),
 		);
 
+		it.effect("a path that changes only by case ends up under its new name", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const out = path.join(yield* writeTree({}), "builds", "claude");
+				yield* emit(out, [{ path: "README.md", content: "old\n" }]);
+				yield* emit(out, [{ path: "readme.md", content: "new\n" }]);
+				assert.deepStrictEqual(yield* fs.readDirectory(out), ["readme.md"]);
+				assert.strictEqual(yield* fs.readFileString(path.join(out, "readme.md")), "new\n");
+				assert.isTrue((yield* planEmit(out, [{ path: "readme.md", content: "new\n" }])).clean);
+			}),
+		);
+
+		it.effect("a file that becomes a directory, and back, builds without manual cleanup", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const out = path.join(yield* writeTree({}), "builds", "claude");
+				yield* emit(out, [{ path: "notes", content: "file\n" }]);
+				yield* emit(out, [{ path: "notes/a.txt", content: "inside\n" }]);
+				assert.strictEqual(yield* fs.readFileString(path.join(out, "notes/a.txt")), "inside\n");
+				yield* emit(out, [{ path: "notes", content: "file again\n" }]);
+				assert.strictEqual(yield* fs.readFileString(path.join(out, "notes")), "file again\n");
+			}),
+		);
+
 		it.effect("planning writes nothing, and applying leaves no staging directory behind", () =>
 			Effect.gen(function* () {
 				const fs = yield* FileSystem.FileSystem;

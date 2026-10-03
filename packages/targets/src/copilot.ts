@@ -1,17 +1,9 @@
 import type { AgentField, ClaudeHookEvent, FieldMapEntry, SkillField } from "@pluginfinity/core";
-import {
-	CLAUDE_HOOK_EVENTS,
-	Target,
-	absent,
-	degrade,
-	drop,
-	keep,
-	rename,
-	translate,
-	unresolved,
-} from "@pluginfinity/core";
+import { CLAUDE_HOOK_EVENTS, Target, absent, degrade, drop, keep, translate, unresolved } from "@pluginfinity/core";
 
 const ROOT = `\${PLUGIN_ROOT}`;
+const MODEL_ALIAS = "Copilot names models differently; set a full model ID as model under targets.copilot";
+const EFFORT_LEVEL = "Copilot documents only low, medium and high; set effort under targets.copilot";
 
 /**
  * Copilot's own hook events: the ones with no Claude Code counterpart.
@@ -51,7 +43,7 @@ const agentFields = {
 	tools: translate("tools"),
 	disallowedTools: drop,
 	model: translate("models"),
-	effort: rename("reasoningEffort"),
+	effort: translate("efforts", "reasoningEffort"),
 	permissionMode: drop,
 	maxTurns: drop,
 	skills: degrade("body-section"),
@@ -163,6 +155,15 @@ export const COPILOT: Target = Target.make({
 		},
 		mcp: "{server}/{tool}",
 	},
-	// Copilot inherits the session's model when an agent sets none.
-	models: { inherit: drop },
+	// Copilot inherits the session's model when an agent sets none. Claude Code's
+	// model aliases have no Copilot spelling; a full model ID passes through.
+	models: {
+		inherit: drop,
+		sonnet: unresolved(MODEL_ALIAS),
+		opus: unresolved(MODEL_ALIAS),
+		haiku: unresolved(MODEL_ALIAS),
+		fable: unresolved(MODEL_ALIAS),
+	},
+	// Copilot documents low, medium and high reasoning effort.
+	efforts: { xhigh: unresolved(EFFORT_LEVEL), max: unresolved(EFFORT_LEVEL) },
 });

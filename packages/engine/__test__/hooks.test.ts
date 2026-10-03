@@ -81,6 +81,17 @@ describe("hookCommand", () => {
 		);
 	});
 
+	it("single-quotes a path the shell would otherwise read, keeping the root expandable", () => {
+		assert.strictEqual(
+			hookCommand({ script: 'hooks/run $(id) `x` "q".sh' }, `\${PLUGIN_ROOT}`, "bash"),
+			`bash "\${PLUGIN_ROOT}"/'hooks/run $(id) \`x\` "q".sh'`,
+		);
+		assert.strictEqual(
+			hookCommand({ script: "hooks/it's.sh" }, `\${PLUGIN_ROOT}`, "exec"),
+			`"\${PLUGIN_ROOT}"/'hooks/it'\\''s.sh'`,
+		);
+	});
+
 	it("under exec, runs the script path itself", () => {
 		assert.strictEqual(
 			hookCommand({ script: "hooks/a.sh" }, `\${CLAUDE_PLUGIN_ROOT}`, "exec"),

@@ -6,6 +6,7 @@ import { Effect, FileSystem, Path, Schema } from "effect";
 import type { ChildProcessSpawner } from "effect/process";
 import { ChildProcess } from "effect/process";
 import { readAgents, renderAgent } from "./agents.js";
+import { isJunk } from "./component.js";
 import type { EmitPlan, EmittedFile } from "./emit.js";
 import { applyEmit, planEmit } from "./emit.js";
 import type { ComponentInvalid, ConfigError } from "./errors.js";
@@ -15,11 +16,13 @@ import {
 	HookEventUnsupported,
 	HookScriptInvalid,
 	HostRejected,
+	NotImplemented,
 	PackageVersionMissing,
 	PathConflict,
 	TargetDrift,
 } from "./errors.js";
-import { hookScripts, renderHooks, targetHooks } from "./hooks.js";
+import type { TargetHookEvent } from "./hooks.js";
+import { hookCommandFiles, hookScripts, renderHooks, targetHooks } from "./hooks.js";
 import type { LoadedConfig } from "./loader.js";
 import { renderManifest, serializeManifest } from "./manifest.js";
 import type { ConfigSelection, PreparedPlugin } from "./selection.js";
@@ -117,6 +120,7 @@ export type PlanError =
 	| HookScriptInvalid
 	| PathConflict
 	| ComponentsInvalid
+	| NotImplemented
 	| PlatformError.PlatformError;
 
 /** Every file under `dir`, as `/`-separated paths relative to `root`; none when `dir` is absent. */
@@ -131,6 +135,7 @@ const sourceFiles = (
 		if (!(yield* fs.exists(absolute))) return [];
 		const files: Array<string> = [];
 		for (const entry of yield* fs.readDirectory(absolute, { recursive: true })) {
+			if (isJunk(path.basename(entry))) continue;
 			if ((yield* fs.stat(path.join(absolute, entry))).type === "File") {
 				files.push(`${dir}/${entry.split(path.sep).join("/")}`);
 			}
@@ -185,6 +190,15 @@ const planPlugin = (
 		const path = yield* Path.Path;
 		const config = prepared.config;
 		const version = yield* readVersion(config.root);
+		// MCP servers are not built yet; a config that sets them must not build
+		// as if they were not there.
+		const settings = prepared.targets.map((id) => config.config[id]);
+		if (
+			config.config.mcpServers !== undefined ||
+			settings.some((setting) => typeof setting === "object" && setting.mcpServers !== undefined)
+		) {
+			return yield* Effect.fail(new NotImplemented({ operation: "build of mcpServers" }));
+		}
 		const invoke = config.config.scripts?.invoke ?? "bash";
 
 		const hooks = prepared.targets.map((id) => {
@@ -198,8 +212,15 @@ const planPlugin = (
 				);
 			}
 		}
-		const everyScript = new Set(hooks.flatMap(({ events }) => hookScripts(events)));
-		for (const script of everyScript) yield* checkScript(config, script, invoke);
+		// The files each target's hooks run: script paths, and the paths command
+		// entries name after ${PLUGIN_ROOT}. A command file is only checked for
+		// existence, since the command says how it runs.
+		const filesOf = (events: ReadonlyArray<TargetHookEvent>) => [...hookScripts(events), ...hookCommandFiles(events)];
+		const everyScript = new Set(hooks.flatMap(({ events }) => filesOf(events)));
+		for (const { events } of hooks) {
+			for (const script of hookScripts(events)) yield* checkScript(config, script, invoke);
+			for (const file of hookCommandFiles(events)) yield* checkScript(config, file, "bash");
+		}
 		const hooksDir = yield* sourceFiles(config.root, "hooks");
 		const { skills, failures: skillFailures } = yield* readSkills(config.root, KNOWN_TARGET_IDS);
 		const { agents, failures: agentFailures } = yield* readAgents(config.root, KNOWN_TARGET_IDS);
@@ -217,7 +238,7 @@ const planPlugin = (
 
 		const planned: Array<PlannedTarget> = [];
 		for (const { id, target, events } of hooks) {
-			const own = new Set(hookScripts(events));
+			const own = new Set(filesOf(events));
 			const shipped = [
 				...hooksDir.filter((file) => own.has(file) || !everyScript.has(file)),
 				...[...own].filter((script) => !script.startsWith("hooks/")),

@@ -117,8 +117,16 @@ export const planEmit = (
 /**
  * Bring `dir` in line with `files` according to `plan`: stage every added and
  * changed file in a sibling temporary directory first, so a failed write
- * leaves `dir` untouched, then move each into place, delete removed files and
- * prune the directories they leave empty. Unchanged files are never written.
+ * leaves `dir` untouched; then delete removed files and prune the directories
+ * they leave empty; then move each staged file into place. Unchanged files are
+ * never written.
+ *
+ * @remarks
+ * Removals run before the moves. A path that changes only by case is a
+ * removal and an addition naming the same file on a case-insensitive
+ * filesystem, so moving first and removing second deletes the new file. A
+ * path that turns from a file into a directory, or back, cannot be moved into
+ * place while the old entry still stands.
  *
  * @public
  */
@@ -144,11 +152,6 @@ export const applyEmit = (
 				yield* fs.writeFile(target, bytesOf(file));
 				yield* fs.chmod(target, modeOf(file));
 			}
-			for (const file of staged) {
-				const target = path.join(dir, file.path);
-				yield* fs.makeDirectory(path.dirname(target), { recursive: true });
-				yield* fs.rename(path.join(staging, file.path), target);
-			}
 			for (const file of plan.removed) {
 				yield* fs.remove(path.join(dir, file), { recursive: file.endsWith("/") });
 				let current = path.dirname(path.join(dir, file));
@@ -157,6 +160,11 @@ export const applyEmit = (
 					yield* fs.remove(current, { recursive: true });
 					current = path.dirname(current);
 				}
+			}
+			for (const file of staged) {
+				const target = path.join(dir, file.path);
+				yield* fs.makeDirectory(path.dirname(target), { recursive: true });
+				yield* fs.rename(path.join(staging, file.path), target);
 			}
 		}),
 	);

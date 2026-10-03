@@ -34,13 +34,29 @@ const SUFFIX_LABELS: Readonly<Record<string, string>> = {
 
 const asText = (value: unknown): string => (Array.isArray(value) ? value.map(String).join(", ") : String(value));
 
-/** A tool list as names: an array as is, a string split on commas and whitespace. */
-const toolNames = (value: unknown): ReadonlyArray<string> =>
-	Array.isArray(value)
-		? value.map(String)
-		: String(value)
-				.split(/[\s,]+/)
-				.filter((name) => name.length > 0);
+/**
+ * A tool list as entries: an array as is, a string split on commas and
+ * whitespace outside parentheses, so a rule such as `Bash(git log:*)` stays
+ * one entry.
+ */
+const toolNames = (value: unknown): ReadonlyArray<string> => {
+	if (Array.isArray(value)) return value.map(String);
+	const names: Array<string> = [];
+	let current = "";
+	let depth = 0;
+	for (const char of String(value)) {
+		if (char === "(") depth += 1;
+		if (char === ")") depth = Math.max(0, depth - 1);
+		if (depth === 0 && /[\s,]/.test(char)) {
+			if (current.length > 0) names.push(current);
+			current = "";
+		} else {
+			current += char;
+		}
+	}
+	if (current.length > 0) names.push(current);
+	return names;
+};
 
 /**
  * A Claude Code MCP tool name, `mcp__<server>__<tool>`, in the target's MCP
@@ -122,14 +138,29 @@ export const mapFrontmatter = (
 			case "drop":
 				break;
 			case "translate": {
-				if (entry.table === "models") {
-					const mapped = target.models[String(value)];
-					if (mapped === undefined) fields[field] = value;
-					else if (typeof mapped === "string") fields[field] = mapped;
+				const name = entry.to ?? field;
+				if (entry.table !== "tools") {
+					const mapped = target[entry.table][String(value)];
+					if (mapped === undefined) fields[name] = value;
+					else if (typeof mapped === "string") fields[name] = mapped;
+					else if (mapped._tag === "unresolved") {
+						unresolved.push({ field: `${field}: ${String(value)}`, note: mapped.note });
+					}
 					break;
 				}
 				const names: Array<string> = [];
 				for (const name of toolNames(value)) {
+					// A rule such as Bash(git log:*) narrows a tool. A target that renames
+					// the tool has no way to carry the rule, and dropping the rule would
+					// widen what the tool may do, so the author must decide.
+					const rule = /^([^(]+)\(.*\)$/.exec(name);
+					if (rule !== null && target.tools.names[rule[1] ?? ""] !== undefined) {
+						unresolved.push({
+							field: `${field}: ${name}`,
+							note: `${rule[1]} is renamed on this host, which has no per-command tool rules; set ${field} in this host's targets block`,
+						});
+						continue;
+					}
 					const mapped = target.tools.names[name] ?? mcpToolName(target, name);
 					if (typeof mapped === "string") {
 						if (!names.includes(mapped)) names.push(mapped);
@@ -137,7 +168,7 @@ export const mapFrontmatter = (
 						unresolved.push({ field: `${field}: ${name}`, note: mapped.note });
 					}
 				}
-				fields[field] = names;
+				fields[name] = names;
 				break;
 			}
 			case "degrade":

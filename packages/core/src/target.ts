@@ -54,14 +54,17 @@ export class Rename extends Schema.TaggedClass<Rename>()("rename", { to: NonEmpt
 
 /**
  * The tables a field's value can be translated through: `tools` for tool lists,
- * `models` for a model name.
+ * `models` for a model name, `efforts` for an effort level.
  *
  * @public
  */
-export const TranslateTable = Schema.Literals(["tools", "models"]);
+export const TranslateTable = Schema.Literals(["tools", "models", "efforts"]);
 
-/** Map the field's value through a named table. @public */
-export class Translate extends Schema.TaggedClass<Translate>()("translate", { table: TranslateTable }) {}
+/** Map the field's value through a named table, optionally writing it under another name. @public */
+export class Translate extends Schema.TaggedClass<Translate>()("translate", {
+	table: TranslateTable,
+	to: Schema.optionalKey(NonEmpty),
+}) {}
 
 /** Move the field into a named form the engine renders. @public */
 export class Degrade extends Schema.TaggedClass<Degrade>()("degrade", { form: DegradeForm }) {}
@@ -112,12 +115,13 @@ export const EventMapping = Schema.Union([Schema.String, Absent]);
 export const ToolMapping = Schema.Union([Schema.String, Drop, Unresolved]);
 
 /**
- * A Claude Code model name's spelling on a target, or `drop` to leave the
- * field out.
+ * A Claude Code value's spelling on a target, in the `models` or `efforts`
+ * table: the target's value, `drop` to leave the field out, or `unresolved`
+ * when the target has no counterpart and the author must choose.
  *
  * @public
  */
-export const ModelMapping = Schema.Union([Schema.String, Drop]);
+export const ValueMapping = Schema.Union([Schema.String, Drop, Unresolved]);
 
 const FieldMap = Schema.Record(Schema.String, FieldMapEntry);
 
@@ -129,8 +133,8 @@ const FieldMap = Schema.Record(Schema.String, FieldMapEntry);
  * so a malformed host description fails when `@pluginfinity/targets` loads.
  * Field maps are typed as string records here; `@pluginfinity/targets` checks
  * their totality over `SKILL_FIELDS` and `AGENT_FIELDS` at compile time and in
- * tests. A tool name absent from `tools.names`, or a model name absent from
- * `models`, passes through unchanged.
+ * tests. A tool name absent from `tools.names`, or a value absent from `models`
+ * or `efforts`, passes through unchanged.
  *
  * @public
  */
@@ -158,7 +162,8 @@ export class Target extends Schema.Class<Target>("Target")({
 	mcp: Schema.Struct({ path: Schema.String, format: McpFormat, schema: Schema.optionalKey(Schema.String) }),
 	references: Schema.Struct({ style: Schema.Literals(["path", "prose"]) }),
 	tools: Schema.Struct({ names: Schema.Record(Schema.String, ToolMapping), mcp: Schema.String }),
-	models: Schema.Record(Schema.String, ModelMapping),
+	models: Schema.Record(Schema.String, ValueMapping),
+	efforts: Schema.Record(Schema.String, ValueMapping),
 }) {}
 
 /** @public */
@@ -174,7 +179,8 @@ export const absent: Absent = Absent.make({});
 export const rename = (to: string): Rename => Rename.make({ to });
 
 /** @public */
-export const translate = (table: typeof TranslateTable.Type): Translate => Translate.make({ table });
+export const translate = (table: typeof TranslateTable.Type, to?: string): Translate =>
+	Translate.make(to === undefined ? { table } : { table, to });
 
 /** @public */
 export const degrade = (form: DegradeForm): Degrade => Degrade.make({ form });

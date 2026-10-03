@@ -66,11 +66,35 @@ export const hookScripts = (events: ReadonlyArray<TargetHookEvent>): ReadonlyArr
 	...new Set(events.flatMap((event) => event.entries.flatMap((entry) => ("script" in entry ? [entry.script] : [])))),
 ];
 
+// A path a command names after the root placeholder: up to the first
+// character that ends a shell word or a quoted string.
+const COMMAND_FILE = /\$\{PLUGIN_ROOT\}\/([^\s"'`;|&<>()$]+)/g;
+
+/**
+ * Every file the given events' `command` entries name as
+ * `${PLUGIN_ROOT}/<path>`, so the build can ship and check them as it does
+ * `script` paths.
+ *
+ * @public
+ */
+export const hookCommandFiles = (events: ReadonlyArray<TargetHookEvent>): ReadonlyArray<string> => [
+	...new Set(
+		events.flatMap((event) =>
+			event.entries.flatMap((entry) =>
+				"command" in entry ? [...entry.command.matchAll(COMMAND_FILE)].map((match) => match[1] ?? "") : [],
+			),
+		),
+	),
+];
+
 // Bare words pass through; anything else is single-quoted for bash.
 const shellQuote = (word: string): string =>
 	/^[A-Za-z0-9_\-./=:@%+,]+$/.test(word) ? word : `'${word.replaceAll("'", `'\\''`)}'`;
 
 const PLUGIN_ROOT = `\${PLUGIN_ROOT}`;
+
+// Path characters that mean nothing to bash inside double quotes.
+const SAFE_PATH = /^[A-Za-z0-9_\-./@%+,=:]+$/;
 
 /**
  * The shell command a hook entry runs on a target: a `script` through `bash`
@@ -81,7 +105,9 @@ const PLUGIN_ROOT = `\${PLUGIN_ROOT}`;
  */
 export const hookCommand = (entry: HookEntry, root: string, invoke: "bash" | "exec"): string => {
 	if ("command" in entry) return entry.command.replaceAll(PLUGIN_ROOT, root);
-	const path = `"${root}/${entry.script}"`;
+	// The root stays in double quotes so the host's variable expands; a path
+	// with characters the shell would read ($, `, ", spaces) is single-quoted.
+	const path = SAFE_PATH.test(entry.script) ? `"${root}/${entry.script}"` : `"${root}"/${shellQuote(entry.script)}`;
 	const args = (entry.args ?? []).map(shellQuote);
 	return [...(invoke === "bash" ? ["bash", path] : [path]), ...args].join(" ");
 };

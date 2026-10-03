@@ -37,7 +37,8 @@ const minimalTarget = {
 	mcp: { path: "mcp.json", format: "agent-plugins-mcp-1.0" as const },
 	references: { style: "prose" as const },
 	tools: { names: { Agent: "agent", Skill: drop, Task: unresolved("no alias") }, mcp: "{server}/{tool}" },
-	models: { inherit: drop, sonnet: "claude-sonnet" },
+	models: { inherit: drop, sonnet: "claude-sonnet", opus: unresolved("no alias") },
+	efforts: { max: unresolved("no max") },
 };
 
 describe("FieldMapEntry", () => {
@@ -49,6 +50,7 @@ describe("FieldMapEntry", () => {
 				rename("reasoningEffort"),
 				translate("tools"),
 				translate("models"),
+				translate("efforts", "reasoningEffort"),
 				degrade("body-section"),
 				unresolved("x"),
 			]) {
@@ -88,9 +90,9 @@ describe("Target", () => {
 		}),
 	);
 
-	it.effect("rejects a model mapped to anything but a name or drop", () =>
+	it.effect("rejects a model mapped to anything but a name, drop or unresolved", () =>
 		Effect.gen(function* () {
-			const error = yield* Effect.flip(decodeTarget({ ...minimalTarget, models: { inherit: unresolved("x") } }));
+			const error = yield* Effect.flip(decodeTarget({ ...minimalTarget, models: { inherit: keep } }));
 			assert.strictEqual(error._tag, "SchemaError");
 		}),
 	);

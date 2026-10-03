@@ -55,3 +55,17 @@ export const HOOKED_UNSUPPORTED = `export default {
 	hooks: { Setup: [{ script: "hooks/start.sh" }] },
 	copilot: true,
 };\n`;
+
+export const HOOKED_COMMAND = `export default {
+	name: "hooked",
+	description: "Fixture plugin.",
+	hooks: { Stop: [{ command: 'bash "\${PLUGIN_ROOT}/scripts/stop.sh" --quiet' }] },
+	claude: true,
+};\n`;
+
+export const WITH_MCP = `export default {
+	name: "with-mcp",
+	description: "Fixture plugin.",
+	mcpServers: { docs: { type: "http", url: "https://example.com/mcp" } },
+	claude: true,
+};\n`;

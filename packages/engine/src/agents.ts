@@ -1,9 +1,9 @@
 import type { Target } from "@pluginfinity/core";
-import { AgentFrontmatter } from "@pluginfinity/core";
+import { AGENT_FIELDS, AgentFrontmatter } from "@pluginfinity/core";
 import type { PlatformError } from "effect";
 import { Effect, FileSystem, Path } from "effect";
 import { applyHostBlocks } from "./body.js";
-import { decodeComponent, frontmatterText, invalid, issue, unknownTargets } from "./component.js";
+import { decodeComponent, frontmatterText, invalid, issue, overlayIssues, unknownTargets } from "./component.js";
 import type { EmittedFile } from "./emit.js";
 import type { ComponentInvalid, ConfigIssue } from "./errors.js";
 import { appendSections, mapFrontmatter } from "./frontmatter.js";
@@ -111,6 +111,7 @@ export const renderAgent = (
 			block ?? {},
 		);
 		const problems: Array<ConfigIssue> = [
+			...(yield* overlayIssues(AgentFrontmatter, AGENT_FIELDS, agent.frontmatter, block ?? {}, id)),
 			...mapped.unresolved.map((field) => issue(field.field, `${id} leaves this field unresolved (${field.note})`)),
 			...mapped.unknown.map((key) => issue(`targets.${id}.${key}`, `not an agent field or a ${id} agent field`)),
 		];

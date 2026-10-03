@@ -48,6 +48,38 @@ describe("mapFrontmatter", () => {
 		assert.isFalse("compatibility" in mapped.fields);
 	});
 
+	it("claude keeps a tool string, rules included, exactly as written", () => {
+		const mapped = mapFrontmatter(
+			CLAUDE,
+			CLAUDE.skills.fields,
+			CLAUDE.skills.hostFields,
+			{
+				...base,
+				"allowed-tools": "Bash(git log:*) Read, Grep",
+			},
+			{},
+		);
+		assert.strictEqual(mapped.fields["allowed-tools"], "Bash(git log:*) Read, Grep");
+	});
+
+	it("on a host that renames the tool, the string splits around a rule, which is unresolved rather than widened", () => {
+		const mapped = mapFrontmatter(
+			COPILOT,
+			COPILOT.skills.fields,
+			COPILOT.skills.hostFields,
+			{
+				...base,
+				"allowed-tools": "Bash(git log:*) Read",
+			},
+			{},
+		);
+		assert.deepStrictEqual(mapped.fields["allowed-tools"], ["read"]);
+		assert.deepStrictEqual(
+			mapped.unresolved.map((field) => field.field),
+			["allowed-tools: Bash(git log:*)"],
+		);
+	});
+
 	it("a block field that is neither a core field nor a host field is reported as unknown", () => {
 		const mapped = mapFrontmatter(COPILOT, COPILOT.skills.fields, COPILOT.skills.hostFields, base, { colour: "red" });
 		assert.deepStrictEqual(mapped.unknown, ["colour"]);
@@ -68,6 +100,35 @@ describe("mapFrontmatter", () => {
 			handoffs: [{ label: "Next" }],
 		});
 		assert.deepStrictEqual(mapped.sections, [{ field: "skills", value: ["x", "y"] }]);
+	});
+});
+
+describe("mapFrontmatter values on copilot", () => {
+	const agent = (fields: Record<string, unknown>) =>
+		mapFrontmatter(
+			COPILOT,
+			COPILOT.agents.fields,
+			COPILOT.agents.hostFields,
+			{ name: "a", description: "x", ...fields },
+			{},
+		);
+
+	it("a Claude model alias or an effort Copilot lacks is unresolved, not shipped", () => {
+		const mapped = agent({ model: "opus", effort: "max" });
+		assert.deepStrictEqual(
+			mapped.unresolved.map((field) => field.field),
+			["model: opus", "effort: max"],
+		);
+		assert.deepStrictEqual(mapped.fields, { name: "a", description: "x" });
+	});
+
+	it("a full model ID passes through, and a shared effort is written as reasoningEffort", () => {
+		assert.deepStrictEqual(agent({ model: "gpt-5", effort: "high" }).fields, {
+			name: "a",
+			description: "x",
+			model: "gpt-5",
+			reasoningEffort: "high",
+		});
 	});
 });
 
