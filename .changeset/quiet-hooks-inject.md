@@ -14,5 +14,7 @@
 
 ## Breaking Changes
 
-* A plugin source file under `hooks/lib/pluginfinity/` is now reported as a PathConflict, because that path is owned by the build
-* Existing Copilot builds show drift on the next `pluginfinity build --check` because of the new `env` entry; rebuild to refresh them
+* A plugin source file at or under `hooks/lib/pluginfinity/` is now reported as a PathConflict, because that path is owned by the build
+* Every target with hooks, not only Copilot, gains `hooks/lib/pluginfinity/{hook.sh,host.sh}`, so existing builds drift on upgrade; rebuild to refresh them
+* `host.sh` stamps the engine version, so every pluginfinity upgrade needs a rebuild, and `pluginfinity build --check` reports the library as drift until then
+* Copilot hook entries now carry `env: { PLUGINFINITY_EVENT: <event> }`, which also shows as drift until rebuilt
