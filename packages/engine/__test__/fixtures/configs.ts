@@ -30,3 +30,5 @@ export const NULL_DEFAULT = `export default null;\n`;
 export const FUNCTION_DEFAULT = `export default () => ({ name: "lazy", description: "Fixture plugin.", claude: true });\n`;
 
 export const HANGS_ON_LOAD = `await new Promise(() => {});\nexport default { name: "hangs", description: "Fixture plugin.", claude: true };\n`;
+
+export const PACKAGE_JSON = `{ "name": "fixture-package", "version": "1.2.3" }\n`;

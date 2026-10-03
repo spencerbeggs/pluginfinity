@@ -185,3 +185,102 @@ export class NotImplemented extends Schema.TaggedError<NotImplemented>()("NotImp
 		return `pluginfinity ${this.operation} is not implemented yet`;
 	}
 }
+
+/**
+ * The `package.json` beside a config is missing, unreadable, or has no
+ * `version` string. Every manifest copies its version from there.
+ *
+ * @public
+ */
+export class PackageVersionMissing extends Schema.TaggedError<PackageVersionMissing>()("PackageVersionMissing", {
+	/** The `package.json` path that was read. */
+	path: Schema.String,
+}) {
+	override get message(): string {
+		return `${this.path} is missing or has no "version" string`;
+	}
+
+	get remediation(): Remediation {
+		return { hint: `Add a package.json with a "version" field beside the config; every manifest copies it.` };
+	}
+}
+
+/**
+ * How one target's `builds/<id>/` differs from a fresh build.
+ *
+ * @public
+ */
+export class TargetDrift extends Schema.Class<TargetDrift>("TargetDrift")({
+	target: Schema.String,
+	added: Schema.Array(Schema.String),
+	changed: Schema.Array(Schema.String),
+	removed: Schema.Array(Schema.String),
+}) {}
+
+/**
+ * `build --check` or `validate` found `builds/` out of date with the source.
+ *
+ * @public
+ */
+export class BuildOutOfDate extends Schema.TaggedError<BuildOutOfDate>()("BuildOutOfDate", {
+	/** The config whose builds drifted. */
+	path: Schema.String,
+	targets: Schema.Array(TargetDrift),
+}) {
+	override get message(): string {
+		return `builds are out of date for ${this.path}: ${this.targets
+			.map(
+				(drift) =>
+					`${drift.target} (${drift.added.length} added, ${drift.changed.length} changed, ${drift.removed.length} removed)`,
+			)
+			.join(", ")}`;
+	}
+
+	get remediation(): Remediation {
+		return { hint: "Run `pluginfinity build` and commit the result." };
+	}
+}
+
+/**
+ * A host's own CLI rejected a build, or could not be run to check it.
+ *
+ * @public
+ */
+export class HostRejected extends Schema.TaggedError<HostRejected>()("HostRejected", {
+	/** The build directory the host checked. */
+	path: Schema.String,
+	target: Schema.String,
+	/** The command line, as run. */
+	command: Schema.String,
+	/** What the host printed, stdout then stderr, trimmed. */
+	output: Schema.String,
+}) {
+	override get message(): string {
+		return `${this.target} rejected ${this.path}: ${this.output === "" ? `\`${this.command}\` failed` : this.output}`;
+	}
+
+	get remediation(): Remediation {
+		return { hint: `Run \`${this.command}\` to see the host's report, or pass --no-host to skip host checks.` };
+	}
+}
+
+/**
+ * Every finding a build or validation can produce after its config loaded.
+ *
+ * @public
+ */
+export type BuildError = PackageVersionMissing | BuildOutOfDate | HostRejected;
+
+const BUILD_ERROR_TAGS: ReadonlyArray<string> = ["PackageVersionMissing", "BuildOutOfDate", "HostRejected"];
+
+/**
+ * Whether `error` is one of the {@link BuildError} members.
+ *
+ * @public
+ */
+export const isBuildError = (error: unknown): error is BuildError =>
+	typeof error === "object" &&
+	error !== null &&
+	"_tag" in error &&
+	typeof error._tag === "string" &&
+	BUILD_ERROR_TAGS.includes(error._tag);
