@@ -39,6 +39,15 @@ sources:
   - id: hooks
     resource: ../../packages/engine/src/hooks.ts
     title: targetHooks, hookCommand and renderHooks
+  - id: hook-lib
+    resource: ../../packages/engine/hook-lib/hook.sh
+    title: The host-neutral bash hook library
+  - id: hook-lib-embed
+    resource: ../../packages/engine/scripts/embed-hook-lib.ts
+    title: The script that embeds hook-lib/*.sh as generated TypeScript
+  - id: hook-lib-injection
+    resource: ../../packages/engine/src/hook-lib.ts
+    title: hookLibFiles, renderHostFile and HOOK_LIB_DIR
   - id: skills
     resource: ../../packages/engine/src/skills.ts
     title: readSkills, renderSkill and the skill description limit
@@ -53,8 +62,8 @@ sources:
     title: mapFrontmatter, the translation tables and appendSections
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T04:00:19Z
-  body_sha256: e87d2df57146b1029a1f5b4b6106455ccac9d121e16446b83b2ccd7fc6fd8148
+  at: 2026-10-03T20:49:08Z
+  body_sha256: 369e131b25846f44060516e88842e7ff94dab61dbbb2f85e87bc9c2b01399f25
 ---
 
 # @pluginfinity/engine
@@ -71,7 +80,8 @@ generated:
 - **Errors.** `ConfigNotFound`, `ConfigAmbiguous`, `ConfigLoadFailed`, `ConfigInvalid`, `UnknownTarget` and `TargetNotEnabled` together form `ConfigError`. Each one carries a path, a message and a one-line remediation hint, so a front end can render it for any audience. `PackageVersionMissing`, `HookEventUnsupported`, `HookScriptInvalid`, `PathConflict`, `ComponentsInvalid` (holding one `ComponentInvalid` per file), `BuildStale` (with one `TargetDrift` per drifted target) and `HostRejected` form `BuildError`, with the same three parts. A config that sets `mcpServers` fails with `NotImplemented` until MCP servers are built. `NotImplemented` marks an operation that exists in the command surface but is not built yet.[^errors]
 - **Manifests.** `renderManifest` builds a target's manifest from the config, the target's name override and the `package.json` version, through one function per manifest format, cut to the target's key allowlist in its order.[^manifest]
 - **Emit.** `planEmit` compares the files a build produces with what a build directory holds, by bytes and mode, and returns an `EmitPlan` of added, changed, removed and unchanged paths. `applyEmit` stages added and changed files in a sibling temporary directory, then renames each into place, deletes removed files and stray empty directories, prunes the directories that leaves empty, and only then renames each staged file into place, so a path that changes only by case, or turns from a file into a directory, settles in one build. Unchanged files are never written, so their mtimes stay, and generated files are `0644`.[^emit]
-- **Hooks.** `targetHooks` applies a target's per-event overrides to the base `hooks` and maps each event to the target's name. An event the target lacks drops its `fallback: "omit"` entries and otherwise fails the build with `HookEventUnsupported`. `hookCommand` renders an entry as a shell command at the target's plugin root, through `bash` unless `scripts.invoke` is `"exec"`; `hookExec` renders a script entry in exec form, `command` and `args` with no shell, which Claude Code's hooks file uses, and `renderHooks` writes the hooks file through one renderer per hooks format.[^hooks] Each target ships the source `hooks/` directory whole, so a script can source its helpers, except scripts that only another target's hooks run. Copied files keep their source mode. A missing script, or one without the executable bit under `exec`, is `HookScriptInvalid`. A source file on a path the build generates, such as `hooks/hooks.json` on Claude Code, is `PathConflict`.[^operations]
+- **Hooks.** `targetHooks` applies a target's per-event overrides to the base `hooks` and maps each event to the target's name. An event the target lacks drops its `fallback: "omit"` entries and otherwise fails the build with `HookEventUnsupported`. `hookCommand` renders an entry as a shell command at the target's plugin root, through `bash` unless `scripts.invoke` is `"exec"`; `hookExec` renders a script entry in exec form, `command` and `args` with no shell, which Claude Code's hooks file uses, and `renderHooks` writes the hooks file through one renderer per hooks format.[^hooks] Each target ships the source `hooks/` directory whole, so a script can source its helpers, except scripts that only another target's hooks run. Copied files keep their source mode. A missing script, or one without the executable bit under `exec`, is `HookScriptInvalid`. A source file on a path the build generates, such as `hooks/hooks.json` on Claude Code, or anywhere under the reserved `hooks/lib/pluginfinity/`, is `PathConflict`.[^operations] Each Copilot hook entry carries `env.PLUGINFINITY_EVENT`, the Claude event name, because a camelCase Copilot payload has no `hook_event_name`.
+- **Hook library.** `hook-lib/hook.sh` is the host-neutral bash library hook scripts source: Bash 3.2 compatible, `jq` at run time, one response per hook, [failing open](../decisions/hooks-fail-open.md). Its bats suite is `__test__/hook-lib/hook.bats`, run by `pnpm test:bats`, and `pnpm test:bats:compat` runs it under the system bash. The sources are embedded into `src/hook-lib.generated.ts` by `pnpm --filter @pluginfinity/engine hook-lib:embed`, so a build needs no asset on disk, and a test fails when the two disagree. `hookLibFiles` writes the embedded files to `hooks/lib/pluginfinity/` in every target that has hooks, beside a generated `host.sh` that sets `PLUGINFINITY_HOST`, `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB_VERSION` (the engine version). A target with no hooks gets none of it, and `build --check` treats the files like any other output. `hook_input` reads `tool_input` keys by their Claude names on both hosts, and with `PLUGINFINITY_HOOK_DEBUG=1` the library logs each hook's raw input. The reasons are in [the decision](../decisions/hook-library-is-build-injected.md), and what a live run on both hosts showed is in [the measurement](../measurements/hook-library-live-2026-10-03.md).[^hook-lib][^hook-lib-embed][^hook-lib-injection]
 - **Skills.** `readSkills` reads every `skills/<name>/SKILL.md`, parses its frontmatter with `@effected/yaml` and decodes it strictly against core's `SkillFrontmatter`. A YAML error is reported at its file line and column, and a name that differs from the directory or a `targets` key that is not a known target fails too, all as `ComponentInvalid`, collected into `ComponentsInvalid`. `mapFrontmatter` applies a target's field map and the component's `targets` block, `applyHostBlocks` keeps or strips each host block, and `renderSkill` writes `SKILL.md` with `name` always set and its `.md` support files processed and the rest copied, every file keeping its source mode. A built `description` over 1,024 characters, the Agent Skills limit Copilot enforces, fails for that target.[^skills]
 - **Agents.** `readAgents` reads every `agents/<name>.md` the same way, and its `name` must equal the file stem. `renderAgent` writes `<agents.dir>/<name><agents.suffix>` through the target's agent field map; a field degraded to a body section, such as `skills` on Copilot, is appended as a level-two heading and a list marked like the body's first list.[^agents]
 - **Components share one reader.** A frontmatter value plain YAML would cut short at `#` is refused, since Claude Code's reader keeps the text and every YAML parser drops it. Decoded fields keep the author's key order, and when a target's fields come out exactly as they went in, the author's frontmatter text is written unchanged, comments and folding included. Every component problem in a plugin is collected into one `ComponentsInvalid`, so a single build reports them all, and a host-block problem, wrong for every target, is reported once.[^component]
@@ -98,6 +108,9 @@ The six-stage pipeline, its errors and `check` mode are designed in [the roadmap
 [^manifest]: `../../packages/engine/src/manifest.ts`
 [^emit]: `../../packages/engine/src/emit.ts`
 [^hooks]: `../../packages/engine/src/hooks.ts`
+[^hook-lib]: `../../packages/engine/hook-lib/hook.sh`
+[^hook-lib-embed]: `../../packages/engine/scripts/embed-hook-lib.ts`
+[^hook-lib-injection]: `../../packages/engine/src/hook-lib.ts`
 [^skills]: `../../packages/engine/src/skills.ts`
 [^agents]: `../../packages/engine/src/agents.ts`
 [^component]: `../../packages/engine/src/component.ts`

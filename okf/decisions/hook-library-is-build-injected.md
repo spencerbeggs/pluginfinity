@@ -12,10 +12,13 @@ sources:
     resource: ../../docs/superpowers/specs/2026-10-03-hook-library-design.md
     title: Hook library design spec, with the prior-art survey of impeccable, plugin-bot and effected
     last_modified: 2026-10-03T00:00:00Z
+  - id: live-run
+    resource: ../measurements/hook-library-live-2026-10-03.md
+    title: The live run on Claude Code and Copilot CLI that checked the library against both hosts
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:33:34Z
-  body_sha256: b88f046ffe25ed2883f1ea32159e838e4262970611d18a1b019b127013b8cf8c
+  at: 2026-10-03T20:49:08Z
+  body_sha256: 45d19b39d030eeada9e5e76fea7e29ecbdccce64df7c2a7e842edcf257f9257a
 ---
 
 # The hook library is injected at build time
@@ -45,7 +48,9 @@ plugin-bot copied its `hooks/lib/*.sh` templates into each plugin at setup time.
 
 - Authors cannot patch the library locally. They write their own helpers beside it or contribute upstream.
 - The library is bash, compatible with Bash 3.2, and needs `jq` at run time, consistent with [plugins carrying no Node dependencies](plugins-carry-no-node-dependencies.md).
+- A live run on both hosts confirmed that Copilot honours the per-entry `env` the build writes and showed where its payloads differ from Claude's, which the library absorbs by aliasing `tool_input` keys ([measurement](../measurements/hook-library-live-2026-10-03.md)).[^live-run]
 - Failure behaviour is fixed by [hooks fail open](hooks-fail-open.md).
 - The carrier package has to publish the library files, and the engine has to receive them through a service the carrier provides rather than locating them itself ([the carrier split](pluginfinity-ships-as-a-carrier-package.md)).
 
 [^hook-library-spec]: `../../docs/superpowers/specs/2026-10-03-hook-library-design.md`
+[^live-run]: `../measurements/hook-library-live-2026-10-03.md`

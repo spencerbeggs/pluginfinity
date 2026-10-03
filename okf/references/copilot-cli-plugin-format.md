@@ -42,8 +42,8 @@ sources:
     last_modified: 2026-10-02T00:00:00Z
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:33:34Z
-  body_sha256: f979630ad881111f106f8fb3612e6fd779765a2f6a0c1677f546296fe3113b4e
+  at: 2026-10-03T20:49:08Z
+  body_sha256: 4145560d966104e89c2ecbcd68656b6d1663b943fe6834a6e617b31b65fe85d9
 ---
 
 # GitHub Copilot CLI plugin format
@@ -267,7 +267,7 @@ Entries are flat: each is one handler object directly in the event's array, and 
 
 Entry types:[^copilot-hooks-reference]
 
-- `command` (default when `type` is omitted): one of `bash`, `powershell`, `command` (cross-platform fallback copied to both), or `exec` + `args` (no shell, CLI only; do not combine `exec` with the others). Optional `cwd` (relative to the repository root, or absolute), `env` (a map; supports variable expansion), `timeoutSec` (default 30; `timeout` is an alias used only when `timeoutSec` is absent), `matcher`. In a sandboxed session `cwd` and `env` widen no access.
+- `command` (default when `type` is omitted): one of `bash`, `powershell`, `command` (cross-platform fallback copied to both), or `exec` + `args` (no shell, CLI only; do not combine `exec` with the others). Optional `cwd` (relative to the repository root, or absolute), `env` (a map; supports variable expansion; a live run confirmed the hook process receives it as set, [measurement](../measurements/hook-library-live-2026-10-03.md)), `timeoutSec` (default 30; `timeout` is an alias used only when `timeoutSec` is absent), `matcher`. In a sandboxed session `cwd` and `env` widen no access.
 - `http`: `url` (HTTPS required by default; must be `https://` for `preToolUse` and `permissionRequest`), optional `headers`, `allowedEnvVars`, `timeoutSec`. Payload is POSTed as JSON.
 - `prompt`: `prompt` text auto-submitted; `sessionStart` only, new interactive sessions only.
 
@@ -312,7 +312,7 @@ The payload form follows the case of the event name in the configuration. A Pasc
 | `preCompact` | `transcriptPath`, `trigger` (`manual`, `auto`), `customInstructions` |
 | `notification` | `hook_event_name: "Notification"`, `message`, `notification_type`; optional `title` |
 
-In the snake_case form the names become `session_id`, `tool_name`, `tool_input`, `tool_result` (`result_type`, `text_result_for_llm`), `transcript_path`, `stop_reason`, `initial_prompt`, `error_context`, `custom_instructions`, `agent_id`, `agent_type`, `agent_name`, and `last_assistant_message` in place of `response` on `SubagentStop`. `stop_hook_active` keeps its name in both forms. `toolArgs` and `tool_input` are typed `unknown`: the how-to's own example payload shows `toolArgs` as a JSON string (`"{\"command\":\"ls\"}"`), while the VS Code compatible form says the arguments are parsed from a JSON string when possible. A script must accept an object or a string.[^copilot-hooks-reference][^copilot-use-hooks] `notification_type` values are `shell_completed`, `shell_detached_completed`, `agent_completed`, `agent_idle`, `permission_prompt` and `elicitation_dialog`.[^copilot-hooks-reference]
+In the snake_case form the names become `session_id`, `tool_name`, `tool_input`, `tool_result` (`result_type`, `text_result_for_llm`), `transcript_path`, `stop_reason`, `initial_prompt`, `error_context`, `custom_instructions`, `agent_id`, `agent_type`, `agent_name`, and `last_assistant_message` in place of `response` on `SubagentStop`. `stop_hook_active` keeps its name in both forms. `toolArgs` and `tool_input` are typed `unknown`: the how-to's own example payload shows `toolArgs` as a JSON string (`"{\"command\":\"ls\"}"`), while the VS Code compatible form says the arguments are parsed from a JSON string when possible. A script must accept an object or a string.[^copilot-hooks-reference][^copilot-use-hooks] Observed on 1.0.91 under a PascalCase event, `tool_input` arrives as a JSON object, `hook_event_name` is present, and `tool_name` carries the Claude name (`Read`, `Write`, `Edit`, `Bash`, `Agent`, `AskUserQuestion`), but the keys inside `tool_input` keep Copilot's own spelling: Read sends `path`, Write `path` and `file_text`, Edit `path`, `old_str` and `new_str`, and Bash `command` and `description` as Claude does. A camelCase entry with no `env` gets a payload without `hook_event_name`. UserPromptSubmit fires for each typed prompt and for a subagent's prompt under the subagent's own session id, but not for a reply submitted through a form or question tool ([measurement](../measurements/hook-library-live-2026-10-03.md)). `notification_type` values are `shell_completed`, `shell_detached_completed`, `agent_completed`, `agent_idle`, `permission_prompt` and `elicitation_dialog`.[^copilot-hooks-reference]
 
 ### Outputs
 

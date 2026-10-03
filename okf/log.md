@@ -12,6 +12,8 @@
 * Updated pluginfinity companion plugin
 * Updated A workspace plugin gets no pluginfinity bin unless the carrier is relinked after its build
 * Updated dogfood plugin fixture
+* Updated Claude Code plugin format
+* Added Hooks fail open on both hosts
 
 ## 2026-10-02
 

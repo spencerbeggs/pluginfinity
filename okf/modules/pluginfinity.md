@@ -22,13 +22,19 @@ sources:
   - id: boundaries
     resource: ../../packages/pluginfinity/__test__/boundaries.test.ts
     title: The SourceBoundary scans, including the library entry's no-CLI rule
+  - id: bats-helper
+    resource: ../../packages/pluginfinity/bats/pluginfinity.bash
+    title: The bats helper plugin tests load
+  - id: build-script
+    resource: ../../packages/pluginfinity/savvy.build.ts
+    title: The build script, including the bats copy step
   - id: e2e
     resource: ../../packages/pluginfinity/__test__/e2e
     title: End-to-end tests that run the built bin
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T19:34:21Z
-  body_sha256: 9830b715f391d94a912f1a9fac97d6dbec1ce1ccf324e898f9adbaf0fdfe53a3
+  at: 2026-10-03T20:49:08Z
+  body_sha256: 467fb3cbf1d34cc053498d13c56be5f36ea125c54b1c3d89848e940a77df3106
 ---
 
 # pluginfinity carrier package
@@ -45,6 +51,10 @@ generated:
 - It depends on every front end and on the full runtime closure (jiti and the `@effected/*` packages included) as regular `dependencies`, never `peerDependencies`, because npm, pnpm, yarn and bun only link bins for direct dependencies.
 - Its manifest is still `private: true`, so nothing publishes it until the first-publish phase of [the roadmap](../roadmaps/pluginfinity-first-release.md).
 
+## Bats helper
+
+`bats/pluginfinity.bash` is the helper a plugin's bats tests load from `node_modules/pluginfinity/bats/`. Its `run_hook <target> <script> <fixture>` runs a built hook script from `builds/<target>/` under `env -i` with that host's environment, and for Copilot the `PLUGINFINITY_EVENT` the build writes, so a hook is tested as built. It sets `$status`, `$output` and `$stderr` and needs bats 1.5.0 or later.[^bats-helper] The bundler copies only what the exports and bin reach, so `savvy.build.ts` copies `bats/` into `dist/dev/pkg` and `dist/prod/npm/pkg` after the build, and `turbo.json` lists `bats/**` as a build input.[^build-script] A test in `__test__/` covers the helper against a fixture plugin under `__test__/fixtures/`, kept there so CI's repository-wide bats run does not pick up the fixture's own suite. The [dogfood fixture](dogfood.md) is the helper's real user, and the library it tests is in [the engine](engine.md).
+
 ## Tests
 
 Its `__test__/` holds the repository-wide shape checks, kept here so core and targets never need platform devDependencies. One is a layering test (`LayerPolicy` and `WorkspaceLayering` from `@effected/workspaces/testing`, against `__test__/fixtures/layers.json`, devDependency edges included). The others are `SourceBoundary` scans of every package's `src/`, each with a positive control.[^boundaries]
@@ -57,4 +67,6 @@ The companion plugin and the dogfood fixture depend on this package as `"pluginf
 [^index]: `../../packages/pluginfinity/src/index.ts`
 [^bin]: `../../packages/pluginfinity/src/bin/pluginfinity.ts`
 [^boundaries]: `../../packages/pluginfinity/__test__/boundaries.test.ts`
+[^bats-helper]: `../../packages/pluginfinity/bats/pluginfinity.bash`
+[^build-script]: `../../packages/pluginfinity/savvy.build.ts`
 [^e2e]: `../../packages/pluginfinity/__test__/e2e`

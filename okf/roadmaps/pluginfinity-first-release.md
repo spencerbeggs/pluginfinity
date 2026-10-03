@@ -30,8 +30,8 @@ sources:
     title: impeccable's post-build rewrite of the Claude Code plugin copy
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T19:33:34Z
-  body_sha256: 9899f00849b72d7e54ece1d3cee77db5d1095aa79827d194bf3f073222ff8807
+  at: 2026-10-03T20:49:08Z
+  body_sha256: 69c7e7349e7876b2eaeb220c3729fac60559f7910ef686211edf9809bbbf57fc
 ---
 
 # pluginfinity first release
@@ -89,7 +89,7 @@ What to avoid: impeccable's main output is a project install, and the Claude Cod
 - **Source model.** Designed as the [plugin source model](../models/plugin-source-model.md): skills, agents, hooks and MCP servers, written in [Claude Code's vocabulary](../decisions/claude-code-names-are-the-source-vocabulary.md), with host blocks, `pluginfinity://` references and a per-component `targets` block.
 - **Declared fallbacks.** A component declares per target whether a missing capability means omit, degrade to a named form (description suffix, body section, inline role) or fail.
 - **Typed references instead of free-text placeholders.** A reference to another skill's file resolves per target and must exist, so an unresolved reference is a build error, never shipped text.
-- **Hooks declared once, generated per target.** Hooks are declared in a host-neutral form in `pluginfinity.config.ts`, with per-target overrides, and the build generates each target's hooks file from that declaration rather than transforming one host's `hooks.json` into another's.[^owner-direction] Host event names, tool names, handler fields and file locations come from the target descriptions ([Claude Code](../references/claude-code-plugin-format.md), [Copilot](../references/copilot-cli-plugin-format.md)). Hook commands are bash scripts ([decision](../decisions/plugins-carry-no-node-dependencies.md)). Copilot runs a plugin hook from the plugin root and substitutes `${PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}` in its command, whether the plugin is loaded in place or installed, which the docs leave unstated ([measurement](../measurements/copilot-plugin-hook-environment.md)). Typed Effect hooks compiled to binaries are a later goal, with [claude-binary-plugin](../references/claude-binary-plugin.md) as prior art.
+- **Hooks declared once, generated per target.** Hooks are declared in a host-neutral form in `pluginfinity.config.ts`, with per-target overrides, and the build generates each target's hooks file from that declaration rather than transforming one host's `hooks.json` into another's.[^owner-direction] Host event names, tool names, handler fields and file locations come from the target descriptions ([Claude Code](../references/claude-code-plugin-format.md), [Copilot](../references/copilot-cli-plugin-format.md)). Hook commands are bash scripts ([decision](../decisions/plugins-carry-no-node-dependencies.md)). Copilot runs a plugin hook from the plugin root and substitutes `${PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}` in its command, whether the plugin is loaded in place or installed, which the docs leave unstated ([measurement](../measurements/copilot-plugin-hook-environment.md)). Scripts share a bash library that the build [injects into every target with hooks](../decisions/hook-library-is-build-injected.md), checked live on both hosts ([measurement](../measurements/hook-library-live-2026-10-03.md)). Typed Effect hooks compiled to binaries are a later goal, with [claude-binary-plugin](../references/claude-binary-plugin.md) as prior art.
 - **Host formats.** The copilot target emits Agent Plugins 1.0 ([decision](../decisions/copilot-target-emits-agent-plugins.md)). The host facts behind the target descriptions are mirrored under [references](../references/index.md), and where the SchemaStore schemas and the host docs disagree, the docs win.
 - **Pipeline.** Six stages in `@pluginfinity/engine`, built on the `@effected` markdown, yaml, jsonc, glob, walker and memfs packages:
   1. **Read** the config, `skills/`, `agents/` and referenced scripts.
