@@ -32,6 +32,40 @@ describe("applyHostBlocks", () => {
 		assert.deepStrictEqual(applyHostBlocks(text, "claude", KNOWN), { text });
 	});
 
+	it("a marker inside fenced code is text, kept in place", () => {
+		const text = [
+			"Write a host block like this:",
+			"",
+			"```markdown",
+			"<!-- pluginfinity:only claude -->",
+			"Claude only.",
+			"<!-- /pluginfinity:only -->",
+			"```",
+			"",
+			"~~~~",
+			"<!-- pluginfinity:only copilot -->",
+			"~~~~",
+		].join("\n");
+		assert.deepStrictEqual(applyHostBlocks(text, "copilot", KNOWN), { text });
+	});
+
+	it("a marker in an inline code span is text, and a bare mention is not a marker", () => {
+		const text = "Open one with `<!-- pluginfinity:only claude -->` and close it.\nThe pluginfinity:only name.";
+		assert.deepStrictEqual(applyHostBlocks(text, "claude", KNOWN), { text });
+	});
+
+	it("a fence inside a dropped host block is dropped with it", () => {
+		const text = [
+			"<!-- pluginfinity:only claude -->",
+			"```",
+			"code",
+			"```",
+			"<!-- /pluginfinity:only -->",
+			"End.",
+		].join("\n");
+		assert.deepStrictEqual(applyHostBlocks(text, "copilot", KNOWN), { text: "End." });
+	});
+
 	const problems: ReadonlyArray<readonly [string, string, number, string]> = [
 		[
 			"an unknown id",

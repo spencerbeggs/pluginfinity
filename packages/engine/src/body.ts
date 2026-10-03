@@ -1,11 +1,14 @@
 /**
  * The markers of a host block: a line holding only
  * `<!-- pluginfinity:only <id> [<id>…] -->` opens one, and a line holding only
- * `<!-- /pluginfinity:only -->` closes it.
+ * `<!-- /pluginfinity:only -->` closes it. A marker inside fenced code or an
+ * inline code span is text, so a body can show one.
  */
 const OPEN = /^\s*<!--\s*pluginfinity:only\s+([^>]*?)\s*-->\s*$/;
 const CLOSE = /^\s*<!--\s*\/pluginfinity:only\s*-->\s*$/;
-const MARKER = /pluginfinity:only/;
+const MARKER = /<!--\s*\/?pluginfinity:only/;
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+const INLINE_CODE = /(`+)[\s\S]*?\1/g;
 
 /**
  * Why a body's host blocks are malformed, with the 1-based line it was found on.
@@ -33,9 +36,21 @@ export const applyHostBlocks = (
 	if (!MARKER.test(text)) return { text };
 	const kept: Array<string> = [];
 	let open: { readonly line: number; readonly keep: boolean } | undefined;
+	let fence: string | undefined;
 	const lines = text.split("\n");
 	for (const [index, line] of lines.entries()) {
 		const number = index + 1;
+		const keep = open === undefined || open.keep;
+		const fenceMark = FENCE.exec(line)?.[1];
+		if (fence !== undefined || fenceMark !== undefined) {
+			// A fence closes on the same character, at least as long.
+			if (fence === undefined) fence = fenceMark;
+			else if (fenceMark !== undefined && fenceMark[0] === fence[0] && fenceMark.length >= fence.length) {
+				fence = undefined;
+			}
+			if (keep) kept.push(line);
+			continue;
+		}
 		const opening = OPEN.exec(line);
 		if (opening !== null) {
 			if (open !== undefined) return { problem: { line: number, message: "host blocks do not nest" } };
@@ -58,10 +73,10 @@ export const applyHostBlocks = (
 			open = undefined;
 			continue;
 		}
-		if (MARKER.test(line)) {
+		if (MARKER.test(line.replace(INLINE_CODE, ""))) {
 			return { problem: { line: number, message: "a host block marker must be on a line of its own" } };
 		}
-		if (open === undefined || open.keep) kept.push(line);
+		if (keep) kept.push(line);
 	}
 	if (open !== undefined) return { problem: { line: open.line, message: "a host block is never closed" } };
 	return { text: kept.join("\n") };
