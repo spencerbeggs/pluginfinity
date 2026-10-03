@@ -184,8 +184,9 @@ const checkScript = (
  * Each target ships the source `hooks/` directory whole, so a script can
  * source its own helpers, except scripts only another target's hooks run; a
  * script outside `hooks/` ships to the targets that run it. A target with
- * hooks also gets the hook library under `hooks/lib/pluginfinity/`, which no
- * source file may occupy.
+ * hooks also gets the hook library under `hooks/lib/pluginfinity/`. That path
+ * is always reserved, whether or not the target has hooks: no source file may
+ * be at it or under it.
  */
 const planPlugin = (
 	prepared: PreparedPlugin,
@@ -253,8 +254,10 @@ const planPlugin = (
 			const manifest = renderManifest(target, id, config.config, version);
 			const generated: Array<EmittedFile> = [{ path: target.manifest.path, content: serializeManifest(manifest) }];
 			const hooksFile = renderHooks(target, events, invoke);
-			if (hooksFile !== undefined) generated.push({ path: target.hooks.path, content: hooksFile });
-			if (hooksFile !== undefined) generated.push(...hookLibFiles(id, String(manifest.name), ENGINE_VERSION));
+			if (hooksFile !== undefined) {
+				generated.push({ path: target.hooks.path, content: hooksFile });
+				generated.push(...hookLibFiles(id, String(manifest.name), ENGINE_VERSION));
+			}
 			for (const skill of skills)
 				generated.push(...((yield* collect(renderSkill(target, id, skill, KNOWN_TARGET_IDS))) ?? []));
 			for (const agent of agents) {
@@ -263,7 +266,7 @@ const planPlugin = (
 			}
 
 			// The library's directory belongs to pluginfinity; a source file there would shadow or join it.
-			const reserved = copied.find((file) => file.path.startsWith(`${HOOK_LIB_DIR}/`));
+			const reserved = copied.find((file) => file.path === HOOK_LIB_DIR || file.path.startsWith(`${HOOK_LIB_DIR}/`));
 			if (reserved !== undefined) {
 				return yield* Effect.fail(new PathConflict({ path: config.path, target: id, file: reserved.path }));
 			}

@@ -343,6 +343,35 @@ describe("build with hooks", () => {
 				assert.strictEqual(error._tag, "PathConflict");
 				if (error._tag !== "PathConflict") return;
 				assert.strictEqual(error.file, "hooks/lib/pluginfinity/mine.sh");
+				assert.strictEqual(error.target, "claude");
+			}),
+		);
+
+		it.effect("a source file at exactly hooks/lib/pluginfinity is a PathConflict", () =>
+			Effect.gen(function* () {
+				const root = yield* hookedPlugin(HOOKED, { "hooks/lib/pluginfinity": "not a directory\n" });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.deepStrictEqual([error.target, error.file], ["claude", "hooks/lib/pluginfinity"]);
+			}),
+		);
+
+		it.effect("a plugin whose every hook is fallback omit gets no library", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* hookedPlugin(
+					`export default {
+	name: "hooked",
+	description: "Fixture plugin.",
+	hooks: { Setup: [{ script: "hooks/start.sh", fallback: "omit" }] },
+	copilot: true,
+};\n`,
+				);
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/hooks/lib/pluginfinity")));
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/hooks/hooks.json")));
 			}),
 		);
 
