@@ -65,6 +65,17 @@ it("Claude keeps every LSP field and Copilot renames extensionToLanguage", () =>
 	assert.strictEqual(claude?.target.lsp.path, ".lsp.json");
 });
 
+it("Copilot's unresolved LSP notes point at the top-level copilot.lspServers config key", () => {
+	const copilot = TARGETS.find((t) => t.id === "copilot")?.target;
+	for (const field of ["settings", "workspaceFolder"] as const) {
+		const entry = copilot?.lsp.fields[field];
+		assert.strictEqual(entry?._tag, "unresolved");
+		if (entry?._tag !== "unresolved") continue;
+		assert.include(entry.note, "under copilot.lspServers");
+		assert.notInclude(entry.note, "targets.copilot");
+	}
+});
+
 describe("the copilot description", () => {
 	const copilot = TARGETS.find((entry) => entry.id === "copilot")?.target;
 

@@ -70,9 +70,6 @@ const agentFields = {
 	experimental: drop,
 } as const satisfies Record<AgentField, FieldMapEntry>;
 
-// Events with a PascalCase form on Copilot keep their Claude name, so a hook
-// script reads a Claude-shaped payload. SubagentStart and Notification exist
-// only in camelCase; everything else is absent.
 // Copilot's lsp.json documents command, args, env, cwd, fileExtensions, rootUri
 // and initializationOptions. Claude's lifecycle tuning has no counterpart.
 const lspFields = {
@@ -81,11 +78,9 @@ const lspFields = {
 	env: keep,
 	extensionToLanguage: rename("fileExtensions"),
 	initializationOptions: keep,
-	settings: unresolved(
-		"Copilot has no LSP settings channel; set the server under targets.copilot.lspServers without settings",
-	),
+	settings: unresolved("Copilot has no LSP settings channel; set the server under copilot.lspServers without settings"),
 	workspaceFolder: unresolved(
-		"Copilot's rootUri is relative to the git root, not a path; set the server under targets.copilot.lspServers without workspaceFolder",
+		"Copilot's rootUri is relative to the git root, not a path; set the server under copilot.lspServers without workspaceFolder",
 	),
 	startupTimeout: drop,
 	shutdownTimeout: drop,
@@ -94,6 +89,9 @@ const lspFields = {
 	diagnostics: drop,
 } as const satisfies Record<LspField, FieldMapEntry>;
 
+// Events with a PascalCase form on Copilot keep their Claude name, so a hook
+// script reads a Claude-shaped payload. SubagentStart and Notification exist
+// only in camelCase; everything else is absent.
 const PASCAL_CASE = new Set<ClaudeHookEvent>([
 	"SessionStart",
 	"SessionEnd",

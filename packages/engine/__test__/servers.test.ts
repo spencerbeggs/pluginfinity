@@ -221,3 +221,153 @@ describe("renderServers: scoped rewriting", () => {
 		assert.strictEqual(json(copilot, "mcp.json").mcpServers.mcp.cwd, "bin");
 	});
 });
+
+describe("renderServers: host root spellings", () => {
+	const SPELLINGS = [
+		`\${CLAUDE_PLUGIN_ROOT}`,
+		`\${COPILOT_PLUGIN_ROOT}`,
+		"$CLAUDE_PLUGIN_ROOT",
+		"$COPILOT_PLUGIN_ROOT",
+		"$PLUGIN_ROOT",
+	] as const;
+
+	for (const target of [
+		["claude", CLAUDE],
+		["copilot", COPILOT],
+	] as const) {
+		for (const spelling of SPELLINGS) {
+			it(`${spelling} in an MCP root field is an issue on ${target[0]} naming the field`, () => {
+				const config = base({
+					mcpServers: {
+						mcp: {
+							command: `${spelling}/bin/serve`,
+							args: [`${spelling}/bin/start.sh`],
+							env: { DATA: `${spelling}/share` },
+							...(target[0] === "copilot" ? { cwd: spelling } : {}),
+						},
+					},
+				});
+				const render = renderServers(target[1], target[0], config, "demo", LIB);
+				const keys = render.issues.map((i) => i.key);
+				assert.sameMembers(keys, [
+					"mcpServers.mcp.command",
+					"mcpServers.mcp.args",
+					"mcpServers.mcp.env",
+					...(target[0] === "copilot" ? ["mcpServers.mcp.cwd"] : []),
+				]);
+				for (const issue of render.issues) assert.include(issue.message, R);
+			});
+
+			it(`${spelling} in an LSP root field is an issue on ${target[0]} naming the field`, () => {
+				const config = base({
+					lspServers: {
+						md: {
+							command: `${spelling}/bin/lsp`,
+							args: [`${spelling}/bin/lsp.sh`],
+							env: { DATA: `${spelling}/share` },
+							extensionToLanguage: { ".md": "markdown" },
+							...(target[0] === "claude" ? { workspaceFolder: spelling } : {}),
+						},
+					},
+				});
+				const render = renderServers(target[1], target[0], config, "demo", LIB);
+				assert.sameMembers(
+					render.issues.map((i) => i.key),
+					[
+						"lspServers.md.command",
+						"lspServers.md.args",
+						"lspServers.md.env",
+						...(target[0] === "claude" ? ["lspServers.md.workspaceFolder"] : []),
+					],
+				);
+			});
+		}
+	}
+
+	it("the portable spelling, an env key and a longer variable name are not host spellings", () => {
+		const config = base({
+			mcpServers: {
+				mcp: { command: "sh", args: [`${R}/bin/start.sh`, "$PLUGIN_ROOTS"], env: { CLAUDE_PLUGIN_ROOT: "x" } },
+			},
+			lspServers: { md: { command: "sh", args: [`${R}/bin/lsp.sh`], extensionToLanguage: { ".md": "markdown" } } },
+		});
+		for (const [id, target] of [
+			["claude", CLAUDE],
+			["copilot", COPILOT],
+		] as const)
+			assert.deepStrictEqual(renderServers(target, id, config, "demo", LIB).issues, []);
+	});
+
+	it("a host spelling outside the root fields is left alone", () => {
+		const config = base({
+			mcpServers: { docs: { type: "http", url: "https://e.com", headers: { H: `\${CLAUDE_PLUGIN_ROOT}/h` } } },
+			lspServers: {
+				md: { command: "sh", extensionToLanguage: { ".md": "markdown" }, initializationOptions: { p: "$PLUGIN_ROOT" } },
+			},
+		});
+		assert.deepStrictEqual(renderServers(CLAUDE, "claude", config, "demo", LIB).issues, []);
+	});
+});
+
+describe("renderServers: issue keys name an override's origin", () => {
+	it("an overridden Copilot LSP server's unresolved field is keyed under copilot.lspServers", () => {
+		const render = renderServers(
+			COPILOT,
+			"copilot",
+			base({
+				copilot: { lspServers: { x: { command: "s", extensionToLanguage: { ".a": "a" }, settings: {} } } },
+			}),
+			"demo",
+			LIB,
+		);
+		assert.deepStrictEqual(
+			render.issues.map((i) => i.key),
+			["copilot.lspServers.x.settings"],
+		);
+	});
+
+	it("an overridden Claude MCP server's cwd is keyed under claude.mcpServers", () => {
+		const render = renderServers(
+			CLAUDE,
+			"claude",
+			base({ claude: { mcpServers: { mcp: { command: "sh", cwd: "bin" } } } }),
+			"demo",
+			LIB,
+		);
+		assert.deepStrictEqual(
+			render.issues.map((i) => i.key),
+			["claude.mcpServers.mcp.cwd"],
+		);
+	});
+
+	it("an overridden server's host spelling is keyed under its origin", () => {
+		const render = renderServers(
+			COPILOT,
+			"copilot",
+			base({ copilot: { mcpServers: { mcp: { command: "sh", args: [`\${CLAUDE_PLUGIN_ROOT}/bin/s.sh`] } } } }),
+			"demo",
+			LIB,
+		);
+		assert.deepStrictEqual(
+			render.issues.map((i) => i.key),
+			["copilot.mcpServers.mcp.args"],
+		);
+	});
+});
+
+describe("serverFiles: reference boundaries and origins", () => {
+	it("a : ends a reference, so a PATH-style list names the directory", () => {
+		const config = base({ mcpServers: { mcp: { command: "sh", env: { PATH: `${R}/bin:/usr/bin` } } } });
+		assert.deepStrictEqual(serverFiles(CLAUDE, "claude", config).others, ["bin"]);
+	});
+
+	it("a , ends a reference, so a comma list names each path", () => {
+		const config = base({ mcpServers: { mcp: { command: "sh", args: [`${R}/a,${R}/b`] } } });
+		assert.deepStrictEqual(serverFiles(CLAUDE, "claude", config).others, ["a", "b"]);
+	});
+
+	it("an overridden server owns its paths under its origin", () => {
+		const config = base({ copilot: { mcpServers: { only: { command: "sh", args: [`${R}/bin/o.sh`] } } } });
+		assert.strictEqual(serverFiles(COPILOT, "copilot", config).owners.get("bin/o.sh"), "copilot.mcpServers.only");
+	});
+});

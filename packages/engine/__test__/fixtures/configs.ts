@@ -173,3 +173,33 @@ export const FILES_BUILDS = `export default {
 	files: ["builds/"],
 	claude: true,
 };\n`;
+
+/** A config with one MCP server, `server`, on both targets. */
+const serverRefs = (name: string, server: string) => `export default {
+	name: "${name}",
+	description: "Fixture plugin.",
+	mcpServers: { mcp: ${server} },
+	claude: true,
+	copilot: true,
+};\n`;
+
+export const SERVER_DIR_ENV = serverRefs("server-dir-env", `{ command: "sh", env: { DATA: "\${PLUGIN_ROOT}/share" } }`);
+
+export const SERVER_DIR_SLASH = serverRefs("server-dir-slash", `{ command: "sh", env: { DATA: "\${PLUGIN_ROOT}/share/" } }`);
+
+export const SERVER_PATH_ENV = serverRefs(
+	"server-path-env",
+	`{ command: "sh", env: { PATH: "\${PLUGIN_ROOT}/bin:/usr/bin" } }`,
+);
+
+export const SERVER_DIR_COMMAND = serverRefs("server-dir-command", `{ command: "\${PLUGIN_ROOT}/bin" }`);
+
+export const SERVER_FILE_SLASH = serverRefs(
+	"server-file-slash",
+	`{ command: "sh", args: ["\${PLUGIN_ROOT}/bin/start.sh/"] }`,
+);
+
+export const SERVER_HOST_SPELLING = serverRefs(
+	"server-host-spelling",
+	`{ command: "sh", args: ["\${CLAUDE_PLUGIN_ROOT}/bin/start.sh"] }`,
+);

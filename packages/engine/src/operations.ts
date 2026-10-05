@@ -201,6 +201,42 @@ const canonical = (file: string): string | undefined => {
 };
 
 /**
+ * The files one canonical, plugin-relative path ships: the file, or every
+ * file under the directory. `spelled` is the path as written, which is what
+ * is checked for existence, so a trailing `/` after a file fails as missing.
+ * Every shipped file must resolve inside the plugin, through any symlink.
+ */
+const expandShipped = (
+	config: LoadedConfig,
+	file: string,
+	spelled: string,
+	referencedBy: string,
+): Effect.Effect<
+	ReadonlyArray<string>,
+	ShippedFileInvalid | PlatformError.PlatformError,
+	FileSystem.FileSystem | Path.Path
+> =>
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+		const fail = (named: string, problem: ShippedFileInvalid["problem"]) =>
+			Effect.fail(new ShippedFileInvalid({ path: config.path, file: named, referencedBy, problem }));
+		const info = yield* fs.stat(path.join(config.root, spelled)).pipe(Effect.option);
+		if (info._tag === "None" || (info.value.type !== "File" && info.value.type !== "Directory")) {
+			return yield* fail(spelled, "missing");
+		}
+		const files = info.value.type === "Directory" ? yield* sourceFiles(config.root, file) : [file];
+		const root = yield* fs.realPath(config.root);
+		for (const listed of files) {
+			// A symlink anywhere under a directory must not reach out of the plugin.
+			if (!isInside(root, yield* fs.realPath(path.join(config.root, listed)))) {
+				return yield* fail(listed, "outside-root");
+			}
+		}
+		return files;
+	});
+
+/**
  * The files `entries` name, each canonical: each file, or every file under
  * each directory. Every one must exist and resolve inside the plugin.
  */
@@ -213,9 +249,6 @@ const listedFiles = (
 	FileSystem.FileSystem | Path.Path
 > =>
 	Effect.gen(function* () {
-		const fs = yield* FileSystem.FileSystem;
-		const path = yield* Path.Path;
-		const root = yield* fs.realPath(config.root);
 		const fail = (file: string, problem: ShippedFileInvalid["problem"]) =>
 			Effect.fail(new ShippedFileInvalid({ path: config.path, file, referencedBy: "files", problem }));
 		const out: Array<string> = [];
@@ -225,44 +258,47 @@ const listedFiles = (
 			const file = canonical(entry);
 			if (file === undefined) return yield* fail(entry, "outside-root");
 			if (file === "") return yield* fail(entry, "not-normal");
-			const info = yield* fs.stat(path.join(config.root, file)).pipe(Effect.option);
-			if (info._tag === "None") return yield* fail(entry, "missing");
-			const files = info.value.type === "Directory" ? yield* sourceFiles(config.root, file) : [file];
-			for (const listed of files) {
-				// A symlink anywhere under the entry must not reach out of the plugin.
-				if (!isInside(root, yield* fs.realPath(path.join(config.root, listed)))) {
-					return yield* fail(listed, "outside-root");
-				}
-				out.push(listed);
-			}
+			out.push(...(yield* expandShipped(config, file, file, "files")));
 		}
 		return out;
 	});
 
 /**
- * Fail with `ShippedFileInvalid` unless a file a server names is written
- * without `.`, `..` or empty segments, exists as a file inside the plugin,
- * and, for a whole `command`, is executable.
+ * The files a server reference ships, failing with `ShippedFileInvalid`
+ * unless it is written without `.`, `..` or empty segments (a directory may
+ * end in one `/`) and exists inside the plugin. A file ships alone and a
+ * directory ships every file under it, like a `files` entry. A whole
+ * `command` must be a file, and executable.
  */
-const checkServerFile = (
+const serverShipped = (
 	config: LoadedConfig,
-	file: string,
+	spelled: string,
 	referencedBy: string,
 	command: boolean,
-): Effect.Effect<void, ShippedFileInvalid | PlatformError.PlatformError, FileSystem.FileSystem | Path.Path> =>
+): Effect.Effect<
+	ReadonlyArray<string>,
+	ShippedFileInvalid | PlatformError.PlatformError,
+	FileSystem.FileSystem | Path.Path
+> =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
 		const fail = (problem: ShippedFileInvalid["problem"]) =>
-			Effect.fail(new ShippedFileInvalid({ path: config.path, file, referencedBy, problem }));
+			Effect.fail(new ShippedFileInvalid({ path: config.path, file: spelled, referencedBy, problem }));
 		// The host resolves the path as written, so a `..` through a directory the build
 		// does not ship would fail at runtime; only the canonical spelling is accepted.
+		const file = spelled.endsWith("/") ? spelled.slice(0, -1) : spelled;
 		if (!isNormal(file)) return yield* fail("not-normal");
-		const absolute = path.join(config.root, file);
-		const info = yield* fs.stat(absolute).pipe(Effect.option);
-		if (info._tag === "None" || info.value.type !== "File") return yield* fail("missing");
-		if (!isInside(yield* fs.realPath(config.root), yield* fs.realPath(absolute))) return yield* fail("outside-root");
-		if (command && (info.value.mode & 0o111) === 0) return yield* fail("not-executable");
+		if (command) {
+			const info = yield* fs.stat(path.join(config.root, file)).pipe(Effect.option);
+			if (info._tag === "Some" && info.value.type === "Directory") return yield* fail("directory");
+		}
+		const files = yield* expandShipped(config, file, spelled, referencedBy);
+		if (command) {
+			const info = yield* fs.stat(path.join(config.root, file));
+			if ((info.mode & 0o111) === 0) return yield* fail("not-executable");
+		}
+		return files;
 	});
 
 /**
@@ -279,7 +315,8 @@ const checkServerFile = (
  *
  * Each target also ships the files its local MCP and LSP servers name after
  * `${PLUGIN_ROOT}/` (written without `.` or `..` segments, inside the plugin,
- * and executable when a whole `command`), and every file the `files` key lists, each once. A target
+ * and an executable file when a whole `command`; a named directory ships every
+ * file under it), and every file the `files` key lists, each once. A target
  * with a local server gets the server library under `lib/pluginfinity/`,
  * which is reserved the same way.
  */
@@ -332,18 +369,22 @@ const planPlugin = (
 		for (const { id, target, events } of hooks) {
 			const own = new Set(filesOf(events));
 			const servers = serverFiles(target, id, config.config);
+			const serverFilesShipped: Array<string> = [];
 			for (const file of servers.commands) {
-				yield* checkServerFile(config, file, servers.owners.get(file) ?? "mcpServers", true);
+				serverFilesShipped.push(
+					...(yield* serverShipped(config, file, servers.owners.get(file) ?? "mcpServers", true)),
+				);
 			}
 			for (const file of servers.others) {
-				yield* checkServerFile(config, file, servers.owners.get(file) ?? "mcpServers", false);
+				serverFilesShipped.push(
+					...(yield* serverShipped(config, file, servers.owners.get(file) ?? "mcpServers", false)),
+				);
 			}
 			const shipped = [
 				...new Set([
 					...hooksDir.filter((file) => own.has(file) || !everyScript.has(file)),
 					...[...own].filter((script) => !script.startsWith("hooks/")),
-					...servers.commands,
-					...servers.others,
+					...serverFilesShipped,
 					...listed,
 				]),
 			];

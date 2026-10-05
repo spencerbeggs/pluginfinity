@@ -5,6 +5,8 @@ import { ConfigIssue } from "./errors.js";
 
 type Server = Readonly<Record<string, unknown>>;
 type Servers = Readonly<Record<string, Server>>;
+/** A server by name, with the config key it came from: `mcpServers` or `<target>.mcpServers`. */
+type Origins = ReadonlyArray<readonly [name: string, origin: string, server: Server]>;
 type Env = Readonly<Record<string, string>>;
 
 /**
@@ -20,12 +22,21 @@ export interface ServerRender {
 }
 
 const PLACEHOLDER = `\${PLUGIN_ROOT}`;
-// A path after the root placeholder, up to a character that ends a shell word or a quoted string.
-const ROOT_FILE = /\$\{PLUGIN_ROOT\}\/([^\s"'`;|&<>()$]+)/g;
+// A path after the root placeholder, up to a character that ends a shell word, a quoted string, or an item in
+// a PATH-style (`:`) or comma-separated list.
+const ROOT_FILE = /\$\{PLUGIN_ROOT\}\/([^\s"'`;|&<>()$:,]+)/g;
+// A host's own root spelling, or the portable name without braces; the build rewrites only `${PLUGIN_ROOT}`.
+const HOST_ROOT = /\$\{(?:CLAUDE|COPILOT)_PLUGIN_ROOT\}|\$(?:CLAUDE_|COPILOT_)?PLUGIN_ROOT(?![A-Za-z0-9_])/;
 
-const merged = (id: KnownTargetId, config: PluginfinityConfig, key: "mcpServers" | "lspServers"): Servers => {
+// The base servers with the target's overrides applied by name, each with the key it came from.
+const merged = (id: KnownTargetId, config: PluginfinityConfig, key: "mcpServers" | "lspServers"): Origins => {
 	const setting = config[id];
-	return { ...(config[key] ?? {}), ...(typeof setting === "object" ? (setting[key] ?? {}) : {}) } as Servers;
+	const base = (config[key] ?? {}) as Servers;
+	const own = (typeof setting === "object" ? (setting[key] ?? {}) : {}) as Servers;
+	const out = new Map<string, readonly [string, string, Server]>();
+	for (const [name, server] of Object.entries(base)) out.set(name, [name, key, server]);
+	for (const [name, server] of Object.entries(own)) out.set(name, [name, `${id}.${key}`, server]);
+	return [...out.values()];
 };
 
 const isStdio = (server: Server): boolean => server.type === undefined || server.type === "stdio";
@@ -42,6 +53,35 @@ const rewrite = (value: unknown, root: string): unknown => {
 // The fields a `${PLUGIN_ROOT}` placeholder is documented in; every other field passes through untouched.
 const MCP_ROOT_FIELDS = ["command", "args", "env", "cwd"] as const;
 const LSP_ROOT_FIELDS = ["command", "args", "env", "workspaceFolder"] as const;
+
+// Every string in a JSON value.
+const strings = (value: unknown): Array<string> => {
+	if (typeof value === "string") return [value];
+	if (Array.isArray(value)) return value.flatMap(strings);
+	if (typeof value === "object" && value !== null) return Object.values(value).flatMap(strings);
+	return [];
+};
+
+// An issue for each root field that spells the root the host's way, which the build would pass through unrewritten.
+const hostSpellings = (
+	server: Server,
+	fields: ReadonlyArray<string>,
+	key: string,
+	issues: Array<ConfigIssue>,
+): void => {
+	for (const field of fields) {
+		const spelled = strings(server[field])
+			.find((value) => HOST_ROOT.test(value))
+			?.match(HOST_ROOT)?.[0];
+		if (spelled === undefined) continue;
+		issues.push(
+			ConfigIssue.make({
+				key: `${key}.${field}`,
+				message: `${spelled} is one host's spelling of the plugin root; write \${PLUGIN_ROOT} and the build rewrites it for each target`,
+			}),
+		);
+	}
+};
 
 // The server restricted to the given fields.
 const only = (server: Server, fields: ReadonlyArray<string>): Server =>
@@ -100,7 +140,7 @@ const mapField = (
 
 interface McpInput {
 	readonly target: Target;
-	readonly servers: Servers;
+	readonly servers: Origins;
 	readonly env: Env;
 	readonly root: string;
 	readonly issues: Array<ConfigIssue>;
@@ -108,17 +148,18 @@ interface McpInput {
 
 const mcpEntries = ({ servers, env, root, issues }: McpInput, copilot: boolean): Record<string, unknown> => {
 	const out: Record<string, unknown> = {};
-	for (const [name, server] of Object.entries(servers)) {
+	for (const [name, origin, server] of servers) {
 		if (!isStdio(server)) {
 			// A remote server names no plugin file, so its root is never rewritten.
 			out[name] = copilot && server.type === "http" ? { ...server, type: "streamable-http" } : { ...server };
 			continue;
 		}
+		hostSpellings(server, MCP_ROOT_FIELDS, `${origin}.${name}`, issues);
 		const rewritten = rewriteFields(server, MCP_ROOT_FIELDS, root);
 		if (!copilot && "cwd" in rewritten) {
 			issues.push(
 				ConfigIssue.make({
-					key: `mcpServers.${name}.cwd`,
+					key: `${origin}.${name}.cwd`,
 					message:
 						"Claude Code ignores an MCP server's cwd (it runs in the project directory); set cwd under copilot.mcpServers or cd in the launcher instead",
 				}),
@@ -142,7 +183,7 @@ const MCP_ENCODERS: Record<Target["mcp"]["format"], (input: McpInput) => unknown
 
 interface LspInput {
 	readonly target: Target;
-	readonly servers: Servers;
+	readonly servers: Origins;
 	readonly env: Env;
 	readonly root: string;
 	readonly issues: Array<ConfigIssue>;
@@ -150,10 +191,11 @@ interface LspInput {
 
 const lspEntries = ({ target, servers, env, root, issues }: LspInput): Record<string, unknown> => {
 	const out: Record<string, unknown> = {};
-	for (const [name, server] of Object.entries(servers)) {
+	for (const [name, origin, server] of servers) {
 		const entry: Record<string, unknown> = {};
+		hostSpellings(server, LSP_ROOT_FIELDS, `${origin}.${name}`, issues);
 		for (const [field, value] of Object.entries(rewriteFields(server, LSP_ROOT_FIELDS, root))) {
-			mapField(target.lsp.fields[field], field, value, entry, `lspServers.${name}.${field}`, issues);
+			mapField(target.lsp.fields[field], field, value, entry, `${origin}.${name}.${field}`, issues);
 		}
 		out[name] = withEnv(entry, env);
 	}
@@ -185,7 +227,7 @@ export const renderServers = (
 	const files: Array<EmittedFile> = [];
 	const mcp = merged(id, config, "mcpServers");
 	const lsp = merged(id, config, "lspServers");
-	if (Object.keys(mcp).length > 0) {
+	if (mcp.length > 0) {
 		const root = rootOf(target.pluginRoot.mcp, "mcpServers", issues);
 		if (root !== undefined) {
 			const env = injectedEnv(id, plugin, root, libDir);
@@ -195,7 +237,7 @@ export const renderServers = (
 			});
 		}
 	}
-	if (Object.keys(lsp).length > 0) {
+	if (lsp.length > 0) {
 		const root = rootOf(target.pluginRoot.lsp, "lspServers", issues);
 		if (root !== undefined) {
 			const env = injectedEnv(id, plugin, root, libDir);
@@ -205,16 +247,12 @@ export const renderServers = (
 			});
 		}
 	}
-	const stdio = Object.values(mcp).some(isStdio) || Object.keys(lsp).length > 0;
+	const stdio = mcp.some(([, , server]) => isStdio(server)) || lsp.length > 0;
 	return { files, issues, stdio };
 };
 
-const filesIn = (value: unknown): Array<string> => {
-	if (typeof value === "string") return [...value.matchAll(ROOT_FILE)].map((match) => match[1] ?? "");
-	if (Array.isArray(value)) return value.flatMap(filesIn);
-	if (typeof value === "object" && value !== null) return Object.values(value).flatMap(filesIn);
-	return [];
-};
+const filesIn = (value: unknown): Array<string> =>
+	strings(value).flatMap((text) => [...text.matchAll(ROOT_FILE)].map((match) => match[1] ?? ""));
 
 /**
  * The plugin files a target's servers name after `${PLUGIN_ROOT}/`.
@@ -224,9 +262,12 @@ const filesIn = (value: unknown): Array<string> => {
 export interface ServerFiles {
 	/** Paths a whole `command` names; they must be executable. */
 	readonly commands: ReadonlyArray<string>;
-	/** Every other path a server names. */
+	/** Every other path a server names: a file, or a directory whose files all ship. */
 	readonly others: ReadonlyArray<string>;
-	/** Each path's first naming server, as `mcpServers.<name>` or `lspServers.<name>`. */
+	/**
+	 * Each path's first naming server, as `mcpServers.<name>` or `lspServers.<name>`,
+	 * prefixed with the target for a server a target override sets, as `copilot.mcpServers.<name>`.
+	 */
 	readonly owners: ReadonlyMap<string, string>;
 }
 
@@ -240,13 +281,13 @@ export interface ServerFiles {
 export const serverFiles = (target: Target, id: KnownTargetId, config: PluginfinityConfig): ServerFiles => {
 	// Only the fields a placeholder is documented in count: no remote MCP server, no LSP field the target leaves
 	// unresolved (the build already fails those), and no initializationOptions or settings.
-	const mcp = Object.entries(merged(id, config, "mcpServers")).flatMap(([name, server]) =>
-		isStdio(server) ? [[`mcpServers.${name}`, only(server, MCP_ROOT_FIELDS)] as const] : [],
+	const mcp = merged(id, config, "mcpServers").flatMap(([name, origin, server]) =>
+		isStdio(server) ? [[`${origin}.${name}`, only(server, MCP_ROOT_FIELDS)] as const] : [],
 	);
-	const lsp = Object.entries(merged(id, config, "lspServers")).map(
-		([name, server]) =>
+	const lsp = merged(id, config, "lspServers").map(
+		([name, origin, server]) =>
 			[
-				`lspServers.${name}`,
+				`${origin}.${name}`,
 				only(
 					server,
 					LSP_ROOT_FIELDS.filter((field) => target.lsp.fields[field]?._tag !== "unresolved"),

@@ -19,9 +19,15 @@ import {
 	ONLY_COPILOT,
 	PACKAGE_JSON,
 	SERVER_CLIMB_INSIDE,
+	SERVER_DIR_COMMAND,
+	SERVER_DIR_ENV,
+	SERVER_DIR_SLASH,
 	SERVER_DOTTED,
 	SERVER_ESCAPE,
 	SERVER_EXEC_COMMAND,
+	SERVER_FILE_SLASH,
+	SERVER_HOST_SPELLING,
+	SERVER_PATH_ENV,
 	SERVER_PLAIN,
 	SERVER_SHARED_LAUNCHER,
 	SYNTAX_ERROR,
@@ -335,6 +341,106 @@ describe("build", () => {
 					assert.strictEqual(error.file, "share/k");
 					assert.strictEqual(error.referencedBy, "files");
 				}
+			}),
+		);
+
+		for (const [label, fixture, tree, shipped] of [
+			[
+				"a directory in an env value",
+				SERVER_DIR_ENV,
+				{ "share/data.json": "{}\n", "share/n/x.txt": "x\n" },
+				["share/data.json", "share/n/x.txt"],
+			],
+			["a directory written with a trailing /", SERVER_DIR_SLASH, { "share/data.json": "{}\n" }, ["share/data.json"]],
+			["a PATH-style list", SERVER_PATH_ENV, { "bin/tool": "#!/bin/sh\n" }, ["bin/tool"]],
+		] as const) {
+			it.effect(`a server naming ${label} ships the directory's files on both targets`, () =>
+				Effect.gen(function* () {
+					const fs = yield* FileSystem.FileSystem;
+					const path = yield* Path.Path;
+					const root = yield* writeTree({ "pluginfinity.config.ts": fixture, "package.json": PACKAGE_JSON, ...tree });
+					yield* build({ selection: nearest(root), targets: [], check: false });
+					for (const id of ["claude", "copilot"])
+						for (const file of shipped)
+							assert.isTrue(yield* fs.exists(path.join(root, "builds", id, file)), `${id} ${file}`);
+					const check = yield* build({ selection: nearest(root), targets: [], check: true });
+					assert.isTrue(check.every((target) => target.plan.clean));
+				}),
+			);
+		}
+
+		it.effect("a directory as a whole command is ShippedFileInvalid directory", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_DIR_COMMAND,
+					"package.json": PACKAGE_JSON,
+					"bin/serve": "#!/bin/sh\n",
+				});
+				yield* fs.chmod(path.join(root, "bin"), 0o755);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") {
+					assert.strictEqual(error.problem, "directory");
+					assert.strictEqual(error.file, "bin");
+					assert.strictEqual(error.referencedBy, "mcpServers.mcp");
+					assert.include(error.message, "is a directory");
+				}
+			}),
+		);
+
+		it.effect("a file reference with a trailing / is ShippedFileInvalid missing", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_FILE_SLASH,
+					"package.json": PACKAGE_JSON,
+					"bin/start.sh": "#!/bin/sh\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") assert.strictEqual(error.problem, "missing");
+			}),
+		);
+
+		it.effect("a file under a server-referenced directory symlinked out of the plugin is outside-root", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const outside = yield* writeTree({ secret: "secret\n" });
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_DIR_ENV,
+					"package.json": PACKAGE_JSON,
+					"share/data.json": "{}\n",
+				});
+				yield* fs.symlink(path.join(outside, "secret"), path.join(root, "share/k"));
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") {
+					assert.strictEqual(error.problem, "outside-root");
+					assert.strictEqual(error.file, "share/k");
+					assert.strictEqual(error.referencedBy, "mcpServers.mcp");
+				}
+			}),
+		);
+
+		it.effect("a host root spelling in a server is ComponentsInvalid on both targets", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_HOST_SPELLING,
+					"package.json": PACKAGE_JSON,
+					"bin/start.sh": "#!/bin/sh\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ComponentsInvalid");
+				if (error._tag !== "ComponentsInvalid") return;
+				assert.deepStrictEqual(
+					error.components.map((c) => (c._tag === "ComponentInvalid" ? [c.target, c.issues.map((i) => i.key)] : [])),
+					[
+						["claude", ["mcpServers.mcp.args"]],
+						["copilot", ["mcpServers.mcp.args"]],
+					],
+				);
 			}),
 		);
 
