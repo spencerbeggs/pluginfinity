@@ -14,6 +14,10 @@
 * Updated dogfood plugin fixture
 * Updated Claude Code plugin format
 * Added Hooks fail open on both hosts
+* Updated GitHub Copilot CLI plugin format
+* Updated The hook library is injected at build time
+* Added build --check reports BuildStale on .sh files right after a commit, with no diff
+* Updated pluginfinity carrier package
 
 ## 2026-10-02
 

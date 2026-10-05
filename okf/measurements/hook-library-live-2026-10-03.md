@@ -1,7 +1,7 @@
 ---
 type: Measurement
 title: Hook library live run on Claude Code and Copilot CLI, 2026-10-03
-description: What the dogfood plugin's marker-triggered hooks and a throwaway Copilot probe build showed under Claude Code 2.1.288 and GitHub Copilot CLI 1.0.91, and what each finding changed in the hook library, its tests and its docs.
+description: What the dogfood plugin's marker-triggered hooks and a throwaway Copilot probe build showed under Claude Code 2.1.288 and GitHub Copilot CLI 1.0.91, and what a second run on 2026-10-05 showed for the companion's plugin-engineer agent and skills; what each finding changed in the hook library, its tests and its docs.
 tags:
   - portability
   - testing
@@ -15,13 +15,16 @@ sources:
     author: human:spencer
     last_modified: 2026-10-03T00:00:00Z
     title: Live runs of the dogfood plugin under pnpm claude:debug and pnpm copilot:debug, and of a throwaway Copilot probe build, made in sessions the owner directed
+  - id: hook-eval-reports-2026-10-05
+    resource: ../../.pluginfinity/hook-eval/claude-20261005-1204.md
+    title: The hook-eval report written by the Claude Code session on 2026-10-05, with the Copilot report beside it as copilot-20261005-1202.md
   - id: copilot-hooks-reference
     resource: https://docs.github.com/en/copilot/reference/hooks-configuration
     title: GitHub Copilot hooks configuration reference
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T21:06:07Z
-  body_sha256: 363e5d3c710a37aa2196e6006e788844fe74afe5525608d3a50efc281c5953c3
+  at: 2026-10-05T16:27:40Z
+  body_sha256: d37b49f6a931d37f54b803e20d76f23dbe97b656390c35d6e4bf28881928b9b5
 ---
 
 # Hook library live run on Claude Code and Copilot CLI, 2026-10-03
@@ -65,10 +68,28 @@ The [hook library](../decisions/hook-library-is-build-injected.md) was written a
 - **The hook-eval skill.** The live checklist became a skill in the dogfood plugin, so a debug session can run it and write a report. Its Copilot and Claude host blocks carry the subagent-prompt, typed-prompt and `systemMessage` notes above.
 - **Docs.** The companion's hooks reference teaches the alias table, that `hook_allow` passes `updatedInput` through unchanged, and the host notes above.
 
+## Second run, 2026-10-05
+
+The same checklist, with the companion plugin loaded beside dogfood by the debug scripts and a new Step A for the plugin-engineer agent and its four skills. Hosts were Claude Code 2.1.289 and GitHub Copilot CLI 1.0.91. Both ran in sessions the owner directed, at about the same time, so they shared the two log files and each report attributes only its own host's lines.[^hook-eval-reports-2026-10-05]
+
+- **Hook checks.** Every hook check passed on both hosts, including the Copilot SessionStart context, which was present this time, and the Claude `systemMessage`, which the owner saw.
+- **Agent and skills listed.** `pluginfinity:plugin-engineer` and `hook-authoring`, `hook-events`, `plugin-scripts` and `migrating-hooks` were listed on both hosts. On Copilot the `hook-authoring` description ended with the three `paths` globs, as built.
+- **Copilot read its skills.** The delegated plugin-engineer named the five skills and said this host does not preload them, so the read-first block works. It quoted the first body line of `hook-authoring`.
+- **`paths` does not force-load.** On Claude, reading `plugins/dogfood/hooks/post-edit.sh`, which matches `hook-authoring`'s `**/hooks/**/*.sh`, loaded no skill content and showed no skill indicator. That matches the documented meaning of `paths`, globs that limit automatic activation, not a trigger. The hook-eval A3 expectation said the skill would load, so it was corrected to "available, no automatic injection, invocation recorded", and the skill and agent docs and the plugin-engineer body were reworded to match.
+- **Claude's plugin-engineer preload.** Asked what it had preloaded, it named the five skills in its `skills:` list.
+- **Observations, inconclusive.** On Claude, Stop ran at each subagent's finish with the parent's session id, which fits a Stop hook that also covers subagent completion, but one run does not establish that. On Copilot, a subagent asked for the first line of its prompt reported its agent header, `# Plugin engineer`, while the raw `UserPromptSubmit` input for that subagent showed the injected `pluginfinity-dogfood subagent context` first. The hook fired and the context is in the event stream; what the model perceives as its prompt's first line is not settled. Neither is acted on.
+
+### Agent dry run
+
+The plugin-engineer was run in a scratch copy of the dogfood plugin and asked to add an `rm -rf` guard. It met all five criteria: the fixture and a failing test came first, a config entry was added, the build ran, bats passed 15 of 15 on both targets, and nothing under `builds/` was edited by hand. `build --check` was clean. The scratch hook had gaps that matter only for that copy, `echo` and `git rm` false positives and misses on `xargs`, `find -delete` and `bash -c`, and prompted no change to the repository.
+
 ## What this rules in and out
 
 - The `env` route for the event name works on Copilot, so the library needs no per-event command prefix.
-- It covers one machine, one session per check, and the two host versions named. The Copilot SessionStart result needs a repeat before anything relies on it. The Claude `systemMessage` result held across two runs.
+- It covers one machine, one session per check, and the host versions named. The Copilot SessionStart context was present on the second run, so the first run's miss is not repeated, though the earlier disagreement still counts against relying on it. The Claude `systemMessage` result held across three runs.
+- `paths` is a hint for Claude and metadata on Copilot, never a loader, so a skill that must be read has to be preloaded, or named in an agent's instructions.
+- The agent dry run is one task by one run; it shows the loop is followable, not that it holds for a migration.
 
 [^owner-live-runs]: conversation with the repository owner, 2026-10-03
 [^copilot-hooks-reference]: <https://docs.github.com/en/copilot/reference/hooks-configuration>
+[^hook-eval-reports-2026-10-05]: `../../.pluginfinity/hook-eval/claude-20261005-1204.md`
