@@ -13,7 +13,7 @@ You are running a live end-to-end check of pluginfinity's hook library from insi
 ## Before you start
 
 1. Work out which host you are, Claude Code or GitHub Copilot CLI, and record its version with `claude --version` or `copilot --version`.
-2. Ask the user to confirm the session was started with `pnpm claude:debug` or `pnpm copilot:debug`. Those scripts set `PLUGINFINITY_HOOK_DEBUG=1` and load only this plugin. If it was not, say so in the report; the debug-log checks are then skipped.
+2. Ask the user to confirm the session was started with `pnpm claude:debug` or `pnpm copilot:debug`. Those scripts set `PLUGINFINITY_HOOK_DEBUG=1` and load this plugin and the companion pluginfinity plugin. If it was not, say so in the report; the debug-log checks are then skipped.
 3. Note the current line count of each log, with `wc -l` or "absent", so you can read only the lines this run adds. They live in `~/.local/state/pluginfinity/pluginfinity-dogfood/` as `hook-error.log` and `hook-debug.log`.
 
 Rules:
@@ -63,6 +63,22 @@ Expected: the subagent quotes `pluginfinity-dogfood subagent context`.
 **Step 9. Input shape.** From the `input:` lines for the PreToolUse runs in steps 3 and 4, state whether `tool_input` was an object or a string, which key names the Read tool used, and whether `hook_event_name` was present. Do not edit any build to find this out.
 <!-- /pluginfinity:only -->
 
+**Step A. Agent and skills.** Check the companion plugin's agent and skills, and record each as an extra report row labelled A1 to A4.
+
+A1. List the available agents and confirm `plugin-engineer`, from `pluginfinity`, is listed.
+
+A2. List the available skills and confirm `hook-authoring`, `hook-events`, `plugin-scripts` and `migrating-hooks` are all listed.
+
+A3. The `paths` auto-load.
+<!-- pluginfinity:only claude -->
+Open `plugins/dogfood/hooks/post-edit.sh` with the read tool, then confirm `hook-authoring` was loaded through its `paths` trigger. If you cannot tell, ask the user to confirm it in the UI.
+<!-- /pluginfinity:only -->
+<!-- pluginfinity:only copilot -->
+Record that `paths` auto-loading does not exist on Copilot, and that the skill description carries the globs instead.
+<!-- /pluginfinity:only -->
+
+A4. Delegate to `plugin-engineer` with "Name the skills you were told to read or have preloaded, and quote the first line of the hook-authoring skill". Record the answer.
+
 **Last step. Stop block.** Do this last. Run `touch "$PWD/.pf-dogfood-block"` in the project root; the hook walks up from the session cwd to the nearest `.git`. Then finish your turn with a one-line answer. The Stop hook should block you once with the reason `pluginfinity-dogfood: delete .pf-dogfood-block, then stop`. If you get that reason, delete the file and finish. If you are not blocked, delete the file anyway and record that. Expected: blocked once.
 
 ## Report
@@ -81,6 +97,10 @@ Debug enabled: yes/no
 | # | Check | Expected | Observed | Pass |
 |---|---|---|---|---|
 | 1 | SessionStart context | ... | ... | yes/no |
+| A1 | plugin-engineer agent listed | ... | ... | yes/no |
+| A2 | the four skills listed | ... | ... | yes/no |
+| A3 | paths auto-load | ... | ... | yes/no |
+| A4 | plugin-engineer skill answer | ... | ... | yes/no |
 
 ## Log excerpts
 (the new hook-error.log and hook-debug.log lines from this run, verbatim)
