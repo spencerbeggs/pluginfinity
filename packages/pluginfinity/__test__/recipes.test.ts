@@ -12,30 +12,35 @@ const DOGFOOD = "plugins/dogfood/";
 const MAP = [
 	{
 		title: "Command guard",
+		event: "PreToolUse",
 		config: '{ matcher: "Bash", script: "hooks/pre-tool-use.sh", timeout: 5 }',
 		script: "hooks/pre-tool-use.sh",
 		test: "PreToolUse denies the marker command on both targets",
 	},
 	{
 		title: "Startup context",
+		event: "SessionStart",
 		config: '{ script: "hooks/session-start.sh", timeout: 5 }',
 		script: "hooks/session-start.sh",
 		test: "SessionStart adds context naming the host, on both targets",
 	},
 	{
 		title: "Post-edit reaction",
+		event: "PostToolUse",
 		config: '{ matcher: "Edit|Write", script: "hooks/post-edit.sh", timeout: 5 }',
 		script: "hooks/post-edit.sh",
 		test: "PostToolUse names the edited file on both targets and both input shapes",
 	},
 	{
 		title: "Stop gate",
+		event: "Stop",
 		config: '{ script: "hooks/stop.sh", timeout: 5 }',
 		script: "hooks/stop.sh",
 		test: "Stop blocks once when the marker file exists",
 	},
 	{
 		title: "Subagent context",
+		event: "SubagentStart",
 		config: '{ script: "hooks/subagent-start.sh", timeout: 5 }',
 		script: "hooks/subagent-start.sh",
 		test: "SubagentStart adds context on both targets",
@@ -82,6 +87,19 @@ describe("hook-authoring recipes", () => {
 			assert.include(ts, recipe.config, "the recipe shows that entry");
 			assert.strictEqual(script, read(`${DOGFOOD}${recipe.script}`), "the script is dogfood's, byte for byte");
 			assert.strictEqual(test, `${batsTest(bats, recipe.test)}\n`, "the test is dogfood's, byte for byte");
+		});
+	}
+
+	it("the recipe headings are exactly the mapped recipes, so an unmapped recipe fails", () => {
+		const headings = [...doc.matchAll(/^## Recipe: (.+)$/gm)].map((m) => m[1] ?? "");
+		assert.deepStrictEqual([...headings].sort(), MAP.map((r) => r.title).sort());
+	});
+
+	for (const recipe of MAP) {
+		it(`"${recipe.title}" registers ${recipe.event} in the recipe and in dogfood's config`, () => {
+			const [[, ts]] = recipeBlocks(doc, recipe.title) as [readonly [string, string]];
+			assert.include(ts, `${recipe.event}:`, "the recipe's ts block uses the event key");
+			assert.include(config, `${recipe.event}:`, "dogfood's config uses the event key");
 		});
 	}
 
