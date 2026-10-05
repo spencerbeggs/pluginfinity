@@ -5,10 +5,12 @@ import { Effect, FileSystem, Path } from "effect";
 import { hookLibFiles } from "../src/hook-lib.js";
 import { ENGINE_VERSION, build, isBuildError, preparePlugins, validate } from "../src/index.js";
 import {
+	FILES_BUILDS,
 	FILES_COLLIDE,
 	FILES_MISSING,
 	FILES_OVERLAP,
 	FILES_RESERVED,
+	FILES_SHARE,
 	HOOKED,
 	HOOKED_COMMAND,
 	HOOKED_EXEC,
@@ -16,9 +18,11 @@ import {
 	LSP_UNRESOLVED,
 	ONLY_COPILOT,
 	PACKAGE_JSON,
+	SERVER_CLIMB_INSIDE,
 	SERVER_DOTTED,
 	SERVER_ESCAPE,
 	SERVER_EXEC_COMMAND,
+	SERVER_PLAIN,
 	SERVER_SHARED_LAUNCHER,
 	SYNTAX_ERROR,
 	VALID,
@@ -270,35 +274,28 @@ describe("build", () => {
 			}),
 		);
 
-		it.effect("a server path with . and .. segments ships at its normalised path", () =>
-			Effect.gen(function* () {
-				const fs = yield* FileSystem.FileSystem;
-				const path = yield* Path.Path;
-				const root = yield* writeTree({
-					"pluginfinity.config.ts": SERVER_DOTTED,
-					"package.json": PACKAGE_JSON,
-					"bin/start.sh": "#!/bin/sh\n",
-				});
-				const [claude] = yield* build({ selection: nearest(root), targets: [], check: false });
-				assert.include(claude?.plan.added ?? [], "bin/start.sh");
-				assert.isTrue(yield* fs.exists(path.join(root, "builds/claude/bin/start.sh")));
-			}),
-		);
-
-		it.effect("a server path that climbs out of the plugin is ShippedFileInvalid outside-root", () =>
-			Effect.gen(function* () {
-				const root = yield* writeTree({
-					"pluginfinity.config.ts": SERVER_ESCAPE,
-					"package.json": PACKAGE_JSON,
-				});
-				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
-				assert.strictEqual(error._tag, "ShippedFileInvalid");
-				if (error._tag === "ShippedFileInvalid") {
-					assert.strictEqual(error.problem, "outside-root");
-					assert.strictEqual(error.referencedBy, "mcpServers.mcp");
-				}
-			}),
-		);
+		for (const [label, fixture, file] of [
+			["a . segment", SERVER_DOTTED, "bin/../bin/./start.sh"],
+			["a .. segment that stays inside the plugin", SERVER_CLIMB_INSIDE, "a/../bin/start.sh"],
+			["a .. segment that climbs out of the plugin", SERVER_ESCAPE, "a/../../escape.sh"],
+		] as const) {
+			it.effect(`a server path with ${label} is ShippedFileInvalid not-normal`, () =>
+				Effect.gen(function* () {
+					const root = yield* writeTree({
+						"pluginfinity.config.ts": fixture,
+						"package.json": PACKAGE_JSON,
+						"bin/start.sh": "#!/bin/sh\n",
+					});
+					const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+					assert.strictEqual(error._tag, "ShippedFileInvalid");
+					if (error._tag === "ShippedFileInvalid") {
+						assert.strictEqual(error.problem, "not-normal");
+						assert.strictEqual(error.file, file);
+						assert.strictEqual(error.referencedBy, "mcpServers.mcp");
+					}
+				}),
+			);
+		}
 
 		it.effect("a server launcher symlinked out of the plugin is ShippedFileInvalid outside-root", () =>
 			Effect.gen(function* () {
@@ -306,14 +303,60 @@ describe("build", () => {
 				const path = yield* Path.Path;
 				const outside = yield* writeTree({ "start.sh": "#!/bin/sh\n" });
 				const root = yield* writeTree({
-					"pluginfinity.config.ts": SERVER_DOTTED,
+					"pluginfinity.config.ts": SERVER_PLAIN,
 					"package.json": PACKAGE_JSON,
 				});
 				yield* fs.makeDirectory(path.join(root, "bin"));
 				yield* fs.symlink(path.join(outside, "start.sh"), path.join(root, "bin/start.sh"));
 				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
 				assert.strictEqual(error._tag, "ShippedFileInvalid");
-				if (error._tag === "ShippedFileInvalid") assert.strictEqual(error.problem, "outside-root");
+				if (error._tag === "ShippedFileInvalid") {
+					assert.strictEqual(error.problem, "outside-root");
+					assert.strictEqual(error.file, "bin/start.sh");
+				}
+			}),
+		);
+
+		it.effect("a file under a listed directory symlinked out of the plugin is ShippedFileInvalid outside-root", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const outside = yield* writeTree({ secret: "secret\n" });
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_SHARE,
+					"package.json": PACKAGE_JSON,
+					"share/data.json": "{}\n",
+				});
+				yield* fs.symlink(path.join(outside, "secret"), path.join(root, "share/k"));
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") {
+					assert.strictEqual(error.problem, "outside-root");
+					assert.strictEqual(error.file, "share/k");
+					assert.strictEqual(error.referencedBy, "files");
+				}
+			}),
+		);
+
+		it.effect("a files entry naming builds/ is ConfigInvalid", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({ "pluginfinity.config.ts": FILES_BUILDS, "package.json": PACKAGE_JSON });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ConfigInvalid");
+			}),
+		);
+
+		it.effect("a listed directory builds and then checks clean", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_SHARE,
+					"package.json": PACKAGE_JSON,
+					"share/data.json": "{}\n",
+				});
+				const [claude] = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.include(claude?.plan.added ?? [], "share/data.json");
+				const check = yield* build({ selection: nearest(root), targets: [], check: true });
+				assert.isTrue(check.every((target) => target.plan.clean));
 			}),
 		);
 
@@ -350,6 +393,7 @@ describe("build", () => {
 				});
 				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
 				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag === "PathConflict") assert.strictEqual(error.file, ".mcp.json");
 			}),
 		);
 

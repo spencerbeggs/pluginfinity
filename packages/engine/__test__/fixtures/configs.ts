@@ -145,3 +145,31 @@ export const FILES_OVERLAP = `export default {
 	files: ["bin/"],
 	claude: true,
 };\n`;
+
+export const SERVER_CLIMB_INSIDE = `export default {
+	name: "server-climb-inside",
+	description: "Fixture plugin.",
+	mcpServers: { mcp: { command: "sh", args: ["\${PLUGIN_ROOT}/a/../bin/start.sh"] } },
+	claude: true,
+};\n`;
+
+export const SERVER_PLAIN = `export default {
+	name: "server-plain",
+	description: "Fixture plugin.",
+	mcpServers: { mcp: { command: "sh", args: ["\${PLUGIN_ROOT}/bin/start.sh"] } },
+	claude: true,
+};\n`;
+
+export const FILES_SHARE = `export default {
+	name: "files-share",
+	description: "Fixture plugin.",
+	files: ["share/"],
+	claude: true,
+};\n`;
+
+export const FILES_BUILDS = `export default {
+	name: "files-builds",
+	description: "Fixture plugin.",
+	files: ["builds/"],
+	claude: true,
+};\n`;

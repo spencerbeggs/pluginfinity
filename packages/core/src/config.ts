@@ -27,11 +27,17 @@ export const ScriptInvoke = Schema.Literals(["bash", "exec"]);
  * A plugin-relative path the build ships to every target: a file, or a
  * directory ending in `/`.
  *
+ * @remarks
+ * The path must be canonical: relative, with no empty, `.` or `..` segment,
+ * and not the plugin root itself. It must not be or lie under `builds/` or
+ * `node_modules/`, so a build never ships its own output or dependencies.
+ *
  * @public
  */
 export const ShippedPath = Schema.String.check(
-	Schema.isPattern(/^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$)).+$/, {
-		message: "must be a relative path inside the plugin, with no .. segment",
+	Schema.isPattern(/^(?!(?:builds|node_modules)(?:\/|$))(?!\.\.?(?:\/|$))[^/]+(?:\/(?!\.\.?(?:\/|$))[^/]+)*\/?$/, {
+		message:
+			"must be a canonical relative path inside the plugin (no empty, . or .. segment), not under builds/ or node_modules/",
 	}),
 );
 

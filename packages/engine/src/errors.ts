@@ -335,7 +335,7 @@ export class HookScriptInvalid extends Schema.TaggedError<HookScriptInvalid>()("
  *
  * @public
  */
-export const ShippedFileProblem = Schema.Literals(["missing", "not-executable", "outside-root"]);
+export const ShippedFileProblem = Schema.Literals(["missing", "not-executable", "outside-root", "not-normal"]);
 
 /**
  * A file the build must ship for a server, or because `files` lists it, cannot be shipped.
@@ -356,6 +356,7 @@ export class ShippedFileInvalid extends Schema.TaggedError<ShippedFileInvalid>()
 			missing: "does not exist",
 			"not-executable": "is its command but is not executable",
 			"outside-root": "resolves outside the plugin",
+			"not-normal": "has an empty, . or .. segment",
 		}[this.problem];
 		return `${this.file}, named by ${this.referencedBy} in ${this.path}, ${why}`;
 	}
@@ -365,6 +366,7 @@ export class ShippedFileInvalid extends Schema.TaggedError<ShippedFileInvalid>()
 			missing: `Create ${this.file} under the plugin root, or fix the path in ${this.referencedBy}.`,
 			"not-executable": `Run \`chmod +x ${this.file}\`, or run it through sh: command "sh" with the path in args.`,
 			"outside-root": "Keep shipped files inside the plugin directory; a path or symlink that leaves it cannot ship.",
+			"not-normal": `Write the path in ${this.referencedBy} without . or .. segments, as it lies under the plugin root.`,
 		}[this.problem];
 		return { hint };
 	}
