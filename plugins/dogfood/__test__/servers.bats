@@ -36,4 +36,6 @@ run_built() { # host launcher [args...]
 	grep -q '${CLAUDE_PLUGIN_ROOT}/bin/start-mcp.sh' "$BUILDS/claude/.mcp.json"
 	grep -q '"fileExtensions"' "$BUILDS/copilot/com.github.copilot/lsp.json"
 	[ -f "$BUILDS/claude/share/greeting.txt" ]
+	grep -qF '"PLUGINFINITY_LIB": "${CLAUDE_PLUGIN_ROOT}/lib/pluginfinity"' "$BUILDS/claude/.mcp.json"
+	grep -qF '"PLUGINFINITY_LIB": "${PLUGIN_ROOT}/lib/pluginfinity"' "$BUILDS/copilot/com.github.copilot/lsp.json"
 }

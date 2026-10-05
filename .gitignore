@@ -37,5 +37,6 @@ docs/superpowers/
 .claude/plugins-debug.log
 .playwright-mcp
 .mcp.json
+!plugins/*/builds/**/.mcp.json
 # pluginfinity local output
 .pluginfinity/
