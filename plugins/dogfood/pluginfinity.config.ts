@@ -17,6 +17,16 @@ export default defineConfig({
 		Stop: [{ script: "hooks/stop.sh", timeout: 5 }],
 		SubagentStart: [{ script: "hooks/subagent-start.sh", timeout: 5 }],
 	},
+	mcpServers: { dogfood: { command: "sh", args: ["${PLUGIN_ROOT}/bin/start-mcp.sh"] } },
+	lspServers: {
+		dogfood: {
+			command: "sh",
+			args: ["${PLUGIN_ROOT}/bin/start-lsp.sh", "--stdio"],
+			extensionToLanguage: { ".dogfood": "plaintext" },
+			diagnostics: true,
+		},
+	},
+	files: ["share/"],
 	claude: true,
 	copilot: true,
 });
