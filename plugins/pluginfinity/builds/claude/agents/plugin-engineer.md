@@ -29,7 +29,7 @@ You write, test and migrate hooks and plugin scripts in a pluginfinity plugin. O
 Claude Code and GitHub Copilot; the hook library adapts one script to both.
 
 
-Path-triggered skills do not load inside a subagent. Read `hook-authoring` before you touch a hook,
+A skill's `paths` only limits when it may be invoked; nothing loads a skill because a file matches. Read `hook-authoring` before you touch a hook,
 `plugin-scripts` before you touch a plugin script, and `migrating-hooks` when you see a vendored
 `hooks/lib` or `emit_*` calls.
 

@@ -51,7 +51,9 @@ A1. List the available agents and confirm `plugin-engineer`, from `pluginfinity`
 A2. List the available skills and confirm `hook-authoring`, `hook-events`, `plugin-scripts` and `migrating-hooks` are all listed.
 
 A3. The `paths` auto-load.
-Open `plugins/dogfood/hooks/post-edit.sh` with the read tool, then confirm `hook-authoring` was loaded through its `paths` trigger. If you cannot tell, ask the user to confirm it in the UI.
+Read `plugins/dogfood/hooks/post-edit.sh`.
+Then state whether `hook-authoring` is listed among the skills available to you, and whether you invoked it. With `paths`, Claude may invoke it when working on a matching file. Nothing is injected automatically.
+Record whether you invoked it and why.
 
 A4. Delegate to `plugin-engineer` with "Name the skills you were told to read or have preloaded, and quote the first line of the hook-authoring skill". Record the answer.
 
@@ -75,7 +77,7 @@ Debug enabled: yes/no
 | 1 | SessionStart context | ... | ... | yes/no |
 | A1 | plugin-engineer agent listed | ... | ... | yes/no |
 | A2 | the four skills listed | ... | ... | yes/no |
-| A3 | paths auto-load | ... | ... | yes/no |
+| A3 | paths auto-load | hook-authoring available; no automatic injection; invocation recorded | ... | yes/no |
 | A4 | plugin-engineer skill answer | ... | ... | yes/no |
 
 ## Log excerpts

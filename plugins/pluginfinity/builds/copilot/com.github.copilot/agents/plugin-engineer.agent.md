@@ -19,7 +19,7 @@ Claude Code and GitHub Copilot; the hook library adapts one script to both.
 Before you act, read these skills: `pluginfinity`, `hook-authoring`, `hook-events`, `plugin-scripts`
 and `migrating-hooks`. This host does not preload them.
 
-Path-triggered skills do not load inside a subagent. Read `hook-authoring` before you touch a hook,
+A skill's `paths` only limits when it may be invoked; nothing loads a skill because a file matches. Read `hook-authoring` before you touch a hook,
 `plugin-scripts` before you touch a plugin script, and `migrating-hooks` when you see a vendored
 `hooks/lib` or `emit_*` calls.
 

@@ -83,7 +83,7 @@ Debug enabled: yes/no
 | 1 | SessionStart context | ... | ... | yes/no |
 | A1 | plugin-engineer agent listed | ... | ... | yes/no |
 | A2 | the four skills listed | ... | ... | yes/no |
-| A3 | paths auto-load | ... | ... | yes/no |
+| A3 | paths auto-load | hook-authoring available; no automatic injection; invocation recorded | ... | yes/no |
 | A4 | plugin-engineer skill answer | ... | ... | yes/no |
 
 ## Log excerpts
