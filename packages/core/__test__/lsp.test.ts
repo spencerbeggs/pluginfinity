@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { LSP_FIELDS, LspServers } from "../src/index.js";
+import { LSP_FIELDS, LspServer, LspServers } from "../src/index.js";
 import { decodeStrict } from "./utils/decode.js";
 
 const decode = decodeStrict(LspServers);
@@ -55,22 +55,6 @@ describe("LspServers", () => {
 	}
 
 	it("LSP_FIELDS lists every key of the schema", () => {
-		assert.sameMembers(
-			[...LSP_FIELDS],
-			[
-				"command",
-				"args",
-				"env",
-				"extensionToLanguage",
-				"initializationOptions",
-				"settings",
-				"workspaceFolder",
-				"startupTimeout",
-				"shutdownTimeout",
-				"restartOnCrash",
-				"maxRestarts",
-				"diagnostics",
-			],
-		);
+		assert.sameMembers([...LSP_FIELDS], Object.keys(LspServer.fields));
 	});
 });
