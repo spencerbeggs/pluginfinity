@@ -52,7 +52,22 @@ describe("BaseConfigFields", () => {
 		}),
 	);
 
+	it.effect("accepts lspServers and shipped files", () =>
+		Effect.gen(function* () {
+			const config = {
+				name: "x",
+				description: "y",
+				lspServers: { md: { command: "sh", extensionToLanguage: { ".md": "markdown" } } },
+				files: ["bin/", "share/data.json"],
+			};
+			assert.deepStrictEqual(yield* decodeBase(config), config);
+		}),
+	);
+
 	const rejected: ReadonlyArray<readonly [string, unknown]> = [
+		["an empty shipped path", { name: "x", description: "y", files: [""] }],
+		["an absolute shipped path", { name: "x", description: "y", files: ["/abs"] }],
+		["a shipped path with a .. segment", { name: "x", description: "y", files: ["../x"] }],
 		["a missing description", { name: "x" }],
 		["an empty description", { name: "x", description: "" }],
 		["an unknown scripts.invoke", { name: "x", description: "y", scripts: { invoke: "sh" } }],
@@ -80,6 +95,8 @@ describe("BaseConfigFields", () => {
 			"scripts",
 			"hooks",
 			"mcpServers",
+			"lspServers",
+			"files",
 		]);
 	});
 });
@@ -95,6 +112,13 @@ describe("makeTargetSetting", () => {
 			} as const;
 			assert.deepStrictEqual(yield* decodeSetting(override), override);
 			assert.deepStrictEqual(yield* decodeSetting({}), {});
+		}),
+	);
+
+	it.effect("accepts an lspServers override", () =>
+		Effect.gen(function* () {
+			const override = { lspServers: { md: { command: "sh", extensionToLanguage: { ".md": "markdown" } } } };
+			assert.deepStrictEqual(yield* decodeSetting(override), override);
 		}),
 	);
 

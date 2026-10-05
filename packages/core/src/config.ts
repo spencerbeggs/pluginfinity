@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { Hooks } from "./hooks.js";
+import { LspServers } from "./lsp.js";
 import { McpServers } from "./mcp.js";
 
 /**
@@ -21,6 +22,18 @@ export const PluginName = Schema.String.check(
  * @public
  */
 export const ScriptInvoke = Schema.Literals(["bash", "exec"]);
+
+/**
+ * A plugin-relative path the build ships to every target: a file, or a
+ * directory ending in `/`.
+ *
+ * @public
+ */
+export const ShippedPath = Schema.String.check(
+	Schema.isPattern(/^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$)).+$/, {
+		message: "must be a relative path inside the plugin, with no .. segment",
+	}),
+);
 
 /**
  * The plugin-wide fields of a pluginfinity config, before any target key.
@@ -54,6 +67,10 @@ export const BaseConfigFields = {
 	hooks: Schema.optionalKey(Hooks),
 	/** MCP servers in Claude Code's `.mcp.json` server shape. */
 	mcpServers: Schema.optionalKey(McpServers),
+	/** LSP servers in Claude Code's `.lsp.json` server shape. */
+	lspServers: Schema.optionalKey(LspServers),
+	/** Extra files and directories (ending in `/`) shipped to every target. */
+	files: Schema.optionalKey(Schema.Array(ShippedPath)),
 } as const;
 
 /**
@@ -70,8 +87,8 @@ export const BASE_CONFIG_KEYS: ReadonlyArray<string> = Object.keys(BaseConfigFie
  * @remarks
  * `hooks` is the target's own hooks schema, so each target admits the events
  * it has: a hook under it replaces the base entries for that event on that
- * target, and `[]` removes them. A server under `mcpServers` replaces the base
- * server of that name.
+ * target, and `[]` removes them. A server under `mcpServers` or `lspServers`
+ * replaces the base server of that name.
  *
  * @public
  */
@@ -83,5 +100,6 @@ export const makeTargetSetting = <H extends Schema.Top>(hooks: H) =>
 			name: Schema.optionalKey(PluginName),
 			hooks: Schema.optionalKey(hooks),
 			mcpServers: Schema.optionalKey(McpServers),
+			lspServers: Schema.optionalKey(LspServers),
 		}),
 	]);

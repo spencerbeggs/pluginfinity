@@ -24,6 +24,7 @@ describe("McpServers", () => {
 		["an unknown transport", { a: { type: "websocket", url: "https://example.com" } }],
 		["a stdio server without a command", { a: { args: ["x"] } }],
 		["a url on a stdio server", { a: { command: "bash", url: "https://example.com" } }],
+		["a PLUGINFINITY_ env key on a stdio server", { local: { command: "sh", env: { PLUGINFINITY_LIB: "x" } } }],
 	];
 	for (const [label, input] of rejected) {
 		it.effect(`rejects ${label}`, () =>
