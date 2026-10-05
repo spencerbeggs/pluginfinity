@@ -1,7 +1,7 @@
 ---
 type: Measurement
 title: Plugin MCP and LSP server environment on Claude Code and Copilot, 2026-10-05
-description: What Claude Code 2.1.288 and GitHub Copilot CLI 1.0.91 give a plugin's MCP and LSP server processes for root variables, working directory and project directory, and which config keys each host accepts, measured with a probe plugin per host, then confirmed against the built dogfood plugin's launchers.
+description: What Claude Code 2.1.288 and GitHub Copilot CLI 1.0.91 give a plugin's MCP and LSP server processes for root variables, working directory and project directory, and which config keys each host accepts, measured with a probe plugin per host, then run against the built dogfood plugin's launchers (Claude Code 2.1.289 in that second run).
 tags:
   - portability
 status: draft
@@ -12,11 +12,11 @@ sources:
     resource: conversation with the repository owner
     author: human:spencer
     last_modified: 2026-10-05T00:00:00Z
-    title: A non-interactive probe run by the implementing agent on the owner's machine under Claude Code 2.1.288 and Copilot CLI 1.0.91
+    title: Probe runs by the implementing agent on the owner's machine, first non-interactive under Claude Code 2.1.288 and Copilot CLI 1.0.91, then the dogfood builds under Claude Code 2.1.289 (non-interactive and an interactive tmux session) and Copilot CLI 1.0.91
 generated:
   by: okfit/claude-code
-  at: 2026-10-05T18:04:21Z
-  body_sha256: 8717088517e0d8cff7d2e53706c26065c20ed5b76a97b62e3c4d57f185ec6d08
+  at: 2026-10-05T18:06:20Z
+  body_sha256: f0bea6102dc7701fe237bc17c20a60a9936a634f574808508e00a1e508fd9023
 ---
 
 # Plugin MCP and LSP server environment on Claude Code and Copilot, 2026-10-05
@@ -55,12 +55,12 @@ The same two hosts then ran the committed dogfood builds (`plugins/dogfood/build
 | Host and server | Spawned | Resolved to | Observed |
 | :-- | :-- | :-- | :-- |
 | Claude Code 2.1.289, LSP | Yes, on the LSP tool's first use of `x.dogfood` | The project stub | `argv=--stdio`, cwd the project, `CLAUDE_PROJECT_DIR` the project, `PLUGINFINITY_HOST=claude`; the initialize request never answered, so the tool call hung until killed |
-| Claude Code 2.1.289, MCP | Only after `/mcp` Reconnect | The project stub | `argv` empty, same cwd and variables as the LSP run; the connection then timed out after 30000ms |
+| Claude Code 2.1.289, MCP | Only after `/mcp` Reconnect | The project stub | `argv` empty, `PLUGINFINITY_HOST=claude`, cwd the project, `CLAUDE_PROJECT_DIR` the project; the connection then timed out after 30000ms |
 | Copilot CLI 1.0.91, LSP | Yes, when the model used the LSP tool | The project stub | `argv=--stdio`, cwd the project (also the git root), `PLUGIN_ROOT` and `PLUGINFINITY_LIB` under the installed copy, no `CLAUDE_PROJECT_DIR`; initialize timed out after 60000ms |
 | Copilot CLI 1.0.91, MCP | Yes, at session start | `npx --yes @pluginfinity/dogfood-mcp`, not the stub | The library printed `no project directory is known, so dogfood-mcp cannot be looked up in node_modules` and the `Falling back` line on stderr; npm answered E404; the process exited 1 and Copilot logged `MCP server process exited before completing the MCP initialize handshake (exit code 1)` |
 
 - Claude never auto-started the plugin MCP server from `--plugin-dir`. `claude -p` listed no plugin MCP server at all (neither this plugin's nor any installed plugin's), and the interactive `/mcp` list showed `plugin:pluginfinity-dogfood:dogfood` as failed with no spawn and no debug-log line, both before and after the folder-trust prompt. Choosing Reconnect there spawned the launcher. The cause was not established.
-- Copilot ran the MCP launcher with the plugin root as its working directory and no project variable, so `server_project_dir` returned nothing and the library went straight to `npx`. With a published package that route would start the server; with these packages it fails by design of the fixture. Copilot's own MCP log carried the library's stderr, and `copilot mcp list` showed only `dogfood (local)` with no status.
+- Copilot's MCP launcher most likely ran with the plugin root as its working directory (inferred from the earlier probe; this run did not record cwd, since the stub never ran). It had no project variable (inferred from the library's `no project directory is known` message), so `server_project_dir` returned nothing and the library went to `npx`. That a published package would start the server on this route is untested. Copilot's own MCP log carried the library's stderr, and `copilot mcp list` showed only `dogfood (local)` with no status.
 - The library's error log `~/.local/state/pluginfinity/pluginfinity-dogfood/server-error.log` was never created: `server_exec_bin` reports on stderr and does not call `server_log`. That directory held only the hook logs.
 - Copilot's installed copy of a local-directory install lives under `~/.config/copilot/installed-plugins/_direct/copilot`. The plugin was uninstalled afterwards; `copilot plugin list` and `copilot mcp list` no longer show it.
 - Not measured: a server that completes the handshake, a marketplace install, Windows, and a Claude MCP server starting without Reconnect.
