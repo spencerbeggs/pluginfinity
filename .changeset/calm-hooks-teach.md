@@ -19,3 +19,5 @@ A new `plugin-engineer` agent for writing, testing and migrating hooks and plugi
 
 * The pluginfinity skill's `references/hooks.md` now teaches the build-injected hook library, including Copilot `tool_input` aliasing and raw-input debugging
 * The same reference now covers the bats helper for testing built hooks
+* The pluginfinity skill and its config, targets and findings references now cover MCP and LSP servers, shipped `files`, and the per-host server rules
+* `plugin-scripts` now teaches server launchers on the build-injected server library
