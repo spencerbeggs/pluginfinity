@@ -35,11 +35,11 @@ Every old name and what replaces it. The library functions are the ones in `hook
 | Old | New | Notes |
 | --- | --- | --- |
 | `emit_noop` | `hook_noop` | The template printed `{}`. Some copies printed `{"continue":true,"suppressOutput":true}` or wrote it to fd 3. The library prints `{}` to stdout. |
-| `emit_allow` | `hook_allow` | The template took an optional rewritten tool input. Some copies took a reason instead. `hook_allow` takes only the optional input JSON and auto-approves the call, so use `hook_noop` to let a call through. |
+| `emit_allow` | `hook_allow` | The template took an optional rewritten tool input. Some copies took a reason instead. `hook_allow` takes only the optional input JSON and auto-approves the call, so use `hook_noop` to let a call through. Drop the reason: `hook_allow` treats its argument as JSON, so a leftover reason logs "not JSON" and returns 1 with nothing emitted. If Claude should see the reason, emit it with `hook_context` in a separate hook, or leave it out, since a run sends one response. |
 | `emit_deny` | `hook_deny` | Same `<reason>` argument. The library supplies a default reason when none is given. |
-| `emit_context` | `hook_context <text>` | Was `emit_context <event> <text>`. Drop the event argument: the library takes it from the input, so the name always matches the firing event. |
-| `emit_block` | `hook_block` | Not in the plugin-bot template. Consumers added it for a PostToolUse top-level `{"decision":"block"}`. `hook_block` prints the same shape wherever the host honours it. |
-| `emit_system_message` | `hook_system_message` | Does nothing on Copilot, which has no such field. Do not rely on it to reach the user. |
+| `emit_context` | `hook_context <text>` | Was `emit_context <event> <text>`. Drop the event argument: the library takes it from the input, so the name always matches the firing event. On an event the host does not honour, such as Setup on Claude, which some old headers listed, `hook_context` answers `{}`. Check `hook_supports context <Event>` or the `hook-events` skill. |
+| `emit_block` | `hook_block` | Not in the plugin-bot template. Consumers added it for a PostToolUse top-level `{"decision":"block"}`. `hook_block` prints the same shape wherever the host honours it. On Copilot it does nothing except on Stop and SubagentStop, so the old PostToolUse block does nothing there. |
+| `emit_system_message` | `hook_system_message` | Does nothing on Copilot, which has no such field. On Claude it also answers `{}` for Notification, SessionEnd, PreCompact and ConfigChange, although vitest-agent documented `emit_system_message` for Stop, SessionEnd, PreCompact and SubagentStop. Check `hook_supports system_message <Event>`. Where the message is lost, use `hook_context` where `hook_supports context <Event>` allows it, or write a `hook_log` line. |
 | `emit_raw` | `hook_raw <host> <json>` | The old function copied stdin to the response. The new one takes the host and the JSON as arguments and runs only on that host. Use it for a response only one host understands. |
 | `emit_additional_context` | `hook_context` | The vitest-agent name for `emit_context`. Same change: drop the event argument. |
 | `hook_error` | `hook_log` | Drop the hook-name argument. The library records the script name and the host itself. |
@@ -49,7 +49,7 @@ Every old name and what replaces it. The library functions are the ones in `hook
 | `_gh` | none | No equivalent; keep as a plugin script. See the `plugin-scripts` skill for the `_gh` wrapper. |
 | `_gh_auth_ok` | none | No equivalent; keep as a plugin script. See the `plugin-scripts` skill. |
 
-The old stdout fence, which moved fd 1 to stderr and wrote responses to fd 3, is gone. The library writes the response to stdout, so redirect the output of any CLI a hook spawns (`cmd >/dev/null`, or capture it with `$(...)`).
+The stdout fence, which moved fd 1 to stderr and wrote responses to fd 3, existed only in the vitest-agent and okfit variants, not in plugin-bot's template. It is gone. The library writes the response to stdout, so redirect the output of any CLI a hook spawns (`cmd >/dev/null`, or capture it with `$(...)`). A detached background worker must redirect too (`cmd >/dev/null 2>&1 &`), or it holds the host's stream open.
 
 ## Steps
 
@@ -65,7 +65,7 @@ The old stdout fence, which moved fd 1 to stderr and wrote responses to fd 3, is
 - `exit 2` no longer blocks. The library makes every non-zero exit fail open, so replace each intentional block with `hook_deny` or `hook_block`.
 - Any non-zero exit now fails open, including a Copilot preToolUse hook, where a bare non-zero exit would otherwise deny. Add `hook_fail_closed` only to a guard that must not fail open.
 - Compare every `emit_noop` with `hook_noop`. A hook that depended on the `suppressOutput` variant now prints `{}`.
-- A shell-form registration, one string with a `cd` or an `&&`, becomes exec form. Put the logic in the script.
+- A `script` entry is written in exec form on Claude, and as `bash "<root>/<script>"` on Copilot. A `command` entry stays shell form, written as the string you gave. Move any `cd` or `&&` logic into the script and use a `script` entry.
 - Logs move to `$XDG_STATE_HOME/pluginfinity/<plugin>/hook-error.log` and `hook-debug.log`. Update any doc, test or support script that reads the old path.
 
 ## Done when
