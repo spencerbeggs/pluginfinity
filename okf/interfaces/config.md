@@ -32,11 +32,14 @@ sources:
     title: Hooks and HookEntry
   - id: core-mcp
     resource: ../../packages/core/src/mcp.ts
-    title: McpServers
+    title: McpServers and the reserved ServerEnv
+  - id: core-lsp
+    resource: ../../packages/core/src/lsp.ts
+    title: LspServers
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T23:38:04Z
-  body_sha256: 9fb78e4aad57b6aba05fa9c4e375d6358d067106d651b89e140507090206c1e6
+  at: 2026-10-05T18:11:03Z
+  body_sha256: 3441f024a6949b7d1876097bcb89d59425cc6aa2b1836baae449496df6d0b535
 ---
 
 # pluginfinity.config.ts
@@ -62,8 +65,12 @@ export default defineConfig({
 - **`description`** is required and non-empty; every host shows it. `author` (`name`, optional `email` and `url`), `homepage`, `repository`, `license` and `keywords` are optional and are written into each target's manifest.[^core-config]
 - **`hooks`** maps Claude Code event names to hook entries. An entry has exactly one of `script` (a path relative to the plugin root, with optional `args`) or `command` (a string whose one placeholder is `${PLUGIN_ROOT}`), and optional `matcher`, `timeout` (positive whole seconds) and `fallback` (`"fail"`, the default, or `"omit"`).[^core-hooks]
 - **`mcpServers`** maps server names to Claude Code's `.mcp.json` server shape: `command` with optional `args`, `env` and `cwd`, or `type` (`http` or `sse`) with `url` and optional `headers`.[^core-mcp]
+- **`lspServers`** maps server names to Claude Code's `.lsp.json` server shape: required `command` (non-empty) and `extensionToLanguage` (keys start with `.`, like `.ts`), and optional `args`, `env`, `initializationOptions`, `settings`, `workspaceFolder`, `startupTimeout`, `shutdownTimeout`, `maxRestarts` (whole numbers, zero or more), `restartOnCrash` and `diagnostics`.[^core-lsp]
+- **`${PLUGIN_ROOT}`** is the one placeholder in a server: in a local MCP server's `command`, `args`, `env` values and `cwd`, and in an LSP server's `command`, `args`, `env` values and `workspaceFolder`. It is not expanded in a remote MCP server, `initializationOptions` or `settings`.
+- **Server `env`** keys starting with `PLUGINFINITY_` fail as `ConfigInvalid`; that prefix is reserved for the variables the build injects.[^core-mcp]
+- **`files`** is a list of plugin-relative paths, each a file or a directory ending in `/`, shipped to every target. An entry must be canonical (relative, no empty, `.` or `..` segment, not the plugin root) and must not be or lie under `builds/` or `node_modules/`, or it fails as `ConfigInvalid`. That an entry exists and stays inside the plugin is checked at build time ([CLI interface](cli.md)). Only the base config has `files`.[^core-config]
 - **`scripts.invoke`** is `"bash"` (the default) or `"exec"`, how `script` hooks run.[^core-config]
-- **Target keys** are top-level, one per known target: `claude` (Claude Code) and `copilot` (GitHub Copilot). Each is `true`, or an object that may set `name`, `hooks` and `mcpServers` for that host. An event under a target's `hooks` replaces the base entries for that event on that target, and `[]` removes them; `claude` admits Claude Code events only, and a `copilot` override uses Claude Code event names, plus `userPromptTransformed` and `errorOccurred`, which only Copilot has. A server under a target's `mcpServers` replaces the base server of that name. An absent key turns the target off, and `false` is rejected. At least one target must be enabled.[^targets-config]
+- **Target keys** are top-level, one per known target: `claude` (Claude Code) and `copilot` (GitHub Copilot). Each is `true`, or an object that may set `name`, `hooks`, `mcpServers` and `lspServers` for that host. An event under a target's `hooks` replaces the base entries for that event on that target, and `[]` removes them; `claude` admits Claude Code events only, and a `copilot` override uses Claude Code event names, plus `userPromptTransformed` and `errorOccurred`, which only Copilot has. A server under a target's `mcpServers` or `lspServers` replaces the base server of that name. An absent key turns the target off, and `false` is rejected. At least one target must be enabled.[^targets-config]
 - **Nothing else** is accepted. An unknown top-level key fails as `UnknownTarget`, and an unknown key inside a target object fails as `ConfigInvalid`.
 
 `defineConfig` returns its argument unchanged and is typed against the schema, so a misspelt target key, `false` as a target value, or a missing `name` is a type error in the editor before pluginfinity ever loads the file.[^carrier-index]
@@ -76,7 +83,7 @@ export default defineConfig({
 
 ## What may change
 
-Further base fields and per-target override keys arrive with the build pipeline ([roadmap](../roadmaps/pluginfinity-first-release.md)); hooks, MCP servers, scripts and manifest metadata have landed ([source model](../models/plugin-source-model.md)). A new host adds a new top-level key. Base keys and target ids share one key space, so no base field will ever take a target's id.
+Further base fields and per-target override keys arrive with the build pipeline ([roadmap](../roadmaps/pluginfinity-first-release.md)); hooks, MCP and LSP servers, shipped `files`, scripts and manifest metadata have landed ([source model](../models/plugin-source-model.md)). A new host adds a new top-level key. Base keys and target ids share one key space, so no base field will ever take a target's id.
 
 [^targets-config]: `../../packages/targets/src/config.ts`
 [^core-config]: `../../packages/core/src/config.ts`
@@ -86,3 +93,4 @@ Further base fields and per-target override keys arrive with the build pipeline 
 [^errors]: `../../packages/engine/src/errors.ts`
 [^core-hooks]: `../../packages/core/src/hooks.ts`
 [^core-mcp]: `../../packages/core/src/mcp.ts`
+[^core-lsp]: `../../packages/core/src/lsp.ts`

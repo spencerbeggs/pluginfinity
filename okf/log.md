@@ -1,5 +1,12 @@
 # Log
 
+## 2026-10-05
+
+* Updated Hook library live run on Claude Code and Copilot CLI, 2026-10-03
+* Updated Plugin MCP and LSP server environment on Claude Code and Copilot, 2026-10-05
+* Updated dogfood plugin fixture
+* Updated pluginfinity companion plugin
+
 ## 2026-10-03
 
 * Updated @pluginfinity/cli

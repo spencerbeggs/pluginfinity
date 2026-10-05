@@ -34,7 +34,9 @@ export default defineConfig({
 | `keywords` | No | A list of strings |
 | `scripts.invoke` | No | How hook scripts run: `"bash"` (the default) or `"exec"`; see [hooks](hooks.md) |
 | `hooks` | No | Hook entries keyed by Claude Code event name; see [hooks](hooks.md) |
-| `mcpServers` | No | Not built yet: a config that sets it fails with `NotImplemented` |
+| `mcpServers` | No | MCP servers in Claude Code's `.mcp.json` shape; see below |
+| `lspServers` | No | LSP servers in Claude Code's `.lsp.json` shape; see below |
+| `files` | No | Plugin-relative files, or directories ending in `/`, shipped to every target |
 | `claude`, `copilot` | At least one | Enables that target; see below |
 
 The version is not a config field: every manifest copies `version` from the `package.json` beside the
@@ -52,4 +54,19 @@ overrides:
 - `hooks`: per-event replacements. An event listed here replaces the base entries for that event on
   that host only; `[]` removes the event there. Copilot's object also accepts `userPromptTransformed`
   and `errorOccurred`, events only Copilot has.
-- `mcpServers`: not built yet; setting it fails the build.
+- `mcpServers`, `lspServers`: a server here replaces the base server of the same name on that host.
+
+## Servers
+
+- **An MCP server** is local, `command` with optional `args`, `env` and `cwd` (and `type: "stdio"`), or
+  remote, `type` `"http"` or `"sse"` with `url` and optional `headers`.
+- **An LSP server** needs `command` and `extensionToLanguage` (keys start with `.`, like `".ts"`). It may
+  set `args`, `env`, `initializationOptions`, `settings`, `workspaceFolder`, `startupTimeout`,
+  `shutdownTimeout`, `restartOnCrash`, `maxRestarts` and `diagnostics`. Any other key fails.
+- **`${PLUGIN_ROOT}`** is rewritten only in a local MCP server's `command`, `args`, `env` values and
+  `cwd`, and an LSP server's `command`, `args`, `env` values and `workspaceFolder`. Every file named
+  after it there ships with that host's build.
+- **`env` keys starting with `PLUGINFINITY_` fail.** The build injects `PLUGINFINITY_HOST`,
+  `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB` itself.
+- **A `files` entry** is a canonical relative path: no empty, `.` or `..` segment, not the plugin root,
+  and not under `builds/` or `node_modules/`. Only the base config has `files`.

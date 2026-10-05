@@ -1,17 +1,47 @@
 ---
 name: plugin-scripts
 description: >-
-  Use when writing a bash script a pluginfinity plugin ships outside hooks, such as a skill's scripts/,
-  or any plugin script that calls gh, git, aws, kubectl or another CLI. Covers finding the plugin root
-  and data directory on each host, calling CLIs without leaking or misusing credentials, persistent
-  state, the session-env pattern, and testing scripts with bats.
+  Use when writing a script a pluginfinity plugin ships outside hooks, such as a skill's scripts/ or an
+  MCP or LSP server launcher, or any plugin script that calls gh, git, aws, kubectl or another CLI.
+  Covers server launchers on the server library, finding the plugin root and data directory on each
+  host, calling CLIs without leaking or misusing credentials, persistent state, the session-env
+  pattern, and testing scripts with bats.
 paths:
   - "**/skills/**/scripts/**"
+  - "**/bin/start-*.sh"
 ---
 
 # Writing a plugin script
 
-A plugin script runs in the user's shell environment, on a host you do not control. Resolve paths from what the host provides, treat inherited credentials as hostile, and keep state out of the plugin root. Hook scripts follow the `hook-authoring` skill instead.
+A plugin script runs in the user's shell environment, on a host you do not control. Resolve paths from what the host provides, treat inherited credentials as hostile, and keep state out of the plugin root. Hook scripts follow the `hook-authoring` skill instead. Server launchers start with the server library; see Server launchers.
+
+## Server launchers
+
+An MCP or LSP server's launcher is a POSIX `sh` script the server's config names, usually `bin/start-mcp.sh` run as `command: "sh"`, `args: ["${PLUGIN_ROOT}/bin/start-mcp.sh"]`. The build ships it to each host whose servers name it, writes the server library to `lib/pluginfinity/server.sh` in that build, and puts `PLUGINFINITY_HOST`, `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB` in the server's `env`. A launcher written on the library has no host branches:
+
+```sh
+#!/bin/sh
+set -eu
+. "$PLUGINFINITY_LIB/server.sh"
+export MYPLUGIN_PROJECT_DIR="$(server_project_dir || true)"
+server_exec_bin myplugin-mcp @myplugin/mcp "$@"
+```
+
+| Function | Does |
+| :-- | :-- |
+| `server_host` | Prints `claude` or `copilot` |
+| `server_plugin_root` | Prints the build root, found from the library's own location |
+| `server_project_dir` | Prints the user's project and returns 0, or prints nothing and returns 1 when there is none to report. On Claude it is `CLAUDE_PROJECT_DIR`. When the working directory is the plugin root or under it, as for every Copilot MCP server, it returns 1: Copilot gives an MCP server no project directory, so the server should ask its MCP client for roots. Otherwise it is the closest directory above `$PWD` holding `.git`, else `$PWD` |
+| `server_exec_bin <bin> <package> [args]` | Execs the project's `node_modules/.bin/<bin>` when it is executable. Otherwise it prints, on stderr, that the bin is not installed and the install line for the project's package manager, then execs `npx --yes <package> [args]`. With no project directory it goes straight to `npx` |
+| `server_log <message>` | Appends a timestamped line to `${XDG_STATE_HOME:-$HOME/.local/state}/pluginfinity/<plugin>/server-error.log` |
+
+- Keep `set -eu` and source `$PLUGINFINITY_LIB/server.sh` first. Under `set -u` a launcher run outside a host, with no `PLUGINFINITY_LIB`, fails loudly instead of sourcing `/server.sh`.
+- Never print to stdout before the `exec`: stdout carries the MCP or LSP protocol, and one stray line breaks the handshake. Send messages to stderr or `server_log`. The library itself writes only to stderr.
+- `server_exec_bin` does not call `server_log`. Log yourself before it if you want a record.
+- Under `set -e`, a bare `server_project_dir` that returns 1 inside `$(...)` in an assignment ends the script. Add `|| true`, or test it: `if dir=$(server_project_dir); then ...`.
+- Do not put your own files under `lib/pluginfinity/`: that directory is the build's, and a source file there fails the build with `PathConflict`. Keep launcher helpers beside the launcher, such as `bin/lib/`, and name them in `files`.
+- The launcher must exist, sit inside the plugin, and be named without `.` or `..` segments. Run it through `sh` so it needs no executable bit; a `${PLUGIN_ROOT}/...` path used as the whole `command` must be executable.
+- Test the built launcher with bats, once per host. Make a fake project holding `.git/` and an executable stub at `node_modules/.bin/<bin>` that echoes its arguments, `cd` into it, and run `sh builds/<host>/bin/<launcher>` under `env -i` with `PATH`, `HOME`, `PLUGINFINITY_HOST=<host>`, `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB=builds/<host>/lib/pluginfinity` (an absolute path). Assert stdout is exactly the stub's output, so nothing else reached it. The dogfood fixture's `__test__/servers.bats` does this.
 
 ## Where am I
 

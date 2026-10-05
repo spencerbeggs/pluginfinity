@@ -17,15 +17,17 @@ and `build --check` fails until it does.
 
 ```text
 <plugin>/
-  pluginfinity.config.ts      name, metadata, targets, hooks
+  pluginfinity.config.ts      name, metadata, targets, hooks, servers, files
   package.json                its "version" is every manifest's version
   skills/<skill>/SKILL.md     plus references/, scripts/, assets/
   agents/<agent>.md
   hooks/                      hook scripts; the directory ships whole
+  bin/                        server launchers; they ship because a server names them
   builds/<target>/            generated and committed; never edited
 ```
 
-Anything else at the root, such as `__test__/` or `scripts/`, is never shipped.
+Anything else at the root, such as `__test__/` or `scripts/`, ships only if a server names it or `files`
+lists it.
 
 ## Rules that bite
 
@@ -47,6 +49,45 @@ Anything else at the root, such as `__test__/` or `scripts/`, is never shipped.
 - **A built skill `description` may hold at most 1,024 characters.** Copilot folds `when_to_use` into
   it, so a long pair needs a shorter `targets.copilot.description`.
 
+## Servers and launchers
+
+MCP and LSP servers are declared once in the config, in Claude Code's shape, and a server's launcher is
+a plain `sh` script in the plugin:
+
+```ts
+mcpServers: { mcp: { command: "sh", args: ["${PLUGIN_ROOT}/bin/start-mcp.sh"] } },
+lspServers: {
+  okfit: {
+    command: "sh",
+    args: ["${PLUGIN_ROOT}/bin/start-lsp.sh", "--stdio"],
+    extensionToLanguage: { ".md": "markdown" },
+    diagnostics: true,
+  },
+},
+files: ["share/"],
+```
+
+- **`${PLUGIN_ROOT}` is the one placeholder.** It is rewritten for each host in a local MCP server's
+  `command`, `args`, `env` values and `cwd`, and in an LSP server's `command`, `args`, `env` values and
+  `workspaceFolder`. Nowhere else.
+- **A file a server names after `${PLUGIN_ROOT}/` ships** to every host whose servers name it. It must
+  exist inside the plugin, be written without `.` or `..` segments, and be executable when it is the
+  whole `command`. Prefer `command: "sh"` with the launcher in `args`.
+- **`files`** ships what no server names, such as data a launcher reads: files, or directories ending in
+  `/`.
+- **Never put a `cwd` on a Claude MCP server.** Claude ignores it and starts the server in the project,
+  so the build fails. Set `cwd` under `copilot.mcpServers`, or `cd` in the launcher.
+- **Copilot has no LSP `workspaceFolder` or `settings`.** Setting either fails the Copilot build; give
+  that server a Copilot copy without them under `copilot.lspServers`.
+- **`PLUGINFINITY_` env keys are reserved.** The build adds `PLUGINFINITY_HOST`, `PLUGINFINITY_PLUGIN`
+  and `PLUGINFINITY_LIB` to every local server's `env`.
+- **Biome warns `noTemplateCurlyInString`** on `"${PLUGIN_ROOT}/..."` in the config. It is a warning, and
+  the string is meant literally: keep it a plain string, never a template literal. To silence it, put
+  `// biome-ignore lint/suspicious/noTemplateCurlyInString: pluginfinity placeholder` on the line
+  above, or turn the rule off for `pluginfinity.config.ts` in a Biome `overrides` entry.
+
+Write the launcher on the server library with the `plugin-scripts` skill.
+
 ## Commands
 
 | Command | What it does |
@@ -62,9 +103,10 @@ what each means.
 
 ## Go deeper
 
-- [The config](references/config.md): every field, hooks overrides and the target keys.
+- [The config](references/config.md): every field, hooks and server overrides, and the target keys.
 - [Skills and agents](references/components.md): frontmatter, `targets` blocks, host blocks and support
   files.
 - [Hooks](references/hooks.md): script and command entries, `scripts.invoke`, fallbacks and what ships.
-- [What each host gets](references/targets.md): how every field, tool, model and path is translated.
+- [What each host gets](references/targets.md): how every field, tool, model, path and server is
+  translated.
 - [Findings](references/findings.md): every error a command reports, its cause and its fix.

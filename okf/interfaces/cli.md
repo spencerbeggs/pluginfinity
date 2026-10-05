@@ -29,8 +29,8 @@ sources:
     title: The usage-error and NotImplemented exit-code cases
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T01:53:17Z
-  body_sha256: 24d7f4126469e27f8adcd7b067002f99de367bb82e2ecfe219578b3212affde2
+  at: 2026-10-05T18:11:03Z
+  body_sha256: a5049569420146cb71a48f914824b542349d8bd26c1487e785338a07457b6dfd
 ---
 
 # The pluginfinity command line
@@ -43,7 +43,7 @@ The promise the `pluginfinity` bin makes to the people, agents and CI jobs that 
 | :-- | :-- |
 | `pluginfinity init [dir]` | Stub. Takes `--layout root\|plugin\|plugins`, `--name`, `--pm pnpm\|npm\|yarn\|bun`, `--target`, `--no-changesets`, `--no-ci` and `--yes`, checks them, then fails with `NotImplemented`. |
 | `pluginfinity plugin add <name>` | Stub. Takes `--target` and `--dir`, checks the name, then fails with `NotImplemented`. A bare `pluginfinity plugin` prints the group's help. |
-| `pluginfinity build [path]` | Renders each enabled target's manifest, hooks, skills and agents, with the shipped hook scripts and skill files, into `builds/<id>/` beside the config, writing only files that differ, and prints what it added, changed and removed. Takes `--target`, `--all`, `--config` and `--check` (rebuild in memory, compare with `builds/`, and fail with `BuildStale` on any difference, writing nothing). |
+| `pluginfinity build [path]` | Renders each enabled target's manifest, hooks, skills, agents and MCP and LSP server config, with the shipped hook scripts, server launchers, `files` entries, skill files and the injected hook and server libraries, into `builds/<id>/` beside the config, writing only files that differ, and prints what it added, changed and removed. Takes `--target`, `--all`, `--config` and `--check` (rebuild in memory, compare with `builds/`, and fail with `BuildStale` on any difference, writing nothing). |
 | `pluginfinity validate [path]` | Requires current builds (`BuildStale` otherwise), then runs each host's check: `claude plugin validate` on `builds/claude/`, and a `copilot --plugin-dir` plugin listing that must load `builds/copilot/` under its manifest name and version (`HostRejected` otherwise). Takes `--target`, `--all`, `--config` and `--no-host` (skip the host CLIs). |
 | `pluginfinity doctor [path]` | Works. Reports on the runtime, the host CLIs, the tools and the config. Takes `--all`, `--config` and `--strict`. |
 
@@ -58,7 +58,7 @@ The root command shares `--human`, `--agent` and `--ci` with every subcommand an
 ## Exit codes
 
 - **0**: success. `doctor` exits 0 even when a check fails, unless `--strict` is given.
-- **1**: a finding. Every config failure (`ConfigNotFound`, `ConfigAmbiguous`, `ConfigLoadFailed`, `ConfigInvalid`, `UnknownTarget`, `TargetNotEnabled`) is reported as a finding and exits 1.[^render-config-error] So is every build failure (`PackageVersionMissing`, `HookEventUnsupported`, `HookScriptInvalid`, `PathConflict`, `ComponentsInvalid`, `BuildStale`, `HostRejected`), a stub's `NotImplemented`, and `doctor --strict` when a `required` check fails.
+- **1**: a finding. Every config failure (`ConfigNotFound`, `ConfigAmbiguous`, `ConfigLoadFailed`, `ConfigInvalid`, `UnknownTarget`, `TargetNotEnabled`) is reported as a finding and exits 1.[^render-config-error] So is every build failure (`PackageVersionMissing`, `HookEventUnsupported`, `HookScriptInvalid`, `ShippedFileInvalid`, `PathConflict`, `ComponentsInvalid`, `BuildStale`, `HostRejected`), a stub's `NotImplemented`, and `doctor --strict` when a `required` check fails.
 - **64**: a usage error. Examples are an unknown flag, an unknown `--target`, `--layout` or `--pm` value, `--config` with `--all`, a `[path]` that does not exist, and a plugin name that is not kebab-case.[^commands-test]
 
 ## Output and audiences

@@ -19,6 +19,7 @@ pluginfinity is a CLI that builds one host-neutral agent-plugin source into ever
 - dogfood fixture → `okf/modules/dogfood.md` — Load when: working under `plugins/dogfood/` or adding an end-to-end exercise of a CLI feature.
 - Missing `pluginfinity` bin in a plugin workspace → `okf/gotchas/workspace-bin-needs-built-cli.md` — Load when: `pnpm exec pluginfinity` fails, or touching a `prepare` or `postprepare` script.
 - Hook library → `okf/decisions/hook-library-is-build-injected.md` — Load when: writing or changing a hook script, the hook library or the bats helper.
+- Server launchers and the server library → `okf/decisions/server-launchers-ship-by-discovery-and-files.md` — Load when: writing an MCP or LSP launcher, changing the server library, or deciding which files a build ships.
 - `build --check` reports BuildStale on `.sh` files right after a commit → `okf/gotchas/build-check-stale-on-sh-after-commit.md` — Load when: `build --check` fails on hook scripts with a clean git diff.
 - `doctor` prints JSON under Claude Code → `okf/gotchas/agent-environment-selects-json-output.md` — Load when: CLI output is JSON when you expected the human form, or a test asserts on human output.
 - Host plugin formats → `okf/references/claude-code-plugin-format.md`, `okf/references/claude-code-marketplace-format.md`, `okf/references/copilot-cli-plugin-format.md` — Load when: writing or changing a target's manifest, layout, hooks or path-variable handling.

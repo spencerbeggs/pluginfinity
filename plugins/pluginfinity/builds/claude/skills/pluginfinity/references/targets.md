@@ -9,7 +9,24 @@
 | Agents | `agents/<name>.md` | `com.github.copilot/agents/<name>.agent.md` |
 | Hooks file | `hooks/hooks.json` | `com.github.copilot/hooks/hooks.json` |
 | Hook scripts | `hooks/` | `hooks/` |
-| Plugin root in hooks | `${CLAUDE_PLUGIN_ROOT}` | `${PLUGIN_ROOT}` |
+| MCP servers | `.mcp.json` | `mcp.json`, with `$schema` |
+| LSP servers | `.lsp.json` | `com.github.copilot/lsp.json` |
+| Server library | `lib/pluginfinity/server.sh` | `lib/pluginfinity/server.sh` |
+| Plugin root in hooks and servers | `${CLAUDE_PLUGIN_ROOT}` | `${PLUGIN_ROOT}` |
+
+## Servers
+
+A host with no servers of a kind gets no file for it, and only a host with a local server gets the
+server library.
+
+| | Claude Code | Copilot |
+| :-- | :-- | :-- |
+| MCP `type` | As written | `"stdio"` written on every local server (Copilot skips one without it); `http` becomes `streamable-http`; `sse` kept |
+| MCP `cwd` | Fails the build: Claude ignores it | Kept, root rewritten |
+| LSP `extensionToLanguage` | Kept | Written as `fileExtensions` |
+| LSP `startupTimeout`, `shutdownTimeout`, `restartOnCrash`, `maxRestarts`, `diagnostics` | Kept | Dropped |
+| LSP `workspaceFolder`, `settings` | Kept | Fail the build; override the server under `copilot.lspServers` |
+| Server working directory | The project | MCP: the plugin root. LSP: the git root, in the one layout measured |
 
 ## Skill fields
 
