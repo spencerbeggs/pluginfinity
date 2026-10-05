@@ -26,8 +26,8 @@ sources:
     title: The server library
 generated:
   by: okfit/claude-code
-  at: 2026-10-05T18:11:03Z
-  body_sha256: b1f6aa073709cfc9bb7eb463a43188cd70b7479e3a852b5e859a004737cec85e
+  at: 2026-10-05T18:17:00Z
+  body_sha256: 1c47534cd72fa12f35f6cad8b73a1e1117694a0f4e29ca9bba15ab246962090c
 ---
 
 # Server launchers ship by discovery and files, beside an injected server library
@@ -43,7 +43,7 @@ An MCP or LSP server in a plugin is usually `sh ${PLUGIN_ROOT}/bin/start-*.sh`: 
 - **Strict paths.** A discovered path must be written without empty, `.` or `..` segments, exist as a file, and resolve inside the plugin, and a whole `command` must be executable; otherwise the build fails with `ShippedFileInvalid`. A `files` entry is canonical by schema, and every file under a listed directory is real-path checked. The host resolves the path as written, so a `..` through a directory the build does not ship would fail only at run time.[^operations]
 - **An injected library.** A target with a local server gets `lib/pluginfinity/server.sh`, a POSIX `sh` library embedded in the engine like the hook library. It writes nothing to stdout, which carries the protocol, and provides `server_host`, `server_plugin_root`, `server_project_dir`, `server_exec_bin` and `server_log`.[^server-lib]
 - **An env contract.** Every local server's `env` gains `PLUGINFINITY_HOST`, `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB` (the library directory under the host's root spelling), so a launcher starts with `. "$PLUGINFINITY_LIB/server.sh"`. Author `env` keys starting with `PLUGINFINITY_` are rejected at decode, so the injection never overwrites one.[^servers]
-- **`server_project_dir` never guesses the plugin root as the project.** It prints `CLAUDE_PROJECT_DIR` on Claude. When the working directory is the plugin root or under it, as for a Copilot MCP server, it prints nothing and returns 1, and `server_exec_bin` goes straight to `npx --yes <package>`; such a server should ask its MCP client for roots. Otherwise it walks up from `$PWD` to the closest `.git`.[^server-lib]
+- **`server_project_dir` never guesses the plugin root as the project.** It prints `CLAUDE_PROJECT_DIR` on Claude. When the working directory is the plugin root or under it, as for a Copilot MCP server, it prints nothing and returns 1, and `server_exec_bin` goes straight to `npx --yes <package>`; such a server should ask its MCP client for roots. Otherwise it walks up from `$PWD` to the closest `.git`, and prints `$PWD` when there is none.[^server-lib]
 - **Reserved paths.** `lib/pluginfinity/` is reserved in every target whether or not it has servers, as `hooks/lib/pluginfinity/` is; a shipped file there, or on a generated path, is `PathConflict`.
 
 ## Alternatives rejected

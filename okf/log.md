@@ -6,6 +6,10 @@
 * Updated Plugin MCP and LSP server environment on Claude Code and Copilot, 2026-10-05
 * Updated dogfood plugin fixture
 * Updated pluginfinity companion plugin
+* Updated @pluginfinity/engine
+* Updated Target description
+* Updated The pluginfinity command line
+* Updated pluginfinity.config.ts
 
 ## 2026-10-03
 

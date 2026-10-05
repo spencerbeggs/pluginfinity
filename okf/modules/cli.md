@@ -33,8 +33,8 @@ sources:
     title: The audience-aware renderers for config errors and the doctor report
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T00:09:53Z
-  body_sha256: 705c6864809546040da527aef3037559dab894afc4c4191a488debf987a46203
+  at: 2026-10-05T18:17:00Z
+  body_sha256: a3ba518ac3ee51d96cbadffe341748414120911a1b6e2dc66e1b57801734ebd2
 ---
 
 # @pluginfinity/cli
@@ -69,7 +69,7 @@ As an installed package it declares its full runtime closure as regular `depende
 
 ## Status
 
-`doctor` works. `init` and `plugin add` validate their flags and then fail with `NotImplemented`. `build` and `validate` work for manifests; skills, agents, hooks and MCP servers follow. The rest comes in the builder phase of [the roadmap](../roadmaps/pluginfinity-first-release.md).
+`doctor` works. `init` and `plugin add` validate their flags and then fail with `NotImplemented`. `build` and `validate` cover every component kind: manifests, skills, agents, hooks, and MCP and LSP servers with their launchers. No other command is a stub; those two come in a later phase of [the roadmap](../roadmaps/pluginfinity-first-release.md).
 
 Under Claude Code a plain `pluginfinity doctor` prints JSON; see [the audience gotcha](../gotchas/agent-environment-selects-json-output.md).
 
