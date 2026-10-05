@@ -69,3 +69,79 @@ export const WITH_MCP = `export default {
 	mcpServers: { docs: { type: "http", url: "https://example.com/mcp" } },
 	claude: true,
 };\n`;
+
+export const WITH_SERVERS = `export default {
+	name: "with-servers",
+	description: "Fixture plugin.",
+	mcpServers: { mcp: { command: "sh", args: ["\${PLUGIN_ROOT}/bin/start-mcp.sh"] } },
+	lspServers: { md: { command: "sh", args: ["\${PLUGIN_ROOT}/bin/start-lsp.sh", "--stdio"], extensionToLanguage: { ".md": "markdown" } } },
+	files: ["share/"],
+	claude: true,
+	copilot: true,
+};\n`;
+
+export const SERVER_EXEC_COMMAND = `export default {
+	name: "exec-command",
+	description: "Fixture plugin.",
+	mcpServers: { mcp: { command: "\${PLUGIN_ROOT}/bin/serve" } },
+	claude: true,
+};\n`;
+
+export const SERVER_SHARED_LAUNCHER = `export default {
+	name: "shared-launcher",
+	description: "Fixture plugin.",
+	mcpServers: { mcp: { command: "\${PLUGIN_ROOT}/bin/serve" } },
+	lspServers: { md: { command: "sh", args: ["\${PLUGIN_ROOT}/bin/serve"], extensionToLanguage: { ".md": "markdown" } } },
+	claude: true,
+};\n`;
+
+export const SERVER_ESCAPE = `export default {
+	name: "server-escape",
+	description: "Fixture plugin.",
+	mcpServers: { mcp: { command: "sh", args: ["\${PLUGIN_ROOT}/a/../../escape.sh"] } },
+	claude: true,
+};\n`;
+
+export const SERVER_DOTTED = `export default {
+	name: "server-dotted",
+	description: "Fixture plugin.",
+	mcpServers: { mcp: { command: "sh", args: ["\${PLUGIN_ROOT}/bin/../bin/./start.sh"] } },
+	claude: true,
+};\n`;
+
+export const FILES_MISSING = `export default {
+	name: "files-missing",
+	description: "Fixture plugin.",
+	files: ["nope.txt"],
+	claude: true,
+};\n`;
+
+export const LSP_UNRESOLVED = `export default {
+	name: "lsp-unresolved",
+	description: "Fixture plugin.",
+	lspServers: { md: { command: "sh", extensionToLanguage: { ".md": "markdown" }, settings: { a: 1 } } },
+	copilot: true,
+};\n`;
+
+export const FILES_RESERVED = `export default {
+	name: "files-reserved",
+	description: "Fixture plugin.",
+	files: ["lib/"],
+	claude: true,
+};\n`;
+
+export const FILES_COLLIDE = `export default {
+	name: "files-collide",
+	description: "Fixture plugin.",
+	mcpServers: { docs: { type: "http", url: "https://example.com/mcp" } },
+	files: [".mcp.json"],
+	claude: true,
+};\n`;
+
+export const FILES_OVERLAP = `export default {
+	name: "files-overlap",
+	description: "Fixture plugin.",
+	mcpServers: { mcp: { command: "sh", args: ["\${PLUGIN_ROOT}/bin/start-mcp.sh"] } },
+	files: ["bin/"],
+	claude: true,
+};\n`;

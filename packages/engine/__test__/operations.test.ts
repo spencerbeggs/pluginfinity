@@ -3,17 +3,27 @@ import { assert, describe, layer } from "@effect/vitest";
 import { ScriptedSpawner } from "@effected/commands";
 import { Effect, FileSystem, Path } from "effect";
 import { hookLibFiles } from "../src/hook-lib.js";
-import { ENGINE_VERSION, build, preparePlugins, validate } from "../src/index.js";
+import { ENGINE_VERSION, build, isBuildError, preparePlugins, validate } from "../src/index.js";
 import {
+	FILES_COLLIDE,
+	FILES_MISSING,
+	FILES_OVERLAP,
+	FILES_RESERVED,
 	HOOKED,
 	HOOKED_COMMAND,
 	HOOKED_EXEC,
 	HOOKED_UNSUPPORTED,
+	LSP_UNRESOLVED,
 	ONLY_COPILOT,
 	PACKAGE_JSON,
+	SERVER_DOTTED,
+	SERVER_ESCAPE,
+	SERVER_EXEC_COMMAND,
+	SERVER_SHARED_LAUNCHER,
 	SYNTAX_ERROR,
 	VALID,
 	WITH_MCP,
+	WITH_SERVERS,
 } from "./fixtures/configs.js";
 import { writeTree } from "./utils/tree.js";
 
@@ -165,11 +175,207 @@ describe("build", () => {
 			}),
 		);
 
-		it.effect("a config that sets mcpServers is NotImplemented, not a build without them", () =>
+		it.effect("builds servers, ships their launchers, files entries and the server library", () =>
 			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": WITH_SERVERS,
+					"package.json": PACKAGE_JSON,
+					"bin/start-mcp.sh": "#!/bin/sh\n",
+					"bin/start-lsp.sh": "#!/bin/sh\n",
+					"bin/unused.sh": "#!/bin/sh\n",
+					"share/data.json": "{}\n",
+				});
+				yield* fs.chmod(path.join(root, "bin/start-mcp.sh"), 0o755);
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				for (const file of [
+					"builds/claude/.mcp.json",
+					"builds/claude/.lsp.json",
+					"builds/claude/bin/start-mcp.sh",
+					"builds/claude/bin/start-lsp.sh",
+					"builds/claude/share/data.json",
+					"builds/claude/lib/pluginfinity/server.sh",
+					"builds/copilot/mcp.json",
+					"builds/copilot/com.github.copilot/lsp.json",
+					"builds/copilot/lib/pluginfinity/server.sh",
+				])
+					assert.isTrue(yield* fs.exists(path.join(root, file)), file);
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/bin/unused.sh")));
+				const mode = (yield* fs.stat(path.join(root, "builds/claude/bin/start-mcp.sh"))).mode & 0o777;
+				assert.strictEqual(mode, 0o755);
+				const check = yield* build({ selection: nearest(root), targets: [], check: true });
+				assert.isTrue(check.every((target) => target.plan.clean));
+			}),
+		);
+
+		it.effect("a remote-only plugin gets no server library", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
 				const root = yield* writeTree({ "pluginfinity.config.ts": WITH_MCP, "package.json": PACKAGE_JSON });
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const mcp = JSON.parse(yield* fs.readFileString(path.join(root, "builds/claude/.mcp.json")));
+				assert.isUndefined(mcp.mcpServers.docs.env);
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/lib/pluginfinity")));
+			}),
+		);
+
+		it.effect("a missing launcher is ShippedFileInvalid naming the server", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": WITH_SERVERS,
+					"package.json": PACKAGE_JSON,
+					"share/x": "",
+				});
 				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
-				assert.strictEqual(error._tag, "NotImplemented");
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") {
+					assert.strictEqual(error.problem, "missing");
+					assert.strictEqual(error.referencedBy, "mcpServers.mcp");
+				}
+			}),
+		);
+
+		it.effect("a whole-command launcher without the exec bit is ShippedFileInvalid not-executable", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_EXEC_COMMAND,
+					"package.json": PACKAGE_JSON,
+					"bin/serve": "#!/bin/sh\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") assert.strictEqual(error.problem, "not-executable");
+			}),
+		);
+
+		it.effect("a launcher named by both an MCP and an LSP server ships once with its mode", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_SHARED_LAUNCHER,
+					"package.json": PACKAGE_JSON,
+					"bin/serve": "#!/bin/sh\n",
+				});
+				yield* fs.chmod(path.join(root, "bin/serve"), 0o755);
+				const [claude] = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.deepStrictEqual(
+					claude?.plan.added.filter((file) => file === "bin/serve"),
+					["bin/serve"],
+				);
+				const mode = (yield* fs.stat(path.join(root, "builds/claude/bin/serve"))).mode & 0o777;
+				assert.strictEqual(mode, 0o755);
+			}),
+		);
+
+		it.effect("a server path with . and .. segments ships at its normalised path", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_DOTTED,
+					"package.json": PACKAGE_JSON,
+					"bin/start.sh": "#!/bin/sh\n",
+				});
+				const [claude] = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.include(claude?.plan.added ?? [], "bin/start.sh");
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/claude/bin/start.sh")));
+			}),
+		);
+
+		it.effect("a server path that climbs out of the plugin is ShippedFileInvalid outside-root", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_ESCAPE,
+					"package.json": PACKAGE_JSON,
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") {
+					assert.strictEqual(error.problem, "outside-root");
+					assert.strictEqual(error.referencedBy, "mcpServers.mcp");
+				}
+			}),
+		);
+
+		it.effect("a server launcher symlinked out of the plugin is ShippedFileInvalid outside-root", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const outside = yield* writeTree({ "start.sh": "#!/bin/sh\n" });
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_DOTTED,
+					"package.json": PACKAGE_JSON,
+				});
+				yield* fs.makeDirectory(path.join(root, "bin"));
+				yield* fs.symlink(path.join(outside, "start.sh"), path.join(root, "bin/start.sh"));
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") assert.strictEqual(error.problem, "outside-root");
+			}),
+		);
+
+		it.effect("a missing files entry is ShippedFileInvalid naming files", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({ "pluginfinity.config.ts": FILES_MISSING, "package.json": PACKAGE_JSON });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				// The CLI reports a finding (exit 1) only for what isBuildError recognises.
+				assert.isTrue(isBuildError(error));
+				if (error._tag === "ShippedFileInvalid") assert.strictEqual(error.referencedBy, "files");
+			}),
+		);
+
+		it.effect("a files entry reaching into lib/pluginfinity/ is PathConflict", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_RESERVED,
+					"package.json": PACKAGE_JSON,
+					"lib/pluginfinity/server.sh": "",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag === "PathConflict") assert.strictEqual(error.file, "lib/pluginfinity/server.sh");
+			}),
+		);
+
+		it.effect("a files entry landing on a generated server file is PathConflict", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_COLLIDE,
+					"package.json": PACKAGE_JSON,
+					".mcp.json": "{}\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+			}),
+		);
+
+		it.effect("a launcher both server-referenced and under a files directory ships once", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_OVERLAP,
+					"package.json": PACKAGE_JSON,
+					"bin/start-mcp.sh": "#!/bin/sh\n",
+				});
+				const [claude] = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.deepStrictEqual(
+					claude?.plan.added.filter((file) => file === "bin/start-mcp.sh"),
+					["bin/start-mcp.sh"],
+				);
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/claude/bin/start-mcp.sh")));
+			}),
+		);
+
+		it.effect("an unresolved LSP field on Copilot is collected in ComponentsInvalid", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({ "pluginfinity.config.ts": LSP_UNRESOLVED, "package.json": PACKAGE_JSON });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ComponentsInvalid");
 			}),
 		);
 

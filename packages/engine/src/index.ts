@@ -45,6 +45,8 @@ export {
 	NotImplemented,
 	PackageVersionMissing,
 	PathConflict,
+	ShippedFileInvalid,
+	ShippedFileProblem,
 	TargetDrift,
 	TargetNotEnabled,
 	UnknownTarget,

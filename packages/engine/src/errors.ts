@@ -331,6 +331,46 @@ export class HookScriptInvalid extends Schema.TaggedError<HookScriptInvalid>()("
 }
 
 /**
+ * What is wrong with a file a server or the `files` key ships.
+ *
+ * @public
+ */
+export const ShippedFileProblem = Schema.Literals(["missing", "not-executable", "outside-root"]);
+
+/**
+ * A file the build must ship for a server, or because `files` lists it, cannot be shipped.
+ *
+ * @public
+ */
+export class ShippedFileInvalid extends Schema.TaggedError<ShippedFileInvalid>()("ShippedFileInvalid", {
+	/** The config. */
+	path: Schema.String,
+	/** The file, relative to the plugin root. */
+	file: Schema.String,
+	/** What names it: `mcpServers.<name>`, `lspServers.<name>` or `files`. */
+	referencedBy: Schema.String,
+	problem: ShippedFileProblem,
+}) {
+	override get message(): string {
+		const why = {
+			missing: "does not exist",
+			"not-executable": "is its command but is not executable",
+			"outside-root": "resolves outside the plugin",
+		}[this.problem];
+		return `${this.file}, named by ${this.referencedBy} in ${this.path}, ${why}`;
+	}
+
+	get remediation(): Remediation {
+		const hint = {
+			missing: `Create ${this.file} under the plugin root, or fix the path in ${this.referencedBy}.`,
+			"not-executable": `Run \`chmod +x ${this.file}\`, or run it through sh: command "sh" with the path in args.`,
+			"outside-root": "Keep shipped files inside the plugin directory; a path or symlink that leaves it cannot ship.",
+		}[this.problem];
+		return { hint };
+	}
+}
+
+/**
  * A copied source file and a generated file would land on the same build path.
  *
  * @public
@@ -418,6 +458,7 @@ export type BuildError =
 	| HostRejected
 	| HookEventUnsupported
 	| HookScriptInvalid
+	| ShippedFileInvalid
 	| PathConflict
 	| ComponentsInvalid;
 
@@ -427,6 +468,7 @@ const BUILD_ERROR_TAGS: ReadonlyArray<string> = [
 	"HostRejected",
 	"HookEventUnsupported",
 	"HookScriptInvalid",
+	"ShippedFileInvalid",
 	"PathConflict",
 	"ComponentsInvalid",
 ];
