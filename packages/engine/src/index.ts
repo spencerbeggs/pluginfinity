@@ -63,6 +63,8 @@ export type { BuildInput, PlanError, TargetBuild, TargetValidation, ValidateInpu
 export { build, validate } from "./operations.js";
 export type { ConfigSelection, PreparedPlugin } from "./selection.js";
 export { preparePlugins, selectConfigPaths } from "./selection.js";
+export type { ServerFiles, ServerRender } from "./servers.js";
+export { renderServers, serverFiles } from "./servers.js";
 export type { SourceSkill } from "./skills.js";
 export { SKILL_DESCRIPTION_MAX, readSkills, renderSkill } from "./skills.js";
 export { ToolDiscoveryLive } from "./tools.js";
