@@ -16,6 +16,8 @@ You are running a live end-to-end check of pluginfinity's hook library from insi
 2. Ask the user to confirm the session was started with `pnpm claude:debug` or `pnpm copilot:debug`. Those scripts set `PLUGINFINITY_HOOK_DEBUG=1` and load this plugin and the companion pluginfinity plugin. If it was not, say so in the report; the debug-log checks are then skipped.
 3. Note the current line count of each log, with `wc -l` or "absent", so you can read only the lines this run adds. They live in `~/.local/state/pluginfinity/pluginfinity-dogfood/` as `hook-error.log` and `hook-debug.log`.
 
+When a step needs a subagent, use `eval-subagent` from this plugin; it carries no other context.
+
 Rules:
 
 - Do the steps in order, one at a time, and record the observed result verbatim next to the expected one.
@@ -37,7 +39,7 @@ Then ask the user whether they saw a system message reading `pluginfinity-dogfoo
 
 **Step 5. PostToolUse context.** Run `echo pf-dogfood-context`. Did you receive additional context `pluginfinity-dogfood saw pf-dogfood-context` after the tool result? Quote it. Expected: yes.
 
-**Step 6. SubagentStart context.** Start a subagent with a trivial task, such as "reply with the word ok". Tell it to report back verbatim any context it received that mentions pluginfinity-dogfood.
+**Step 6. SubagentStart context.** Start a subagent with a trivial task, such as "reply with the word ok", using `eval-subagent` from `pluginfinity-dogfood`. Tell it to report back verbatim any context it received that mentions pluginfinity-dogfood.
 Expected: the subagent quotes `pluginfinity-dogfood subagent context`.
 
 **Step 7. Unexpected errors.** Look at the new lines in hook-error.log since the start, apart from step 4's crash line. Any other line is unexpected; quote it.
