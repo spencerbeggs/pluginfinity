@@ -39,6 +39,20 @@ const rewrite = (value: unknown, root: string): unknown => {
 	return value;
 };
 
+// The fields a `${PLUGIN_ROOT}` placeholder is documented in; every other field passes through untouched.
+const MCP_ROOT_FIELDS = ["command", "args", "env", "cwd"] as const;
+const LSP_ROOT_FIELDS = ["command", "args", "env", "workspaceFolder"] as const;
+
+// The server restricted to the given fields.
+const only = (server: Server, fields: ReadonlyArray<string>): Server =>
+	Object.fromEntries(Object.entries(server).filter(([field]) => fields.includes(field)));
+
+// The server with the root rewritten in the given fields only.
+const rewriteFields = (server: Server, fields: ReadonlyArray<string>, root: string): Record<string, unknown> =>
+	Object.fromEntries(
+		Object.entries(server).map(([field, value]) => [field, fields.includes(field) ? rewrite(value, root) : value]),
+	);
+
 const serialize = (value: unknown): string => `${JSON.stringify(value, null, "\t")}\n`;
 
 const injectedEnv = (id: KnownTargetId, plugin: string, root: string, libDir: string): Env => ({
@@ -95,19 +109,21 @@ interface McpInput {
 const mcpEntries = ({ servers, env, root, issues }: McpInput, copilot: boolean): Record<string, unknown> => {
 	const out: Record<string, unknown> = {};
 	for (const [name, server] of Object.entries(servers)) {
-		const rewritten = rewrite(server, root) as Record<string, unknown>;
 		if (!isStdio(server)) {
-			out[name] = copilot && server.type === "http" ? { ...rewritten, type: "streamable-http" } : rewritten;
+			// A remote server names no plugin file, so its root is never rewritten.
+			out[name] = copilot && server.type === "http" ? { ...server, type: "streamable-http" } : { ...server };
 			continue;
 		}
-		if (!copilot && typeof server.cwd === "string" && server.cwd.includes(PLACEHOLDER)) {
+		const rewritten = rewriteFields(server, MCP_ROOT_FIELDS, root);
+		if (!copilot && "cwd" in rewritten) {
 			issues.push(
 				ConfigIssue.make({
 					key: `mcpServers.${name}.cwd`,
 					message:
-						"Claude Code ignores an MCP server's cwd (it runs in the project directory); cd in the launcher instead",
+						"Claude Code ignores an MCP server's cwd (it runs in the project directory); set cwd under copilot.mcpServers or cd in the launcher instead",
 				}),
 			);
+			delete rewritten.cwd;
 		}
 		// Copilot silently drops an entry with no transport type, so name it.
 		out[name] = copilot ? { type: "stdio", ...withEnv(rewritten, env) } : withEnv(rewritten, env);
@@ -136,7 +152,7 @@ const lspEntries = ({ target, servers, env, root, issues }: LspInput): Record<st
 	const out: Record<string, unknown> = {};
 	for (const [name, server] of Object.entries(servers)) {
 		const entry: Record<string, unknown> = {};
-		for (const [field, value] of Object.entries(rewrite(server, root) as Record<string, unknown>)) {
+		for (const [field, value] of Object.entries(rewriteFields(server, LSP_ROOT_FIELDS, root))) {
 			mapField(target.lsp.fields[field], field, value, entry, `lspServers.${name}.${field}`, issues);
 		}
 		out[name] = withEnv(entry, env);
@@ -217,18 +233,27 @@ export interface ServerFiles {
 /**
  * The plugin files a target's servers name after `${PLUGIN_ROOT}/`: those a
  * whole `command` names, which must be executable, and every other one.
+ * Only the fields the root placeholder is documented in are scanned.
  *
  * @public
  */
-export const serverFiles = (id: KnownTargetId, config: PluginfinityConfig): ServerFiles => {
-	const servers = [
-		...Object.entries(merged(id, config, "mcpServers")).map(
-			([name, server]) => [`mcpServers.${name}`, server] as const,
-		),
-		...Object.entries(merged(id, config, "lspServers")).map(
-			([name, server]) => [`lspServers.${name}`, server] as const,
-		),
-	];
+export const serverFiles = (target: Target, id: KnownTargetId, config: PluginfinityConfig): ServerFiles => {
+	// Only the fields a placeholder is documented in count: no remote MCP server, no LSP field the target leaves
+	// unresolved (the build already fails those), and no initializationOptions or settings.
+	const mcp = Object.entries(merged(id, config, "mcpServers")).flatMap(([name, server]) =>
+		isStdio(server) ? [[`mcpServers.${name}`, only(server, MCP_ROOT_FIELDS)] as const] : [],
+	);
+	const lsp = Object.entries(merged(id, config, "lspServers")).map(
+		([name, server]) =>
+			[
+				`lspServers.${name}`,
+				only(
+					server,
+					LSP_ROOT_FIELDS.filter((field) => target.lsp.fields[field]?._tag !== "unresolved"),
+				),
+			] as const,
+	);
+	const servers = [...mcp, ...lsp];
 	const commands = new Set<string>();
 	const others = new Set<string>();
 	const owners = new Map<string, string>();

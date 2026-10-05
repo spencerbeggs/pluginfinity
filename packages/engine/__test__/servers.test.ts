@@ -158,12 +158,66 @@ describe("serverFiles", () => {
 			},
 			copilot: { mcpServers: { only: { command: "sh", args: [`${R}/bin/copilot-only.sh`] } } },
 		});
-		const claude = serverFiles("claude", config);
+		const claude = serverFiles(CLAUDE, "claude", config);
 		assert.deepStrictEqual(claude.commands, ["bin/a.sh"]);
 		assert.deepStrictEqual(claude.others, ["etc/c.json", "bin/b.sh", "share/d"]);
 		assert.strictEqual(claude.owners.get("bin/a.sh"), "mcpServers.a");
 		assert.strictEqual(claude.owners.get("bin/b.sh"), "lspServers.b");
-		assert.include(serverFiles("copilot", config).others, "bin/copilot-only.sh");
-		assert.notInclude(serverFiles("claude", config).others, "bin/copilot-only.sh");
+		assert.include(serverFiles(COPILOT, "copilot", config).others, "bin/copilot-only.sh");
+		assert.notInclude(serverFiles(CLAUDE, "claude", config).others, "bin/copilot-only.sh");
+	});
+
+	it("scans only the documented fields and not the ones a target leaves unresolved", () => {
+		const config = base({
+			mcpServers: {
+				docs: { type: "http", url: "https://e.com", headers: { H: `${R}/remote/h` } },
+				local: { command: "sh", args: [`${R}/bin/l.sh`] },
+			},
+			lspServers: {
+				x: {
+					command: "sh",
+					extensionToLanguage: { ".a": "a" },
+					initializationOptions: { path: `${R}/init/x` },
+					settings: { path: `${R}/settings/x` },
+					workspaceFolder: `${R}/ws`,
+				},
+			},
+		});
+		const claude = serverFiles(CLAUDE, "claude", config);
+		assert.deepStrictEqual(claude.others, ["bin/l.sh", "ws"]);
+		assert.deepStrictEqual(serverFiles(COPILOT, "copilot", config).others, ["bin/l.sh"]);
+	});
+});
+
+describe("renderServers: scoped rewriting", () => {
+	it("leaves initializationOptions, settings and remote servers untouched", () => {
+		const config = base({
+			mcpServers: { docs: { type: "http", url: "https://e.com", headers: { H: `${R}/h` } } },
+			lspServers: {
+				x: {
+					command: "sh",
+					extensionToLanguage: { ".a": "a" },
+					initializationOptions: { path: `${R}/init` },
+					settings: { path: `${R}/s` },
+				},
+			},
+		});
+		const render = renderServers(CLAUDE, "claude", config, "demo", LIB);
+		assert.strictEqual(json(render, ".mcp.json").mcpServers.docs.headers.H, `${R}/h`);
+		assert.strictEqual(json(render, ".lsp.json").x.initializationOptions.path, `${R}/init`);
+		assert.strictEqual(json(render, ".lsp.json").x.settings.path, `${R}/s`);
+	});
+
+	it("a literal Claude MCP cwd is an issue and is left out; Copilot keeps it", () => {
+		const config = base({ mcpServers: { mcp: { command: "sh", cwd: "bin" } } });
+		const claude = renderServers(CLAUDE, "claude", config, "demo", LIB);
+		assert.deepStrictEqual(
+			claude.issues.map((i) => i.key),
+			["mcpServers.mcp.cwd"],
+		);
+		assert.notProperty(json(claude, ".mcp.json").mcpServers.mcp, "cwd");
+		const copilot = renderServers(COPILOT, "copilot", config, "demo", LIB);
+		assert.deepStrictEqual(copilot.issues, []);
+		assert.strictEqual(json(copilot, "mcp.json").mcpServers.mcp.cwd, "bin");
 	});
 });
