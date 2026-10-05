@@ -41,7 +41,7 @@ One section per event in the library's set. Field names are Claude Code's. Copil
 
 - Input: `tool_name`, `tool_input`, `tool_use_id` and `error`, and optionally `is_interrupt` (Claude Code hooks docs).
 - The Claude Code docs document only `additionalContext` for it, so the library offers context and no block (Claude Code hooks docs).
-- Copilot reads exit code 2 from this hook as context, and the library has no emitter for it there. Use `hook_raw` only if you need that (GitHub Copilot hooks reference).
+- Copilot takes context for this event only from an exit-2 run, and the library always exits 0. There is no way to add context on Copilot PostToolUseFailure through the library (GitHub Copilot hooks reference).
 
 ## Stop
 

@@ -9,19 +9,21 @@ pluginfinity builds one hook script for both hosts. The hook library, sourced at
 
 ## The loop
 
-1. Choose the event. Check what it can do on each host with `hook_supports <capability> <Event>` or the `hook-events` skill.
+1. Choose the event. Check what it can do on each host in the `hook-events` skill's table. `hook_supports <capability> <Event>` works only inside a sourced hook, so it is no use at authoring time.
 2. Write a fixture in `__test__/fixtures/<event>.<scenario>.json`, or use `hook_fixture`.
 3. Write a failing `@test` that calls `run_hook claude …` and `run_hook copilot …`.
 4. Write the script in `hooks/`.
 5. Add the entry under `hooks` in `pluginfinity.config.ts`.
 6. Run `pluginfinity build`.
-7. Run `bats __test__` and `pluginfinity build --check`.
+7. Run `bats --recursive __test__` and `pluginfinity build --check`.
 
 ## Script rules
 
 - Source the library with `. "$(dirname "$0")/lib/pluginfinity/hook.sh"`. Add `../` for each directory depth below `hooks/`.
 - Start with `set -euo pipefail`.
 - Assign input to a variable before you use it: `cmd=$(hook_input tool_input.command)`.
+- Read the event only through `hook_input`; the library has already consumed stdin.
+- Only the response may reach stdout, and the library has no stdout fence. Redirect any CLI the hook runs (`>/dev/null` or `>&2`), or capture it with `$(...)`.
 - Send one response per run.
 - Never `exit 2`. Use `hook_deny` or `hook_block`.
 - Never install your own `trap … EXIT`. The library owns it.

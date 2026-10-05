@@ -74,7 +74,7 @@ project=$(hook_project_dir)              # the user's project
 if hook_supports context; then hook_context "hello"; fi
 ```
 
-`hook_input` reads stdin once and caches it. It accepts Copilot's camelCase payloads too (`toolName`,
+`hook_input` reads stdin when the library is sourced, and caches it; read input only through `hook_input`. It accepts Copilot's camelCase payloads too (`toolName`,
 `toolArgs` as an object or a JSON string), so `hook_input tool_input.command` works on both. The
 capabilities are `context`, `deny`, `allow`, `ask`, `block`, `system_message`, `noop` and `raw`.
 
@@ -138,6 +138,7 @@ where a failing `preToolUse` hook denies the tool call.
 - `hook_fail_closed` makes the trap respond with a deny (`PreToolUse`) or a block (where the host honours
   one) instead. Call it early. It does nothing if the script already sent a response.
 - `exit 2` is a failure here, not a block. Use `hook_deny` or `hook_block` to refuse something.
+- Only the response may reach stdout, and the library has no stdout fence. Redirect any CLI a hook runs (`>/dev/null` or `>&2`), or capture it with `$(...)`.
 - Do not install your own `trap ... EXIT`. It replaces the library's trap, and a failing hook would then exit
   non-zero.
 - A failing emitter, such as `hook_raw` or `hook_allow` given invalid JSON, logs the problem and returns 1. Under

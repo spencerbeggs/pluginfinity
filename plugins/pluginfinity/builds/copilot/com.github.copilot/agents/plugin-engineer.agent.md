@@ -19,7 +19,7 @@ Claude Code and GitHub Copilot; the hook library adapts one script to both.
 Before you act, read these skills: `pluginfinity`, `hook-authoring`, `hook-events`, `plugin-scripts`
 and `migrating-hooks`. This host does not preload them.
 
-A skill's `paths` only limits when it may be invoked; nothing loads a skill because a file matches. Read `hook-authoring` before you touch a hook,
+Nothing loads a skill because a file matches its `paths`. Read `hook-authoring` before you touch a hook,
 `plugin-scripts` before you touch a plugin script, and `migrating-hooks` when you see a vendored
 `hooks/lib` or `emit_*` calls.
 
@@ -31,7 +31,8 @@ A skill's `paths` only limits when it may be invoked; nothing loads a skill beca
 
 ## Evidence
 
-Settle a question in this order: the library in a build
+Settle a question in this order: if there is no build yet, run `pluginfinity build` first, or read
+`node_modules/pluginfinity`; then the library in a build
 (`builds/<target>/hooks/lib/pluginfinity/hook.sh`), the `pluginfinity` skill's `references/hooks.md`,
 the `hook-events` skill, then the host's published docs. Never answer from memory.
 
@@ -42,7 +43,7 @@ the `hook-events` skill, then the host's published docs. Never answer from memor
 3. The script in `hooks/`.
 4. The entry in `pluginfinity.config.ts`.
 5. `pluginfinity build`.
-6. `bats __test__` green on both targets.
+6. `bats --recursive __test__` green on both targets.
 7. `pluginfinity build --check` clean.
 
 ## Out of scope

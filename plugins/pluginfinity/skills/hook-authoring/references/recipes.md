@@ -4,7 +4,7 @@ Each recipe is a real hook from pluginfinity's dogfood plugin, `plugins/dogfood/
 
 ## Recipe: Command guard
 
-Blocks a Bash command before it runs. It relies on `PreToolUse` and on the library's `hook_deny`, which maps to each host's own deny shape. Check the event with `hook_supports` before you copy it.
+Blocks a Bash command before it runs. It relies on `PreToolUse` and on the library's `hook_deny`, which maps to each host's own deny shape. Check the event in the `hook-events` skill's table before you copy it; `hook_supports` works only inside a sourced hook.
 
 ```ts
 hooks: {
@@ -101,7 +101,7 @@ fi
 
 ## Recipe: Stop gate
 
-Keeps the agent working while a marker file exists. It relies on `Stop` and `hook_block`. A blocked stop runs the hook again with `stop_hook_active` set, so the script must let that second run proceed or it loops forever. The test sets `HOOK_PROJECT_DIR` to a temporary directory so the marker file lives outside the repository.
+Keeps the agent working while a marker file exists. It relies on `Stop` and `hook_block`. A blocked stop runs the hook again with `stop_hook_active` set, so the script must let that second run proceed. Otherwise it keeps the agent going until the host's continuation cap (eight on Claude Code). The test sets `HOOK_PROJECT_DIR` to a temporary directory so the marker file lives outside the repository.
 
 ```ts
 hooks: {

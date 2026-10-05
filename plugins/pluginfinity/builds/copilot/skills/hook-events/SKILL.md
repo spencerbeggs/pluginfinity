@@ -35,7 +35,7 @@ Sources: the capability cells mirror `hook_supports` in the hook library, which 
 
 ## Claude-only events
 
-Copilot runs only the twelve events above. A hook on any other Claude Code event, such as Setup, UserPromptExpansion, PermissionDenied or PostToolBatch, fails the Copilot build unless every entry for it sets `fallback: "omit"`, which leaves it out of that build. The full list is in [hooks](../pluginfinity/references/hooks.md).
+Of Claude Code's events, Copilot runs only the twelve above. A hook on any other Claude Code event, such as Setup, UserPromptExpansion, PermissionDenied or PostToolBatch, fails the Copilot build unless every entry for it sets `fallback: "omit"`, which leaves it out of that build. The full list is in [hooks](../pluginfinity/references/hooks.md).
 
 ```ts
 hooks: {

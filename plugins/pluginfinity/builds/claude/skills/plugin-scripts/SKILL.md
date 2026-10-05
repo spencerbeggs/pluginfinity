@@ -22,11 +22,11 @@ Who launches the script decides which variables it has.
 - A script can always find its own plugin's files from `$0`. Never walk up from `$0` to find the user's project: that works only in a local checkout, because an installed plugin lives in a cache.
 
 ```bash
-plugin_root="${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}}"
+plugin_root="${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)}}"
 data_dir="${CLAUDE_PLUGIN_DATA:-${COPILOT_PLUGIN_DATA:-}}"
 ```
 
-- The first line works anywhere, because `$0` is the last resort. The second leaves `data_dir` empty when the caller handed none, and every script that needs state must decide what that means. See State.
+- The `$0` fallback is the last resort. Use one `..` per directory between the script and the plugin root: the three above suit a script in `skills/<name>/scripts/`, and a script directly under `scripts/` needs one. The second leaves `data_dir` empty when the caller handed none, and every script that needs state must decide what that means. See State.
 - In a hook command's text on Copilot, write `${PLUGIN_ROOT}` or `${CLAUDE_PLUGIN_ROOT}`. Copilot substitutes both. It leaves `${COPILOT_PLUGIN_ROOT}` as literal text there (measured, Copilot CLI 1.0.91, 2026-10-02), although the variable is set for a script to read.
 - `${PLUGIN_DATA}` is unset in a Copilot hook's environment (same measurement). Use `COPILOT_PLUGIN_DATA`.
 - For the user's project, use `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}`, or take it as an argument. Hooks should call `hook_plugin_root` and `hook_project_dir` instead.
