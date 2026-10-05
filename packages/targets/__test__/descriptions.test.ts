@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { AGENT_FIELDS, CLAUDE_HOOK_EVENTS, SKILL_FIELDS, Target } from "@pluginfinity/core";
+import { AGENT_FIELDS, CLAUDE_HOOK_EVENTS, LSP_FIELDS, SKILL_FIELDS, Target, rename } from "@pluginfinity/core";
 import { Effect, Schema } from "effect";
 import { COPILOT_OWN_EVENTS, TARGETS } from "../src/index.js";
 
@@ -26,6 +26,10 @@ for (const entry of TARGETS) {
 			assert.sameMembers(Object.keys(entry.target.agents.fields), [...AGENT_FIELDS]);
 		});
 
+		it("maps every LSP server field and nothing else", () => {
+			assert.sameMembers(Object.keys(entry.target.lsp.fields), [...LSP_FIELDS]);
+		});
+
 		it("maps every Claude Code hook event and nothing else", () => {
 			assert.sameMembers(Object.keys(entry.target.hooks.events), [...CLAUDE_HOOK_EVENTS]);
 		});
@@ -49,6 +53,16 @@ for (const entry of TARGETS) {
 it("the totality check flags a missing skill field", () => {
 	const fields = Object.keys(TARGETS[0]?.target.skills.fields ?? {}).slice(1);
 	assert.throws(() => assert.sameMembers(fields, [...SKILL_FIELDS]));
+});
+
+it("Claude keeps every LSP field and Copilot renames extensionToLanguage", () => {
+	const [claude, copilot] = [TARGETS.find((t) => t.id === "claude"), TARGETS.find((t) => t.id === "copilot")];
+	assert.isTrue(Object.values(claude?.target.lsp.fields ?? {}).every((entry) => entry._tag === "keep"));
+	assert.deepStrictEqual(copilot?.target.lsp.fields.extensionToLanguage, rename("fileExtensions"));
+	assert.strictEqual(copilot?.target.lsp.fields.workspaceFolder?._tag, "unresolved");
+	assert.strictEqual(copilot?.target.lsp.fields.settings?._tag, "unresolved");
+	assert.strictEqual(copilot?.target.lsp.path, "com.github.copilot/lsp.json");
+	assert.strictEqual(claude?.target.lsp.path, ".lsp.json");
 });
 
 describe("the copilot description", () => {

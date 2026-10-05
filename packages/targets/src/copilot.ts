@@ -1,5 +1,15 @@
-import type { AgentField, ClaudeHookEvent, FieldMapEntry, SkillField } from "@pluginfinity/core";
-import { CLAUDE_HOOK_EVENTS, Target, absent, degrade, drop, keep, translate, unresolved } from "@pluginfinity/core";
+import type { AgentField, ClaudeHookEvent, FieldMapEntry, LspField, SkillField } from "@pluginfinity/core";
+import {
+	CLAUDE_HOOK_EVENTS,
+	Target,
+	absent,
+	degrade,
+	drop,
+	keep,
+	rename,
+	translate,
+	unresolved,
+} from "@pluginfinity/core";
 
 const ROOT = `\${PLUGIN_ROOT}`;
 const MODEL_ALIAS = "Copilot names models differently; set a full model ID as model under targets.copilot";
@@ -63,6 +73,27 @@ const agentFields = {
 // Events with a PascalCase form on Copilot keep their Claude name, so a hook
 // script reads a Claude-shaped payload. SubagentStart and Notification exist
 // only in camelCase; everything else is absent.
+// Copilot's lsp.json documents command, args, env, cwd, fileExtensions, rootUri
+// and initializationOptions. Claude's lifecycle tuning has no counterpart.
+const lspFields = {
+	command: keep,
+	args: keep,
+	env: keep,
+	extensionToLanguage: rename("fileExtensions"),
+	initializationOptions: keep,
+	settings: unresolved(
+		"Copilot has no LSP settings channel; set the server under targets.copilot.lspServers without settings",
+	),
+	workspaceFolder: unresolved(
+		"Copilot's rootUri is relative to the git root, not a path; set the server under targets.copilot.lspServers without workspaceFolder",
+	),
+	startupTimeout: drop,
+	shutdownTimeout: drop,
+	restartOnCrash: drop,
+	maxRestarts: drop,
+	diagnostics: drop,
+} as const satisfies Record<LspField, FieldMapEntry>;
+
 const PASCAL_CASE = new Set<ClaudeHookEvent>([
 	"SessionStart",
 	"SessionEnd",
@@ -95,6 +126,7 @@ export const COPILOT: Target = Target.make({
 	pluginRoot: {
 		hooks: ROOT,
 		mcp: ROOT,
+		lsp: ROOT,
 		body: unresolved("Copilot documents no plugin-root expansion inside skill or agent bodies"),
 	},
 	skills: { dir: "skills", fields: skillFields, hostFields: [] },
@@ -129,6 +161,7 @@ export const COPILOT: Target = Target.make({
 		format: "agent-plugins-mcp-1.0",
 		schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
 	},
+	lsp: { path: "com.github.copilot/lsp.json", format: "copilot-lsp-json", fields: lspFields },
 	references: { style: "prose" },
 	tools: {
 		// Copilot's primary aliases for the Claude Code tools it documents a

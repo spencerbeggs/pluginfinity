@@ -25,7 +25,12 @@ const minimalTarget = {
 		schema: "https://example.com/s.json",
 		keys: ["name"],
 	},
-	pluginRoot: { hooks: `\${PLUGIN_ROOT}`, mcp: `\${PLUGIN_ROOT}`, body: unresolved("no expansion in bodies") },
+	pluginRoot: {
+		hooks: `\${PLUGIN_ROOT}`,
+		mcp: `\${PLUGIN_ROOT}`,
+		lsp: `\${PLUGIN_ROOT}`,
+		body: unresolved("no expansion in bodies"),
+	},
 	skills: { dir: "skills", fields: { description: keep }, hostFields: [] },
 	agents: { dir: "agents", suffix: ".agent.md", fields: { name: keep }, hostFields: ["handoffs"] },
 	hooks: {
@@ -35,6 +40,7 @@ const minimalTarget = {
 		ownEvents: [],
 	},
 	mcp: { path: "mcp.json", format: "agent-plugins-mcp-1.0" as const },
+	lsp: { path: "lsp.json", format: "copilot-lsp-json" as const, fields: { command: keep } },
 	references: { style: "prose" as const },
 	tools: {
 		names: { Agent: "agent", Skill: drop, Task: unresolved("no alias") },

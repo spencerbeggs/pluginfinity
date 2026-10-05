@@ -44,6 +44,16 @@ export const MCP_FORMATS = ["claude-mcp-json", "agent-plugins-mcp-1.0"] as const
 /** @public */
 export const McpFormat = Schema.Literals(MCP_FORMATS);
 
+/**
+ * LSP config formats. The engine owns one encoder per format.
+ *
+ * @public
+ */
+export const LSP_FORMATS = ["claude-lsp-json", "copilot-lsp-json"] as const;
+
+/** @public */
+export const LspFormat = Schema.Literals(LSP_FORMATS);
+
 const NonEmpty = Schema.String.check(Schema.isMinLength(1));
 
 /** Write the field unchanged. @public */
@@ -132,7 +142,7 @@ const FieldMap = Schema.Record(Schema.String, FieldMapEntry);
  * Build a description with `Target.make`, which validates it at construction,
  * so a malformed host description fails when `@pluginfinity/targets` loads.
  * Field maps are typed as string records here; `@pluginfinity/targets` checks
- * their totality over `SKILL_FIELDS` and `AGENT_FIELDS` at compile time and in
+ * their totality over `SKILL_FIELDS`, `AGENT_FIELDS` and `LSP_FIELDS` at compile time and in
  * tests. A tool name absent from `tools.names` follows `tools.unlisted`; a value
  * absent from `models` or `efforts` passes through unchanged.
  *
@@ -145,7 +155,7 @@ export class Target extends Schema.Class<Target>("Target")({
 		schema: Schema.optionalKey(Schema.String),
 		keys: Schema.Array(Schema.String),
 	}),
-	pluginRoot: Schema.Struct({ hooks: RootSpelling, mcp: RootSpelling, body: RootSpelling }),
+	pluginRoot: Schema.Struct({ hooks: RootSpelling, mcp: RootSpelling, lsp: RootSpelling, body: RootSpelling }),
 	skills: Schema.Struct({ dir: Schema.String, fields: FieldMap, hostFields: Schema.Array(Schema.String) }),
 	agents: Schema.Struct({
 		dir: Schema.String,
@@ -160,6 +170,7 @@ export class Target extends Schema.Class<Target>("Target")({
 		ownEvents: Schema.Array(Schema.String),
 	}),
 	mcp: Schema.Struct({ path: Schema.String, format: McpFormat, schema: Schema.optionalKey(Schema.String) }),
+	lsp: Schema.Struct({ path: Schema.String, format: LspFormat, fields: FieldMap }),
 	references: Schema.Struct({ style: Schema.Literals(["path", "prose"]) }),
 	tools: Schema.Struct({
 		names: Schema.Record(Schema.String, ToolMapping),

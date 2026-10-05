@@ -52,6 +52,8 @@ export {
 	HOOKS_FORMATS,
 	HooksFormat,
 	Keep,
+	LSP_FORMATS,
+	LspFormat,
 	MANIFEST_FORMATS,
 	MCP_FORMATS,
 	ManifestFormat,

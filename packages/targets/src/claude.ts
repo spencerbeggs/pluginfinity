@@ -1,5 +1,5 @@
-import type { AgentField, FieldMapEntry, SkillField } from "@pluginfinity/core";
-import { CLAUDE_HOOK_EVENTS, Target, drop, keep } from "@pluginfinity/core";
+import type { AgentField, FieldMapEntry, LspField, SkillField } from "@pluginfinity/core";
+import { CLAUDE_HOOK_EVENTS, LSP_FIELDS, Target, drop, keep } from "@pluginfinity/core";
 
 const ROOT = `\${CLAUDE_PLUGIN_ROOT}`;
 
@@ -49,6 +49,8 @@ const agentFields = {
 	experimental: keep,
 } as const satisfies Record<AgentField, FieldMapEntry>;
 
+const lspFields = Object.fromEntries(LSP_FIELDS.map((field) => [field, keep])) as Record<LspField, FieldMapEntry>;
+
 /**
  * Claude Code, described by what it can do.
  *
@@ -60,7 +62,7 @@ export const CLAUDE: Target = Target.make({
 		format: "claude-plugin-json",
 		keys: ["name", "version", "description", "author", "homepage", "repository", "license", "keywords"],
 	},
-	pluginRoot: { hooks: ROOT, mcp: ROOT, body: ROOT },
+	pluginRoot: { hooks: ROOT, mcp: ROOT, lsp: ROOT, body: ROOT },
 	skills: { dir: "skills", fields: skillFields, hostFields: [] },
 	agents: { dir: "agents", suffix: ".md", fields: agentFields, hostFields: [] },
 	hooks: {
@@ -70,6 +72,7 @@ export const CLAUDE: Target = Target.make({
 		ownEvents: [],
 	},
 	mcp: { path: ".mcp.json", format: "claude-mcp-json" },
+	lsp: { path: ".lsp.json", format: "claude-lsp-json", fields: lspFields },
 	references: { style: "path" },
 	tools: { names: {}, mcp: "mcp__{server}__{tool}", unlisted: "keep" },
 	models: {},
