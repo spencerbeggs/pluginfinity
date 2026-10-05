@@ -64,8 +64,10 @@ overrides:
   set `args`, `env`, `initializationOptions`, `settings`, `workspaceFolder`, `startupTimeout`,
   `shutdownTimeout`, `restartOnCrash`, `maxRestarts` and `diagnostics`. Any other key fails.
 - **`${PLUGIN_ROOT}`** is rewritten only in a local MCP server's `command`, `args`, `env` values and
-  `cwd`, and an LSP server's `command`, `args`, `env` values and `workspaceFolder`. Every file named
-  after it there ships with that host's build.
+  `cwd`, and an LSP server's `command`, `args`, `env` values and `workspaceFolder`. Every path named
+  after it there ships with that host's build: a file, or every file under a directory. A path ends at
+  whitespace, a quote, a shell metacharacter, `:` or `,`. A host spelling such as `${CLAUDE_PLUGIN_ROOT}`,
+  or a brace-less `$PLUGIN_ROOT`, in those fields fails the build; write `${PLUGIN_ROOT}`.
 - **`env` keys starting with `PLUGINFINITY_` fail.** The build injects `PLUGINFINITY_HOST`,
   `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB` itself.
 - **A `files` entry** is a canonical relative path: no empty, `.` or `..` segment, not the plugin root,

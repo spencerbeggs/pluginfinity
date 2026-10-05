@@ -40,7 +40,9 @@ server_exec_bin myplugin-mcp @myplugin/mcp "$@"
 - `server_exec_bin` does not call `server_log`. Log yourself before it if you want a record.
 - Under `set -e`, a bare `server_project_dir` that returns 1 inside `$(...)` in an assignment ends the script. Add `|| true`, or test it: `if dir=$(server_project_dir); then ...`.
 - Do not put your own files under `lib/pluginfinity/`: that directory is the build's, and a source file there fails the build with `PathConflict`. Keep launcher helpers beside the launcher, such as `bin/lib/`, and name them in `files`.
-- The launcher must exist, sit inside the plugin, and be named without `.` or `..` segments. Run it through `sh` so it needs no executable bit; a `${PLUGIN_ROOT}/...` path used as the whole `command` must be executable.
+- The launcher must exist, sit inside the plugin, and be named without `.` or `..` segments. Run it through `sh` so it needs no executable bit; a `${PLUGIN_ROOT}/...` path used as the whole `command` must be an executable file, not a directory.
+- Name it with `${PLUGIN_ROOT}`, never a host spelling such as `${CLAUDE_PLUGIN_ROOT}` or a brace-less `$PLUGIN_ROOT`: only `${PLUGIN_ROOT}` is rewritten per host, and any other spelling in a server's root fields fails the build.
+- A `${PLUGIN_ROOT}/<dir>` reference, such as a data directory in `env`, ships every file under the directory. A reference ends at `:` and `,` too, so `PATH: "${PLUGIN_ROOT}/bin:/usr/bin"` ships `bin/`.
 - Test the built launcher with bats, once per host. Make a fake project holding `.git/` and an executable stub at `node_modules/.bin/<bin>` that echoes its arguments, `cd` into it, and run `sh "$BUILDS/<host>/bin/<launcher>"` under `env -i` with `PATH`, `HOME`, `PLUGINFINITY_HOST=<host>`, `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB="$BUILDS/<host>/lib/pluginfinity"`, where `BUILDS` is the absolute path to `builds/`: after the `cd`, a relative launcher or library path no longer resolves. Assert stdout is exactly the stub's output, so nothing else reached it. The dogfood fixture's `__test__/servers.bats` does this.
 
 ## Where am I

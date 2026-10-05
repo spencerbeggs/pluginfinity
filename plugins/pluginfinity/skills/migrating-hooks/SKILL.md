@@ -13,7 +13,7 @@ A plugin from the plugin-bot era carries its own copy of the hook helpers, a han
 
 ## Before you start
 
-If the plugin declares MCP or LSP servers, migrate them too. Move each server from `.mcp.json` or `.lsp.json` into `mcpServers` or `lspServers` in `pluginfinity.config.ts`, written with `${PLUGIN_ROOT}`, following the `pluginfinity` skill's "Servers and launchers" section. A launcher such as `bin/start-mcp.sh` ships because the server names it. Rewrite each launcher on the server library, with no host branches, following the `plugin-scripts` skill's "Server launchers" section, and list any helper it sources in `files`.
+If the plugin declares MCP or LSP servers, migrate them too. Move each server from `.mcp.json` or `.lsp.json` into `mcpServers` or `lspServers` in `pluginfinity.config.ts`, written with `${PLUGIN_ROOT}`: rewrite every `${CLAUDE_PLUGIN_ROOT}` in the server config to `${PLUGIN_ROOT}`, since any host spelling fails the build. Follow the `pluginfinity` skill's "Servers and launchers" section. A launcher such as `bin/start-mcp.sh` ships because the server names it. Rewrite each launcher on the server library, with no host branches, following the `plugin-scripts` skill's "Server launchers" section, and list any helper it sources in `files`.
 
 ## Inventory
 

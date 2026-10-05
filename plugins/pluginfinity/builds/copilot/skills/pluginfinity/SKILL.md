@@ -69,10 +69,15 @@ files: ["share/"],
 
 - **`${PLUGIN_ROOT}` is the one placeholder.** It is rewritten for each host in a local MCP server's
   `command`, `args`, `env` values and `cwd`, and in an LSP server's `command`, `args`, `env` values and
-  `workspaceFolder`. Nowhere else.
-- **A file a server names after `${PLUGIN_ROOT}/` ships** to every host whose servers name it. It must
-  exist inside the plugin, be written without `.` or `..` segments, and be executable when it is the
-  whole `command`. Prefer `command: "sh"` with the launcher in `args`.
+  `workspaceFolder`. Nowhere else. Never write a host's spelling there, such as
+  `${CLAUDE_PLUGIN_ROOT}` or `$CLAUDE_PLUGIN_ROOT`, or a brace-less `$PLUGIN_ROOT`: the build would
+  pass it through unrewritten and ship nothing, so it fails the build. Write `${PLUGIN_ROOT}`.
+- **A path a server names after `${PLUGIN_ROOT}/` ships** to every host whose servers name it. The path
+  ends at whitespace, a quote, a shell metacharacter, `:` or `,`, so `"${PLUGIN_ROOT}/bin:/usr/bin"` in a
+  `PATH` names `bin`, and a comma list names each path. A directory ships every file under it, like a
+  `files` directory. The path must exist inside the plugin, be written without `.` or `..` segments
+  (a directory may end in `/`), and, when it is the whole `command`, be an executable file, not a
+  directory. Prefer `command: "sh"` with the launcher in `args`.
 - **`files`** ships what no server names, such as data a launcher reads: files, or directories ending in
   `/`.
 - **Never put a `cwd` on a Claude MCP server.** Claude ignores it and starts the server in the project,

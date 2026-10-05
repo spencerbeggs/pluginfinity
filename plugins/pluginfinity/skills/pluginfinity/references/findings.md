@@ -24,7 +24,7 @@ exits 64.
 | `ComponentsInvalid` | One or more skills or agents are wrong; each is listed with its file and, where it applies, the host | Fix each listed file, as below |
 | `HookEventUnsupported` | A host lacks a hook event the config uses | Set `fallback: "omit"`, or give that host its own hooks for the event |
 | `HookScriptInvalid` | A hook script is missing, or not executable under `scripts.invoke: "exec"` | Create it or fix the path; `chmod +x` it or drop `exec` |
-| `ShippedFileInvalid` | A file a server names, or a `files` entry, cannot ship: `missing`, `not-executable` (a whole `command` without the exec bit), `outside-root` (it or a symlink under it leaves the plugin) or `not-normal` (a `.`, `..` or empty segment) | Create the file or fix the path; `chmod +x` it or use `command: "sh"` with the path in `args`; keep files inside the plugin |
+| `ShippedFileInvalid` | A file a server names, or a `files` entry, cannot ship: `missing`, `not-executable` (a whole `command` without the exec bit), `directory` (a whole `command` that is a directory), `outside-root` (it or a symlink under it leaves the plugin) or `not-normal` (a `.`, `..` or empty segment) | Create the file or fix the path; `chmod +x` it or use `command: "sh"` with the path in `args`; name the launcher file, not its directory, as `command`; keep files inside the plugin |
 | `PathConflict` | A source file sits where the build writes a generated file, such as `hooks/hooks.json` or `.mcp.json`, or under the reserved `lib/pluginfinity/` or `hooks/lib/pluginfinity/` | Delete or move the source file |
 | `BuildStale` | `build --check` or `validate` found `builds/` out of date; the message names every file | Run `pluginfinity build` and commit the result |
 
@@ -46,6 +46,10 @@ Common problems inside `ComponentsInvalid`:
   `copilot.mcpServers`, or `cd` in the launcher.
 - **`lspServers.<name>.workspaceFolder` or `.settings` on Copilot.** Copilot has neither; set that
   server under `copilot.lspServers` without the field.
+- **A host root spelling in a server field**, such as `${CLAUDE_PLUGIN_ROOT}` or a brace-less
+  `$PLUGIN_ROOT` in `mcpServers.<name>.args`. Write `${PLUGIN_ROOT}`; the build rewrites it per host.
+- **A key starting `claude.` or `copilot.`**, such as `copilot.lspServers.<name>.settings`, names a server
+  set under that target's override; fix it there.
 
 ## Validating
 

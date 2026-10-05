@@ -38,8 +38,8 @@ sources:
     title: LspServers
 generated:
   by: okfit/claude-code
-  at: 2026-10-05T18:11:03Z
-  body_sha256: 3441f024a6949b7d1876097bcb89d59425cc6aa2b1836baae449496df6d0b535
+  at: 2026-10-05T18:30:14Z
+  body_sha256: 556e9c929f1779ed2e3dcc5ff985867e38b6d3dc2681bdf182c9b724afcccd36
 ---
 
 # pluginfinity.config.ts
@@ -66,7 +66,7 @@ export default defineConfig({
 - **`hooks`** maps Claude Code event names to hook entries. An entry has exactly one of `script` (a path relative to the plugin root, with optional `args`) or `command` (a string whose one placeholder is `${PLUGIN_ROOT}`), and optional `matcher`, `timeout` (positive whole seconds) and `fallback` (`"fail"`, the default, or `"omit"`).[^core-hooks]
 - **`mcpServers`** maps server names to Claude Code's `.mcp.json` server shape: `command` with optional `args`, `env` and `cwd`, or `type` (`http` or `sse`) with `url` and optional `headers`.[^core-mcp]
 - **`lspServers`** maps server names to Claude Code's `.lsp.json` server shape: required `command` (non-empty) and `extensionToLanguage` (keys start with `.`, like `.ts`), and optional `args`, `env`, `initializationOptions`, `settings`, `workspaceFolder`, `startupTimeout`, `shutdownTimeout`, `maxRestarts` (whole numbers, zero or more), `restartOnCrash` and `diagnostics`.[^core-lsp]
-- **`${PLUGIN_ROOT}`** is the one placeholder in a server: in a local MCP server's `command`, `args`, `env` values and `cwd`, and in an LSP server's `command`, `args`, `env` values and `workspaceFolder`. It is not expanded in a remote MCP server, `initializationOptions` or `settings`.
+- **`${PLUGIN_ROOT}`** is the one placeholder in a server: in a local MCP server's `command`, `args`, `env` values and `cwd`, and in an LSP server's `command`, `args`, `env` values and `workspaceFolder`. It is not expanded in a remote MCP server, `initializationOptions` or `settings`. A host's own spelling (`${CLAUDE_PLUGIN_ROOT}`, `${COPILOT_PLUGIN_ROOT}`, or either without braces) or a brace-less `$PLUGIN_ROOT` in those fields fails the build. Each `${PLUGIN_ROOT}/<path>` there ships to the target: the path ends at whitespace, a quote, a shell metacharacter, `:` or `,`, and a directory ships every file under it.
 - **Server `env`** keys starting with `PLUGINFINITY_` fail as `ConfigInvalid`; that prefix is reserved for the variables the build injects.[^core-mcp]
 - **`files`** is a list of plugin-relative paths, each a file or a directory ending in `/`, shipped to every target. An entry must be canonical (relative, no empty, `.` or `..` segment, not the plugin root) and must not be or lie under `builds/` or `node_modules/`, or it fails as `ConfigInvalid`. That an entry exists and stays inside the plugin is checked at build time ([CLI interface](cli.md)). Only the base config has `files`.[^core-config]
 - **`scripts.invoke`** is `"bash"` (the default) or `"exec"`, how `script` hooks run.[^core-config]
