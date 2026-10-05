@@ -2,7 +2,7 @@
 type: Decision
 title: Server launchers ship by discovery and files, beside an injected server library
 description: A build ships every plugin file a target's MCP and LSP servers name after ${PLUGIN_ROOT}/, plus what the files key lists, and writes a POSIX sh server library to lib/pluginfinity/ with PLUGINFINITY_* variables in each local server's env.
-status: draft
+status: stable
 tags:
   - architecture
   - portability
@@ -28,6 +28,9 @@ generated:
   by: okfit/claude-code
   at: 2026-10-05T18:30:14Z
   body_sha256: b0b77cb733b1bd8637a699ec0b2e4950986b9dc7cf760785a6f4e65c309db426
+verified:
+  - by: human:spencer
+    at: 2026-10-05T18:45:46Z
 ---
 
 # Server launchers ship by discovery and files, beside an injected server library
