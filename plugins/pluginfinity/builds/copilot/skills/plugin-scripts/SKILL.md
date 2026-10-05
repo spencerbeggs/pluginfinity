@@ -9,28 +9,31 @@ A plugin script runs in the user's shell environment, on a host you do not contr
 
 ## Where am I
 
-- The plugin root is `${CLAUDE_PLUGIN_ROOT}` on Claude Code and `${PLUGIN_ROOT}` on Copilot (Claude Code plugins reference; pluginfinity hooks reference). Copilot also sets `CLAUDE_PLUGIN_ROOT` in a hook's environment (pluginfinity hooks reference).
-- The data directory is `${CLAUDE_PLUGIN_DATA}` on Claude Code and `${COPILOT_PLUGIN_DATA}` on Copilot (Claude Code plugins reference; Copilot hooks configuration reference).
-- Claude Code does not put these variables in the environment of commands the agent runs through the Bash tool. It substitutes a `${...}` reference written in skill, command or agent Markdown when it loads (Claude Code plugins reference). Write the path into the skill's Markdown, or let the script find itself.
-- A script always knows where it sits, so it can find its own plugin's files from `$0`. Never walk up from `$0` to find the user's project: that works only in a local checkout, because an installed plugin lives in a cache.
+Who launches the script decides which variables it has.
+
+- A script a hook runs inherits the host's variables. On Claude Code they are `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` and `CLAUDE_PROJECT_DIR` (Claude Code hooks reference). On Copilot CLI 1.0.91 (measured 2026-10-02, a hook command) `PLUGIN_ROOT`, `COPILOT_PLUGIN_ROOT` and `CLAUDE_PLUGIN_ROOT` were all set to the plugin root, and `COPILOT_PLUGIN_DATA` was set. `PLUGIN_DATA` was unset.
+- A script a skill runs through the Bash tool does not inherit them. Claude Code keeps these variables out of the environment of commands the agent runs through the Bash tool. It substitutes a `${...}` reference written in skill, command or agent Markdown when the skill loads (Claude Code plugins reference). Hand the script its paths: as arguments, or as environment the caller sets on the command line. How Copilot exposes the plugin root to skill scripts is undocumented, so do not rely on a variable there.
+- A script can always find its own plugin's files from `$0`. Never walk up from `$0` to find the user's project: that works only in a local checkout, because an installed plugin lives in a cache.
 
 ```bash
 plugin_root="${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}}"
 data_dir="${CLAUDE_PLUGIN_DATA:-${COPILOT_PLUGIN_DATA:-}}"
 ```
 
-- The second line leaves `data_dir` empty on a host that sets neither. Test it before you write: `[ -n "$data_dir" ] || { echo "no plugin data directory" >&2; exit 1; }`.
-- Do not write `${COPILOT_PLUGIN_ROOT}` or `${PLUGIN_DATA}` in a script. The Copilot CLI plugin format reference documents no `COPILOT_PLUGIN_ROOT`, and `PLUGIN_DATA` is a placeholder for MCP and agent config, not a variable a script can rely on. Either expands to nothing.
-- For the user's project, use `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}`. Hooks should call `hook_plugin_root` and `hook_project_dir` instead.
+- The first line works anywhere, because `$0` is the last resort. The second leaves `data_dir` empty when the caller handed none, and every script that needs state must decide what that means. See State.
+- In a hook command's text on Copilot, write `${PLUGIN_ROOT}` or `${CLAUDE_PLUGIN_ROOT}`. Copilot substitutes both. It leaves `${COPILOT_PLUGIN_ROOT}` as literal text there (measured, Copilot CLI 1.0.91, 2026-10-02), although the variable is set for a script to read.
+- `${PLUGIN_DATA}` is unset in a Copilot hook's environment (same measurement). Use `COPILOT_PLUGIN_DATA`.
+- For the user's project, use `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}`, or take it as an argument. Hooks should call `hook_plugin_root` and `hook_project_dir` instead.
 
 ## Calling another CLI
 
 Tools such as `gh`, `aws` and `kubectl` read their own environment variables before their keyring, profile or context. A stale `GH_TOKEN` in the user's shell beats a good `gh auth login`, and the plugin never notices.
 
 - Namespace the plugin's own variable (`MYPLUGIN_GH_TOKEN`) and translate it to `GH_TOKEN` for one call. Never tell the user to export `GH_TOKEN`.
-- Scrub the inherited token at every call site, with a per-call override (`VAR= cmd`, `env -u VAR cmd`) or a subshell `( unset VAR; cmd )`. Never put `unset` at the top of the script: it changes the environment for every later command.
+- Scrub the inherited token, and `GH_HOST` and `GH_REPO`, at every call site, with a per-call override (`VAR= cmd`, `env -u VAR cmd`) or a subshell `( unset VAR; cmd )`. Never put `unset` at the top of the script: it changes the environment for every later command.
 - Scrub at the check and at the use. A probe that scrubs while the write call is bare passes against the keyring, then writes with the stale token. List every call site and confirm they agree.
-- `gh auth status` exits non-zero when an invalid env token sits beside a valid keyring entry. Control the environment first, then read the exit code, which `_gh_auth_ok` below does.
+- `gh auth status` exits non-zero when an invalid env token sits beside a valid keyring entry. Control the environment first, then read the exit code. `_gh_auth_ok` below does that only for the token it resolves.
+- An inherited `GH_HOST` or `GH_REPO` points `gh` at the wrong host or repository. Scrub them too, and pass `--repo` when the plugin means a specific one.
 - Set `GH_PAGER=cat` so `gh` never waits on a pager.
 - Pass `--context` to `kubectl` and `helm`, and `--profile` to `aws`, whenever the plugin assumes a cluster or account. Their environment variables (`KUBECONFIG`, `AWS_PROFILE`) otherwise decide.
 - Capture a status with `out=$(cmd 2>&1) || rc=$?`. After `cmd || true`, `$?` is always 0.
@@ -48,21 +51,23 @@ _gh() {
 		token="$GITHUB_TOKEN"
 	fi
 	if [ -n "$token" ]; then
-		GH_TOKEN="$token" GITHUB_TOKEN="$token" GH_PAGER=cat gh "$@"
+		env -u GH_HOST -u GH_REPO GH_TOKEN="$token" GITHUB_TOKEN="$token" GH_PAGER=cat gh "$@"
 	else
 		# An empty GH_TOKEN counts as a token, so remove it and let gh use the keyring.
-		env -u GH_TOKEN -u GITHUB_TOKEN GH_PAGER=cat gh "$@"
+		env -u GH_TOKEN -u GITHUB_TOKEN -u GH_HOST -u GH_REPO GH_PAGER=cat gh "$@"
 	fi
 }
 _gh_auth_ok() { _gh auth status >/dev/null 2>&1; }
 ```
 
-Call `_gh pr view`, never bare `gh pr view`. The fallback to `GH_TOKEN` and `GITHUB_TOKEN` keeps the script working in CI, where they are the normal way in.
+Call `_gh pr view`, never bare `gh pr view`. The fallback to `GH_TOKEN` and `GITHUB_TOKEN` keeps the script working in CI, where they are the normal way in. The limit: with no `MYPLUGIN_GH_TOKEN`, the wrapper uses an inherited `GH_TOKEN`, so `_gh_auth_ok` then tests that token. A stale one still fails the check even when the keyring is good. To prefer the keyring, drop the two fallback branches.
 
 ## State
 
 - Write persistent files to the data directory, never the plugin root. The plugin root is the install directory, which changes on every update (Claude Code plugins reference).
-- Claude Code creates `${CLAUDE_PLUGIN_DATA}` on first reference, keeps it across updates and deletes it on uninstall. Create subdirectories with `mkdir -p "$data_dir/cache"`.
+- Claude Code creates `${CLAUDE_PLUGIN_DATA}` on first reference, keeps it across updates and deletes it on uninstall (Claude Code plugins reference). A script a skill runs has no such variable unless the caller passes the path.
+- Give the script a defined fallback when `data_dir` is empty. Either fail with a message that names the missing argument, or fall back to a cache under the user's own state directory, for example `${XDG_STATE_HOME:-$HOME/.local/state}/myplugin`.
+- Create subdirectories with `mkdir -p "$data_dir/cache"` and never write under `plugin_root`.
 - Do not rebuild `~/.claude/plugins/data/<id>/` by hand. The `<id>` form is the host's business.
 - A script's working directory is whatever the agent last used. Do not assume it is the project root.
 
