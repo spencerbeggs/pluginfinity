@@ -16,7 +16,7 @@
 		"MD007": true,
 		"MD008": true,
 		"MD009": true,
-		"MD010": true,
+		"MD010": { "code_blocks": false },
 		"MD011": true,
 		"MD012": true,
 		"MD013": false,
