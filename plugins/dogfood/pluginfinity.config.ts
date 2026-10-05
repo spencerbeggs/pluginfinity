@@ -10,7 +10,10 @@ export default defineConfig({
 			{ matcher: "Bash", script: "hooks/pre-tool-use.sh", timeout: 5 },
 			{ matcher: "Read", script: "hooks/crash.sh", timeout: 5 },
 		],
-		PostToolUse: [{ matcher: "Bash", script: "hooks/post-tool-use.sh", timeout: 5 }],
+		PostToolUse: [
+			{ matcher: "Bash", script: "hooks/post-tool-use.sh", timeout: 5 },
+			{ matcher: "Edit|Write", script: "hooks/post-edit.sh", timeout: 5 },
+		],
 		Stop: [{ script: "hooks/stop.sh", timeout: 5 }],
 		SubagentStart: [{ script: "hooks/subagent-start.sh", timeout: 5 }],
 	},

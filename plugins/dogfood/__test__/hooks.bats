@@ -71,3 +71,10 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 	run_hook copilot hooks/subagent-start.sh subagentstart.json
 	assert_hook_json .additionalContext "pluginfinity-dogfood subagent context"
 }
+
+@test "PostToolUse names the edited file on both targets and both input shapes" {
+	run_hook claude hooks/post-edit.sh posttooluse.edit.json
+	assert_hook_json .hookSpecificOutput.additionalContext "pluginfinity-dogfood saw an edit to /tmp/pf-dogfood-edit.txt"
+	run_hook copilot hooks/post-edit.sh posttooluse.edit.copilot.json
+	assert_hook_json .additionalContext "pluginfinity-dogfood saw an edit to /tmp/pf-dogfood-edit.txt"
+}

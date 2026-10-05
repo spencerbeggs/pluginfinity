@@ -50,6 +50,15 @@
 				"env": {
 					"PLUGINFINITY_EVENT": "PostToolUse"
 				}
+			},
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/post-edit.sh\"",
+				"matcher": "Edit|Write",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "PostToolUse"
+				}
 			}
 		],
 		"subagentStart": [

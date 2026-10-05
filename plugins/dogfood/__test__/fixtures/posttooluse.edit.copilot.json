@@ -1,0 +1,1 @@
+{"hook_event_name":"PostToolUse","session_id":"s","timestamp":"2026-10-03T20:00:00.000Z","cwd":"/tmp","tool_name":"Edit","tool_input":{"path":"/tmp/pf-dogfood-edit.txt","old_str":"a","new_str":"b"}}

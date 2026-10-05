@@ -69,6 +69,19 @@
 						"timeout": 5
 					}
 				]
+			},
+			{
+				"matcher": "Edit|Write",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "bash",
+						"args": [
+							"${CLAUDE_PLUGIN_ROOT}/hooks/post-edit.sh"
+						],
+						"timeout": 5
+					}
+				]
 			}
 		],
 		"SubagentStart": [
