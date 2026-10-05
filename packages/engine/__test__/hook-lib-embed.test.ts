@@ -2,15 +2,24 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { assert, describe, it } from "@effect/vitest";
 import { HOOK_LIB_FILES } from "../src/hook-lib.generated.js";
+import { SERVER_LIB_FILES } from "../src/server-lib.generated.js";
 
-const SOURCE = fileURLToPath(new URL("../hook-lib/", import.meta.url));
+const read = (dir: string) => {
+	const source = fileURLToPath(new URL(`../${dir}/`, import.meta.url));
+	return readdirSync(source)
+		.filter((name) => name.endsWith(".sh"))
+		.sort()
+		.map((name) => ({ name, content: readFileSync(`${source}${name}`, "utf8") }));
+};
 
 describe("embedded hook library", () => {
 	it("matches hook-lib/*.sh byte for byte; run `pnpm --filter @pluginfinity/engine hook-lib:embed` after editing them", () => {
-		const expected = readdirSync(SOURCE)
-			.filter((name) => name.endsWith(".sh"))
-			.sort()
-			.map((name) => ({ name, content: readFileSync(`${SOURCE}${name}`, "utf8") }));
-		assert.deepStrictEqual(HOOK_LIB_FILES, expected);
+		assert.deepStrictEqual(HOOK_LIB_FILES, read("hook-lib"));
+	});
+});
+
+describe("embedded server library", () => {
+	it("matches server-lib/*.sh byte for byte; run `pnpm --filter @pluginfinity/engine hook-lib:embed` after editing them", () => {
+		assert.deepStrictEqual(SERVER_LIB_FILES, read("server-lib"));
 	});
 });
