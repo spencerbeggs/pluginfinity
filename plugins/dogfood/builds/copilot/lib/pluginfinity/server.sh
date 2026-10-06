@@ -58,15 +58,29 @@ server_project_dir() {
 	printf '%s\n' "$PWD"
 }
 
-# npm, pnpm, yarn or bun: package.json's packageManager first, then lockfiles.
+# npm, pnpm, yarn or bun. With jq on PATH: package.json's devEngines.packageManager
+# (an object, or an array whose first entry is used) name, then packageManager.
+# Without jq only the top-level packageManager field is read (devEngines is
+# ignored). Then lockfiles, else npm. A name other than the four is npm.
 _pf_detect_pm() { # project
 	_pf_pm=""
 	if [ -f "$1/package.json" ]; then
-		_pf_pm=$(grep -o '"packageManager"[[:space:]]*:[[:space:]]*"[^"]*"' "$1/package.json" 2>/dev/null |
-			sed -E 's/.*:[[:space:]]*"([a-z]+)@.*/\1/')
+		if command -v jq >/dev/null 2>&1; then
+			_pf_pm=$(jq -r '(.devEngines.packageManager | if type == "array" then .[0] else . end | .name?) // .packageManager // empty' \
+				"$1/package.json" 2>/dev/null | cut -d@ -f1)
+		else
+			_pf_pm=$(grep -o '"packageManager"[[:space:]]*:[[:space:]]*"[^"]*"' "$1/package.json" 2>/dev/null |
+				sed -E 's/.*:[[:space:]]*"([^@"]*).*/\1/')
+		fi
 	fi
-	case "$_pf_pm" in npm | pnpm | yarn | bun)
+	case "$_pf_pm" in
+	npm | pnpm | yarn | bun)
 		printf '%s\n' "$_pf_pm"
+		return 0
+		;;
+	"") ;;
+	*)
+		printf 'npm\n'
 		return 0
 		;;
 	esac
@@ -90,11 +104,15 @@ _pf_install_line() { # pm package
 	esac
 }
 
-# Exec the project's node_modules/.bin/<bin>, else npx --yes <package>. With no
-# project directory (see server_project_dir) it skips the lookup and the
-# install hint, and goes straight to npx. An optional `--install <package>`
-# straight after the two positionals names a different package in the install
-# hint only; npx still runs <package>. Later args pass through untouched.
+# Exec the project's node_modules/.bin/<bin>, else run <package> with the
+# project's package manager (pnpm dlx, yarn dlx, bunx, or npx --yes; see
+# _pf_detect_pm). npm 11 refuses to run in a project whose devEngines names
+# another manager, so npx is only the runner for npm projects, for a manager
+# that is not on PATH (said on stderr), and when there is no project directory
+# (see server_project_dir), which skips the lookup and the install hint. An
+# optional `--install <package>` straight after the two positionals names a
+# different package in the install hint only; the runner still runs <package>.
+# Later args pass through untouched.
 server_exec_bin() { # bin package [--install install-package] [args...]
 	_pf_bin=$1
 	_pf_pkg=$2
@@ -104,6 +122,7 @@ server_exec_bin() { # bin package [--install install-package] [args...]
 		_pf_install=$2
 		shift 2
 	fi
+	_pf_runner=npx
 	if _pf_project=$(server_project_dir); then
 		if [ -x "$_pf_project/node_modules/.bin/$_pf_bin" ]; then
 			exec "$_pf_project/node_modules/.bin/$_pf_bin" "$@"
@@ -114,10 +133,31 @@ server_exec_bin() { # bin package [--install install-package] [args...]
 			printf 'Install it with:\n'
 			_pf_install_line "$_pf_pm" "$_pf_install"
 		} >&2
+		case "$_pf_pm" in
+		pnpm | yarn) _pf_runner=$_pf_pm ;;
+		bun) _pf_runner=bunx ;;
+		esac
+		if [ "$_pf_runner" != npx ] && ! command -v "$_pf_runner" >/dev/null 2>&1; then
+			printf '%s was not found on PATH.\n' "$_pf_runner" >&2
+			_pf_runner=npx
+		fi
 	else
 		printf '%s: no project directory is known, so %s cannot be looked up in node_modules.\n' \
 			"${PLUGINFINITY_PLUGIN:-plugin}" "$_pf_bin" >&2
 	fi
+	case "$_pf_runner" in
+	pnpm | yarn)
+		printf 'Falling back to "%s dlx %s".\n' "$_pf_runner" "$_pf_pkg" >&2
+		server_debug "server_exec_bin: running $_pf_pkg with $_pf_runner dlx"
+		exec "$_pf_runner" dlx "$_pf_pkg" "$@"
+		;;
+	bunx)
+		printf 'Falling back to "bunx %s".\n' "$_pf_pkg" >&2
+		server_debug "server_exec_bin: running $_pf_pkg with bunx"
+		exec bunx "$_pf_pkg" "$@"
+		;;
+	esac
 	printf 'Falling back to "npx --yes %s".\n' "$_pf_pkg" >&2
+	server_debug "server_exec_bin: running $_pf_pkg with npx --yes"
 	exec npx --yes "$_pf_pkg" "$@"
 }

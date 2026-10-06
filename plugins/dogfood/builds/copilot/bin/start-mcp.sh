@@ -1,4 +1,4 @@
 #!/bin/sh
 set -eu
 . "$PLUGINFINITY_LIB/server.sh"
-server_exec_bin dogfood-mcp @pluginfinity/dogfood-mcp "$@"
+exec sh "$(server_plugin_root)/bin/dogfood-mcp.sh"
