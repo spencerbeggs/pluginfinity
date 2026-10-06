@@ -26,13 +26,13 @@ import { HOOK_LIB_DIR, hookLibFiles } from "./hook-lib.js";
 import type { TargetHookEvent } from "./hooks.js";
 import { hookCommandFiles, hookScripts, renderHooks, targetHooks } from "./hooks.js";
 import type { LoadedConfig } from "./loader.js";
-import { renderManifest, serializeManifest } from "./manifest.js";
+import { pluginName, renderManifest, serializeManifest } from "./manifest.js";
 import type { BuildNote } from "./notes.js";
 import { CONFIG_NOTE_PATH, sortNotes } from "./notes.js";
 import type { ConfigSelection, PreparedPlugin } from "./selection.js";
 import { preparePlugins } from "./selection.js";
 import { SERVER_LIB_DIR, serverLibFiles } from "./server-lib.js";
-import { renderServers, serverFiles } from "./servers.js";
+import { mcpServerNames, renderServers, serverFiles } from "./servers.js";
 import { readSkills, renderSkill } from "./skills.js";
 import { ENGINE_VERSION } from "./version.js";
 
@@ -422,14 +422,16 @@ const planPlugin = (
 			generated.push(...rendered.files);
 			notes.push(...rendered.notes);
 			if (rendered.stdio) generated.push(...serverLibFiles());
+			// Claude Code namespaces a plugin's MCP tools with its Claude name; each target spells its own servers.
+			const ownMcp = { plugin: pluginName(config.config, "claude"), servers: mcpServerNames(id, config.config) };
 			for (const skill of skills) {
-				const skillRender = yield* collect(renderSkill(target, id, skill, KNOWN_TARGET_IDS));
+				const skillRender = yield* collect(renderSkill(target, id, skill, KNOWN_TARGET_IDS, ownMcp));
 				if (skillRender === undefined) continue;
 				generated.push(...skillRender.files);
 				notes.push(...skillRender.notes);
 			}
 			for (const agent of agents) {
-				const agentRender = yield* collect(renderAgent(target, id, agent, KNOWN_TARGET_IDS));
+				const agentRender = yield* collect(renderAgent(target, id, agent, KNOWN_TARGET_IDS, ownMcp));
 				if (agentRender === undefined) continue;
 				generated.push(agentRender.file);
 				notes.push(...agentRender.notes);

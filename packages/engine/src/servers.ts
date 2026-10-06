@@ -44,6 +44,13 @@ const merged = (id: KnownTargetId, config: PluginfinityConfig, key: "mcpServers"
 	return [...out.values()];
 };
 
+/**
+ * The names of every MCP server the target builds: the base servers and the
+ * target's own.
+ */
+export const mcpServerNames = (id: KnownTargetId, config: PluginfinityConfig): ReadonlySet<string> =>
+	new Set(merged(id, config, "mcpServers").map(([name]) => name));
+
 const isStdio = (server: Server): boolean => server.type === undefined || server.type === "stdio";
 
 // Every string in a JSON value, rewritten.

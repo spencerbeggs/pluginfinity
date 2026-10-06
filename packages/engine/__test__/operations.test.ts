@@ -21,6 +21,8 @@ import {
 	NOTED_AGENT,
 	NOTED_SKILL,
 	ONLY_COPILOT,
+	OWN_MCP,
+	OWN_MCP_AGENT,
 	PACKAGE_JSON,
 	PLAIN_SKILL,
 	SERVER_CLIMB_INSIDE,
@@ -1331,6 +1333,37 @@ describe("build notes", () => {
 				const validations = yield* validate({ selection: nearest(root), targets: ["copilot"], skipHosts: true });
 				assert.deepStrictEqual(validations[0]?.notes, EXPECTED);
 			}),
+		);
+	});
+});
+
+describe("build with a plugin's own MCP tools", () => {
+	layer(NodeServices.layer)((it) => {
+		it.effect(
+			"copilot translates tools of servers it declares under the Claude name, and drops one declared only on Claude",
+			() =>
+				Effect.gen(function* () {
+					const fs = yield* FileSystem.FileSystem;
+					const path = yield* Path.Path;
+					const root = yield* writeTree({
+						"pluginfinity.config.ts": OWN_MCP,
+						"package.json": PACKAGE_JSON,
+						"agents/x.md": OWN_MCP_AGENT,
+					});
+					const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+					const copilot = yield* fs.readFileString(
+						path.join(root, "builds/copilot/com.github.copilot/agents/x.agent.md"),
+					);
+					assert.include(copilot, "tools:\n  - mcp/describe\n");
+					assert.notInclude(copilot, "only");
+					assert.deepStrictEqual(builds.find((one) => one.target === "copilot")?.notes, [
+						{ target: "copilot", path: "agents/x.md", kind: "tool-dropped", name: "mcp__plugin_okfit_cl__only" },
+					]);
+					const claude = yield* fs.readFileString(path.join(root, "builds/claude/agents/x.md"));
+					assert.include(claude, "mcp__plugin_okfit_mcp__describe");
+					assert.include(claude, "mcp__plugin_okfit_cl__only");
+					assert.deepStrictEqual(builds.find((one) => one.target === "claude")?.notes, []);
+				}),
 		);
 	});
 });

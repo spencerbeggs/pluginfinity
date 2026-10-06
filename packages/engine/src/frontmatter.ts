@@ -60,15 +60,49 @@ const toolNames = (value: unknown): ReadonlyArray<string> => {
 };
 
 /**
- * A Claude Code MCP tool name, `mcp__<server>__<tool>`, in the target's MCP
- * spelling, or `undefined` when it is not one the target can spell: any other
- * name, or a server named `plugin_…`, which belongs to another plugin whose
- * server name on the target is unknown.
+ * The plugin's own MCP servers as a target sees them: `plugin` is the name
+ * Claude Code namespaces the plugin's tools with (the Claude target's `name`
+ * override, else the base `name`), and `servers` names every server in the
+ * target's merged `mcpServers`.
+ *
+ * @public
  */
-const mcpToolName = (target: Target, name: string): string | undefined => {
+export interface OwnMcp {
+	readonly plugin: string;
+	readonly servers: ReadonlySet<string>;
+}
+
+const spell = (target: Target, server: string, tool: string): string =>
+	target.tools.mcp.replace("{server}", server).replace("{tool}", tool);
+
+/**
+ * A Claude Code MCP tool name in the target's MCP spelling, or `undefined`
+ * when it is not one the target can spell.
+ *
+ * @remarks
+ * `mcp__<server>__<tool>` names a server the user configures. Claude Code
+ * names a plugin's server `plugin_<plugin>_<server>`, so a tool of this
+ * plugin's own server is `mcp__plugin_<plugin>_<server>__<tool>`. The prefix
+ * is matched literally, so a plugin name holding `_` or `-` is safe, and the
+ * rest is split at the first `__` that leaves a server the target declares.
+ * A target that keeps unlisted names takes Claude Code's spelling as is, so
+ * the name passes through. Any other `plugin_…` server, and a server of this
+ * plugin the target does not declare, has no spelling on the target.
+ */
+const mcpToolName = (target: Target, name: string, own: OwnMcp | undefined): string | undefined => {
+	if (own !== undefined && name.startsWith(`mcp__plugin_${own.plugin}_`)) {
+		if (target.tools.unlisted === "keep") return undefined;
+		const rest = name.slice(`mcp__plugin_${own.plugin}_`.length);
+		for (let at = rest.indexOf("__"); at !== -1; at = rest.indexOf("__", at + 1)) {
+			const server = rest.slice(0, at);
+			const tool = rest.slice(at + 2);
+			if (server.length > 0 && tool.length > 0 && own.servers.has(server)) return spell(target, server, tool);
+		}
+		return undefined;
+	}
 	const match = /^mcp__(.+?)__(.+)$/.exec(name);
 	if (match === null || (match[1] ?? "").startsWith("plugin_")) return undefined;
-	return target.tools.mcp.replace("{server}", match[1] ?? "").replace("{tool}", match[2] ?? "");
+	return spell(target, match[1] ?? "", match[2] ?? "");
 };
 
 /**
@@ -118,7 +152,8 @@ export interface MappedFrontmatter {
  * @remarks
  * The component's `targets` block for this target overlays the base fields:
  * a core field there replaces the base value before mapping, and a host field
- * (one of `hostFields`) is written as is. When the block sets `description`,
+ * (one of `hostFields`) is written as is. `own` lets a tool of the plugin's
+ * own MCP server take the target's spelling. When the block sets `description`,
  * no field is degraded into it: the author wrote that host's description,
  * so no such field is reported in `drops`.
  *
@@ -130,6 +165,7 @@ export const mapFrontmatter = (
 	hostFields: ReadonlyArray<string>,
 	base: Readonly<Record<string, unknown>>,
 	block: Readonly<Record<string, unknown>>,
+	own?: OwnMcp,
 ): MappedFrontmatter => {
 	const coreOverlay = Object.fromEntries(Object.entries(block).filter(([key]) => key in map));
 	const hostOverlay = Object.entries(block).filter(([key]) => hostFields.includes(key));
@@ -186,7 +222,7 @@ export const mapFrontmatter = (
 					}
 					const mapped =
 						target.tools.names[name] ??
-						mcpToolName(target, name) ??
+						mcpToolName(target, name, own) ??
 						(target.tools.unlisted === "keep" ? name : undefined);
 					if (typeof mapped === "string") {
 						if (!names.includes(mapped)) names.push(mapped);

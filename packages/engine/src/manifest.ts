@@ -9,7 +9,7 @@ import type { KnownTargetId, PluginfinityConfig } from "@pluginfinity/targets";
 export type Manifest = Readonly<Record<string, unknown>>;
 
 /** The name a target publishes under: its override, else the config's. */
-const pluginName = (config: PluginfinityConfig, id: KnownTargetId): string => {
+export const pluginName = (config: PluginfinityConfig, id: KnownTargetId): string => {
 	const setting = config[id];
 	return typeof setting === "object" && setting.name !== undefined ? setting.name : config.name;
 };

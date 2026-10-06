@@ -53,7 +53,7 @@ export {
 	isBuildError,
 	isConfigError,
 } from "./errors.js";
-export type { FieldDrop, MappedFrontmatter, SplitMarkdown, UnresolvedField } from "./frontmatter.js";
+export type { FieldDrop, MappedFrontmatter, OwnMcp, SplitMarkdown, UnresolvedField } from "./frontmatter.js";
 export { appendSections, mapFrontmatter, splitFrontmatter } from "./frontmatter.js";
 export type { TargetHookEvent, UnsupportedHookEvent } from "./hooks.js";
 export { hookCommand, hookCommandFiles, hookExec, hookScripts, renderHooks, targetHooks } from "./hooks.js";

@@ -7,6 +7,7 @@ import { applyHostBlocks } from "./body.js";
 import { decodeComponent, frontmatterText, invalid, issue, overlayIssues, unknownTargets } from "./component.js";
 import type { EmittedFile } from "./emit.js";
 import type { ComponentInvalid, ConfigIssue } from "./errors.js";
+import type { OwnMcp } from "./frontmatter.js";
 import { appendSections, mapFrontmatter } from "./frontmatter.js";
 import type { BuildNote } from "./notes.js";
 
@@ -112,6 +113,7 @@ export const renderAgent = (
 	id: KnownTargetId,
 	agent: SourceAgent,
 	known: ReadonlyArray<string>,
+	own?: OwnMcp,
 ): Effect.Effect<RenderedAgent | undefined, ComponentInvalid | PlatformError.PlatformError, FileSystem.FileSystem> =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
@@ -123,6 +125,7 @@ export const renderAgent = (
 			target.agents.hostFields,
 			agent.frontmatter,
 			block ?? {},
+			own,
 		);
 		const problems: Array<ConfigIssue> = [
 			...(yield* overlayIssues(AgentFrontmatter, AGENT_FIELDS, agent.frontmatter, block ?? {}, id)),

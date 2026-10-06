@@ -273,3 +273,54 @@ describe("mapFrontmatter drops", () => {
 		assert.deepStrictEqual(mapped.drops, []);
 	});
 });
+
+describe("a plugin's own MCP tools", () => {
+	const tools = (
+		target: typeof COPILOT,
+		plugin: string,
+		servers: ReadonlyArray<string>,
+		names: ReadonlyArray<string>,
+	) =>
+		mapFrontmatter(
+			target,
+			target.agents.fields,
+			target.agents.hostFields,
+			{ name: "a", description: "x", tools: names },
+			{},
+			{ plugin, servers: new Set(servers) },
+		);
+
+	it("copilot spells a tool of a server this plugin declares the copilot way", () => {
+		const mapped = tools(COPILOT, "okfit", ["mcp"], ["mcp__plugin_okfit_mcp__describe_vocabulary"]);
+		assert.deepStrictEqual(mapped.fields.tools, ["mcp/describe_vocabulary"]);
+		assert.deepStrictEqual(mapped.drops, []);
+	});
+
+	it("claude keeps the name verbatim", () => {
+		const mapped = tools(CLAUDE, "okfit", ["mcp"], ["mcp__plugin_okfit_mcp__describe_vocabulary"]);
+		assert.deepStrictEqual(mapped.fields.tools, ["mcp__plugin_okfit_mcp__describe_vocabulary"]);
+		assert.deepStrictEqual(mapped.drops, []);
+	});
+
+	it("a plugin name with an underscore is matched as a literal prefix", () => {
+		const mapped = tools(COPILOT, "my_plugin", ["mcp"], ["mcp__plugin_my_plugin_mcp__x"]);
+		assert.deepStrictEqual(mapped.fields.tools, ["mcp/x"]);
+	});
+
+	it("the split that leaves a declared server wins", () => {
+		const mapped = tools(COPILOT, "a", ["b_mcp"], ["mcp__plugin_a_b_mcp__x"]);
+		assert.deepStrictEqual(mapped.fields.tools, ["b_mcp/x"]);
+	});
+
+	it("a tool of a server the target does not declare is tool-dropped", () => {
+		const mapped = tools(COPILOT, "a", ["b"], ["mcp__plugin_a_b_mcp__x"]);
+		assert.deepStrictEqual(mapped.fields.tools, []);
+		assert.deepStrictEqual(mapped.drops, [{ field: "mcp__plugin_a_b_mcp__x", kind: "tool-dropped" }]);
+	});
+
+	it("another plugin's MCP tool is tool-dropped on copilot", () => {
+		const mapped = tools(COPILOT, "okfit", ["mcp"], ["mcp__plugin_other_s__t"]);
+		assert.deepStrictEqual(mapped.fields.tools, []);
+		assert.deepStrictEqual(mapped.drops, [{ field: "mcp__plugin_other_s__t", kind: "tool-dropped" }]);
+	});
+});

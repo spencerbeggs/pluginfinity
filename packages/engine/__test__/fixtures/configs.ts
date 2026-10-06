@@ -221,3 +221,16 @@ export const NOTED_SKILL = "---\nname: s\ndescription: Does s.\npaths: src/**\na
 
 /** A skill that sets nothing host-specific. */
 export const PLAIN_SKILL = "---\nname: plain\ndescription: Does plain.\n---\n\nBody.\n";
+
+/** A plugin whose Claude name differs from its base name, with a server on every target and one only on Claude. */
+export const OWN_MCP = `export default {
+	name: "base-name",
+	description: "Fixture plugin.",
+	mcpServers: { mcp: { command: "sh" } },
+	claude: { name: "okfit", mcpServers: { cl: { command: "sh" } } },
+	copilot: true,
+};\n`;
+
+/** An agent naming tools of the plugin's own servers. */
+export const OWN_MCP_AGENT =
+	"---\nname: x\ndescription: Does x.\ntools: mcp__plugin_okfit_mcp__describe, mcp__plugin_okfit_cl__only\n---\n\nBody.\n";

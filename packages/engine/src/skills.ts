@@ -16,6 +16,7 @@ import {
 } from "./component.js";
 import type { EmittedFile } from "./emit.js";
 import type { ComponentInvalid, ConfigIssue } from "./errors.js";
+import type { OwnMcp } from "./frontmatter.js";
 import { appendSections, mapFrontmatter } from "./frontmatter.js";
 import type { BuildNote } from "./notes.js";
 
@@ -155,6 +156,7 @@ export const renderSkill = (
 	id: KnownTargetId,
 	skill: SourceSkill,
 	known: ReadonlyArray<string>,
+	own?: OwnMcp,
 ): Effect.Effect<
 	RenderedSkill | undefined,
 	ComponentInvalid | PlatformError.PlatformError,
@@ -172,6 +174,7 @@ export const renderSkill = (
 			target.skills.hostFields,
 			skill.frontmatter,
 			block ?? {},
+			own,
 		);
 		const problems: Array<ConfigIssue> = [
 			...(yield* overlayIssues(SkillFrontmatter, SKILL_FIELDS, skill.frontmatter, block ?? {}, id)),
