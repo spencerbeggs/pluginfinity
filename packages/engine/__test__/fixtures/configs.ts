@@ -231,6 +231,7 @@ export const NOTED = `export default {
 	hooks: {
 		Setup: [{ script: "hooks/setup.sh", fallback: "omit" }],
 		SessionStart: [{ script: "hooks/start.sh", matcher: "startup" }],
+		PreToolUse: [{ script: "hooks/guard.sh" }],
 	},
 	lspServers: { md: { command: "sh", extensionToLanguage: { ".md": "markdown" }, diagnostics: true } },
 	claude: true,

@@ -142,6 +142,13 @@ describe("the copilot description", () => {
 		assert.deepStrictEqual(TARGETS.find((t) => t.id === "claude")?.target.hooks.matcherIgnored, []);
 	});
 
+	it("lists the events where Copilot honours hook output", () => {
+		assert.deepStrictEqual(copilot?.hooks.output, {
+			context: ["SessionStart", "SubagentStart", "PostToolUse", "Notification"],
+			system_message: [],
+		});
+	});
+
 	it("keeps its own events out of the Claude event table", () => {
 		const claudeEvents = new Set<string>(CLAUDE_HOOK_EVENTS);
 		assert.deepStrictEqual(

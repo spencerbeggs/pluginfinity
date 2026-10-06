@@ -25,6 +25,7 @@ import {
 	TargetDrift,
 } from "./errors.js";
 import { HOOK_LIB_DIR, hookLibFiles } from "./hook-lib.js";
+import { ignoredOutput } from "./hook-output.js";
 import type { TargetHookEvent } from "./hooks.js";
 import { hookCommandFiles, hookScripts, renderHooks, targetHooks } from "./hooks.js";
 import { LIB_DIR, libFiles } from "./lib-files.js";
@@ -371,6 +372,7 @@ const planPlugin = (
 	prepared: PreparedPlugin,
 ): Effect.Effect<ReadonlyArray<PlannedTarget>, PlanError, FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
 		const config = prepared.config;
 		const version = yield* readVersion(config.root);
@@ -431,6 +433,13 @@ const planPlugin = (
 					notes.push({ target: id, path: CONFIG_NOTE_PATH, kind: "hook-matcher-runtime", name: event });
 				}
 			}
+			// The scripts were checked above, so a read that still fails is skipped: this note is best effort.
+			const sources = new Map<string, string>();
+			for (const script of hookScripts(events)) {
+				const text = yield* fs.readFileString(path.join(config.root, script)).pipe(Effect.option);
+				if (text._tag === "Some") sources.set(script, text.value);
+			}
+			notes.push(...ignoredOutput(id, target, events, (script) => sources.get(script)));
 			const own = new Set(filesOf(events));
 			const servers = serverFiles(target, id, config.config);
 			const serverFilesShipped: Array<string> = [];

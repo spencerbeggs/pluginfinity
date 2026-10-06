@@ -1632,6 +1632,7 @@ describe("build notes", () => {
 			"package.json": PACKAGE_JSON,
 			"hooks/setup.sh": "#!/bin/bash\n",
 			"hooks/start.sh": "#!/bin/bash\n",
+			"hooks/guard.sh": '#!/bin/bash\nhook_system_message "careful"\n',
 			"agents/x.md": NOTED_AGENT,
 			"skills/s/SKILL.md": NOTED_SKILL,
 			"skills/plain/SKILL.md": PLAIN_SKILL,
@@ -1640,6 +1641,7 @@ describe("build notes", () => {
 	const EXPECTED: ReadonlyArray<BuildNote> = [
 		{ target: "copilot", path: "agents/x.md", kind: "dropped", name: "color" },
 		{ target: "copilot", path: "agents/x.md", kind: "dropped", name: "maxTurns" },
+		{ target: "copilot", path: "hooks/guard.sh", kind: "hook-output-ignored", name: "PreToolUse:hook_system_message" },
 		{ target: "copilot", path: "skills/s/SKILL.md", kind: "degraded", name: "paths" },
 		{ target: "copilot", path: "skills/s/SKILL.md", kind: "tool-dropped", name: "ToolSearch" },
 		{ target: "copilot", path: "config", kind: "dropped", name: "lspServers.md.diagnostics" },

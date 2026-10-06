@@ -10,6 +10,7 @@ export const BUILD_NOTE_KINDS = [
 	"degraded",
 	"tool-dropped",
 	"hook-matcher-runtime",
+	"hook-output-ignored",
 	"hook-omitted",
 ] as const;
 
@@ -17,8 +18,9 @@ export const BUILD_NOTE_KINDS = [
  * What a target did to something it could not carry as written: `dropped` a
  * field, `degraded` a field into another form (a description suffix or a body
  * section), `tool-dropped` a tool it cannot name, moved a
- * `hook-matcher-runtime` matcher the host ignores into the hook library, or
- * `hook-omitted` an event it lacks whose entries all set `fallback: "omit"`.
+ * `hook-matcher-runtime` matcher the host ignores into the hook library,
+ * noted a script that calls a helper whose output the host ignores
+ * (`hook-output-ignored`), or `hook-omitted` an event it lacks whose entries all set `fallback: "omit"`.
  *
  * @public
  */

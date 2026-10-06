@@ -215,6 +215,16 @@ export class Target extends Schema.Class<Target>("Target")({
 		 * run time instead.
 		 */
 		matcherIgnored: Schema.Array(Schema.String),
+		/**
+		 * The Claude events where the host honours each kind of hook output: the
+		 * `context` a hook adds to the model's view and the `system_message` it
+		 * shows the user. Mirrors `hook_supports` in the hook library, which a test
+		 * pins; the build notes a script that emits output the host would ignore.
+		 */
+		output: Schema.Struct({
+			context: Schema.Array(Schema.String),
+			system_message: Schema.Array(Schema.String),
+		}),
 	}),
 	mcp: Schema.Struct({
 		placement: ServerPlacement,
