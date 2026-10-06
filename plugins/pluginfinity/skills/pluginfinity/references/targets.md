@@ -9,15 +9,17 @@
 | Agents | `agents/<name>.md` | `com.github.copilot/agents/<name>.agent.md` |
 | Hooks file | `hooks/hooks.json` | `com.github.copilot/hooks/hooks.json` |
 | Hook scripts | `hooks/` | `hooks/` |
-| MCP servers | `.mcp.json` | `mcp.json`, with `$schema` |
-| LSP servers | `.lsp.json` | `com.github.copilot/lsp.json` |
+| MCP servers | `mcpServers` in `.claude-plugin/plugin.json` | `mcp.json`, with `$schema` |
+| LSP servers | `lspServers` in `.claude-plugin/plugin.json` | `com.github.copilot/lsp.json` |
 | Server library | `lib/pluginfinity/server.sh` | `lib/pluginfinity/server.sh` |
 | Plugin root in hooks and servers | `${CLAUDE_PLUGIN_ROOT}` | `${PLUGIN_ROOT}` |
 
 ## Servers
 
-A host with no servers of a kind gets no file for it, and only a host with a local server gets the
-server library.
+Claude Code's servers go inline in its `plugin.json`, never in a root `.mcp.json` or `.lsp.json`, so a
+`.gitignore` that excludes `.mcp.json` cannot leave a committed build without its MCP server. A build
+deletes a `.mcp.json` or `.lsp.json` an older pluginfinity wrote; commit the deletion. A host with no
+servers of a kind gets no key or file for it, and only a host with a local server gets the server library.
 
 | | Claude Code | Copilot |
 | :-- | :-- | :-- |
