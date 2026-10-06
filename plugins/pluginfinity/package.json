@@ -1,6 +1,6 @@
 {
 	"name": "@pluginfinity/ai-plugins",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"private": true,
 	"description": "The pluginfinity companion plugin, built with pluginfinity. It teaches an agent how to author plugins for pluginfinity and succeeds plugin-bot. This package is never published to npm; it gives changesets something to version.",
 	"license": "MIT",

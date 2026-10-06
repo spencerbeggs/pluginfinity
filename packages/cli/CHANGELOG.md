@@ -1,5 +1,33 @@
 # @pluginfinity/cli
 
+## 0.2.0
+
+### Features
+
+#### Build notes in build and validate output
+
+- `build`, `build --check` and `validate` now print, under each target's `✓` line, one indented line per source file the target dropped, degraded or omitted something from: `· <path>: <kind> <names>; <kind> <names>`, with the `config` line for hooks and servers last. Under `--agent` or `--ci`, each entry of `builds` and `validations` gains a `notes` array of `{ path, kind, name }`. Notes are information only and never change the exit code. [#13][#13]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.0 | ^4.0.1 |
+| @effected/cli | dependency | updated | ^0.11.0 | ^0.13.0 |
+| @effected/engine | dependency | updated | ^0.3.0 | ^0.4.0 |
+| @pluginfinity/core | dependency | updated | 0.1.1 | 0.2.0 |
+| @pluginfinity/engine | dependency | updated | 0.1.1 | 0.2.0 |
+| @pluginfinity/targets | dependency | updated | 0.1.1 | 0.2.0 |
+| effect | dependency | updated | ^4.0.0 | ^4.0.1 |
+
+[#13][#13]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#13]: https://github.com/spencerbeggs/pluginfinity/pull/13
+
 ## 0.1.1
 
 ### Dependencies
