@@ -22,6 +22,32 @@ Every file a server names after `${PLUGIN_ROOT}/` now ships with that host's bui
 
 Every target with a local MCP or LSP server gets `lib/pluginfinity/server.sh`, a POSIX `sh` library for launcher scripts, and each such server's `env` gains `PLUGINFINITY_HOST`, `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB`. A launcher sources `$PLUGINFINITY_LIB/server.sh` and calls `server_exec_bin <bin> <package>` to run the project's installed binary, falling back to `npx`, with no host branches.
 
+### Build notes
+
+`pluginfinity build`, `build --check` and `validate` now list, under each target's `✓` line, what that host dropped, degraded or omitted, one line per source file:
+
+```text
+✓ copilot: plugins/x/builds/copilot (0 added, 1 changed, 0 removed)
+  · agents/x.md: dropped color, maxTurns
+  · skills/s/SKILL.md: degraded paths; tool-dropped ToolSearch
+  · config: dropped lspServers.md.diagnostics; hook-omitted Setup
+```
+
+Under `--agent` or `--ci`, each build and validation carries a `notes` array of `{ path, kind, name }`. Notes never change the exit code.
+
+### A plugin's own MCP tools on Copilot
+
+A skill or agent can now name its own plugin's MCP tools as Claude Code does, `mcp__plugin_<plugin>_<server>__<tool>`, and the Copilot build writes `<server>/<tool>` instead of dropping them.
+
+### Hook and server library helpers
+
+* `hook_cd_project` in the hook library changes into the user's project before a hook runs a project-aware CLI
+* `server_exec_bin` takes `--install <package>` after its two arguments to name a different package in the "not installed" hint
+
+## Bug Fixes
+
+* A hook script only one target runs no longer ships to another target when a run builds that target alone, so `build --check --target <id>` agrees with a full build
+
 ## Breaking Changes
 
 * `lib/pluginfinity/` is now reserved like `hooks/lib/pluginfinity/`: a shipped source file there fails the build with `PathConflict`

@@ -13,7 +13,26 @@
 * A new `ShippedFileInvalid` build error, with `ShippedFileProblem` (`missing`, `not-executable`, `directory`, `outside-root`, `not-normal`), reports a file that cannot ship
 * Targets with a local server get the injected server library at `lib/pluginfinity/server.sh`, and each local server's `env` gains `PLUGINFINITY_HOST`, `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB`
 
+### Build notes
+
+`build` and `validate` now report what each target dropped, degraded or omitted. Every `TargetBuild` and `TargetValidation` carries `notes`, a sorted list of `BuildNote` (`target`, `path`, `kind`, `name`), with `kind` one of `BUILD_NOTE_KINDS`: `dropped`, `degraded`, `tool-dropped` or `hook-omitted`. `path` is the component's source path, or `config` for hooks and servers. Notes never fail a build, and a value a translation table drops, such as `model: inherit` on Copilot, gets none.
+
+### A plugin's own MCP tools on Copilot
+
+An agent `tools` or skill `allowed-tools` name `mcp__plugin_<plugin>_<server>__<tool>`, where `<plugin>` is the plugin's Claude Code name and `<server>` an MCP server the target declares, is now written as `<server>/<tool>` on Copilot instead of being dropped. Claude Code keeps it as written. Another plugin's `mcp__plugin_…` name is still dropped on Copilot, now with a `tool-dropped` note.
+
+### Hook and server library helpers
+
+* `hook_cd_project` changes into `hook_project_dir`, for a hook that runs a project-aware CLI on Copilot, where hooks run from the plugin root
+* `server_exec_bin <bin> <package> --install <install-package>` names a different package in the install hint, while `npx` still runs `<package>`
+
+## Bug Fixes
+
+* Hook scripts that only another target's hooks run are now left out of a target's build whichever targets a run selects, so `build --check --target copilot` after a full build is clean
+
 ## Breaking Changes
+
+* `renderSkill` now returns a `RenderedSkill` (`files`, `notes`) and `renderAgent` a `RenderedAgent` (`file`, `notes`); `MappedFrontmatter` gains `drops`, and `targetHooks` returns `omitted`
 
 * `PlanError` no longer includes `NotImplemented`, and `BuildError` now includes `ShippedFileInvalid`
 * `lib/pluginfinity/` is reserved in every target: a shipped source file there fails with `PathConflict`
