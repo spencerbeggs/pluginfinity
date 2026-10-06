@@ -43,3 +43,13 @@ setup() {
 	grep -qF 'with view so' "$BUILDS/copilot/$REF"
 	grep -qF 'skill is /pluginfinity-dogfood:hook-eval.' "$BUILDS/copilot/$REF"
 }
+
+@test "tokens render in an agent body, inline code included, on both hosts" {
+	grep -qF 'Read files only with `Read`. The evaluation you serve is /pluginfinity-dogfood:hook-eval.' \
+		"$BUILDS/claude/agents/eval-subagent.md"
+	grep -qF 'Read files only with `view`. The evaluation you serve is /pluginfinity-dogfood:hook-eval.' \
+		"$BUILDS/copilot/com.github.copilot/agents/eval-subagent.agent.md"
+	for host in claude copilot; do
+		run ! grep -rqE '\{\{(tool|agent|skill|plugin_root)' "$BUILDS/$host" --include='*.md'
+	done
+}
