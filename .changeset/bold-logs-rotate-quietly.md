@@ -24,6 +24,10 @@ Monitors build from the config's `monitors` component into Claude Code's `monito
 
 `lib/pluginfinity/log.sh` is shared by hooks, servers, monitors and skill scripts. Servers gain `server_debug`.
 
+### Server library
+
+* `server_exec_bin`'s fallback uses the project's package manager (from `devEngines.packageManager`, `packageManager` or lockfiles) instead of always `npx`.
+
 ### Hook library
 
 * `failClosed` on a hook entry makes a hook crash block instead of fail open.
