@@ -134,20 +134,21 @@ load helpers
 	[ "$output" = "$BATS_TEST_TMPDIR/repo" ]
 }
 
-@test "hook_project_dir falls back to cwd when no .git is above it" {
+@test "hook_project_dir falls back to PWD when no .git is above the cwd or PWD" {
 	make_plugin copilot
 	mkdir -p "$BATS_TEST_TMPDIR/loose"
-	hook_script 'hook_project_dir'
-	run_script "{\"hook_event_name\":\"Stop\",\"cwd\":\"$BATS_TEST_TMPDIR/loose\"}"
+	hook_script 'cd "$BATS_TEST_TMPDIR/loose" && hook_project_dir'
+	run_script "{\"hook_event_name\":\"Stop\",\"cwd\":\"$BATS_TEST_TMPDIR/loose\"}" BATS_TEST_TMPDIR="$BATS_TEST_TMPDIR"
 	[ "$output" = "$BATS_TEST_TMPDIR/loose" ]
 }
 
 @test "hook_project_dir terminates on a relative cwd" {
 	make_plugin copilot
-	hook_script 'hook_project_dir'
-	run_script '{"hook_event_name":"Stop","cwd":"rel/dir"}'
+	mkdir -p "$BATS_TEST_TMPDIR/loose"
+	hook_script 'cd "$BATS_TEST_TMPDIR/loose" && hook_project_dir'
+	run_script '{"hook_event_name":"Stop","cwd":"rel/dir"}' BATS_TEST_TMPDIR="$BATS_TEST_TMPDIR"
 	[ "$status" -eq 0 ]
-	[ "$output" = "rel/dir" ]
+	[ "$output" = "$BATS_TEST_TMPDIR/loose" ]
 }
 
 @test "hook_cd_project changes into the closest .git directory on copilot" {
@@ -321,18 +322,18 @@ echo done'
 
 @test "hook_allow with updated input: updatedInput on claude, modifiedArgs on copilot" {
 	make_plugin claude
-	hook_script 'hook_allow "{\"command\":\"ls\"}"'
+	hook_script 'hook_allow "" "{\"command\":\"ls\"}"'
 	run_script "$FIXTURES/pretooluse.bash.json"
 	[ "$(jq -c .hookSpecificOutput.updatedInput <<<"$output")" = '{"command":"ls"}' ]
 	make_plugin copilot
-	hook_script 'hook_allow "{\"command\":\"ls\"}"'
+	hook_script 'hook_allow "" "{\"command\":\"ls\"}"'
 	run_script "$FIXTURES/pretooluse.bash.json"
 	[ "$(jq -c .modifiedArgs <<<"$output")" = '{"command":"ls"}' ]
 }
 
 @test "hook_allow with invalid updated input under set -e logs and writes nothing" {
 	make_plugin claude
-	hook_script 'hook_allow "not json"'
+	hook_script 'hook_allow "" "not json"'
 	run_script "$FIXTURES/pretooluse.bash.json"
 	[ "$status" -eq 0 ]
 	[ -z "$output" ]
@@ -740,4 +741,34 @@ exit 7'
 @test "hook_event with no event anywhere prints nothing and returns 1" {
 	make_plugin claude; hook_script 'hook_event || echo "rc=$?"'
 	run_script 'not json'; [ "$output" = "rc=1" ]
+}
+
+# --- allow reason / project dirs ---
+
+@test "hook_allow sends its reason on Claude" {
+	make_plugin claude; hook_script 'hook_allow "safe: read-only"'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$(jq -r .hookSpecificOutput.permissionDecisionReason <<<"$output")" = "safe: read-only" ]
+}
+@test "hook_allow sends reason and modifiedArgs on Copilot" {
+	make_plugin copilot; hook_script 'hook_allow "ok" "{\"command\":\"ls\"}"'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$(jq -c '[.permissionDecisionReason, .modifiedArgs.command]' <<<"$output")" = '["ok","ls"]' ]
+}
+@test "hook_allow with no reason omits the reason key" {
+	make_plugin claude; hook_script 'hook_allow'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$(jq -c '.hookSpecificOutput | has("permissionDecisionReason")' <<<"$output")" = false ]
+}
+@test "hook_project_dir prefers a worktree cwd over CLAUDE_PROJECT_DIR" {
+	make_plugin claude
+	mkdir -p "$BATS_TEST_TMPDIR/main/.git" "$BATS_TEST_TMPDIR/wt/sub"; printf 'gitdir: x\n' >"$BATS_TEST_TMPDIR/wt/.git"
+	hook_script 'printf "%s|%s\n" "$(hook_project_dir)" "$(hook_session_dir)"'
+	run_script "{\"cwd\":\"$BATS_TEST_TMPDIR/wt/sub\",\"hook_event_name\":\"PreToolUse\"}" CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/main"
+	[ "$output" = "$BATS_TEST_TMPDIR/wt|$BATS_TEST_TMPDIR/main" ]
+}
+@test "hook_project_dir falls back to CLAUDE_PROJECT_DIR when the input has no cwd" {
+	make_plugin claude; mkdir -p "$BATS_TEST_TMPDIR/main/.git"; hook_script 'hook_project_dir'
+	run_script '{"hook_event_name":"Stop"}' CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/main"
+	[ "$output" = "$BATS_TEST_TMPDIR/main" ]
 }

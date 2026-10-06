@@ -183,17 +183,10 @@ hook_host() { printf '%s\n' "$PLUGINFINITY_HOST"; }
 # The build root this script runs from.
 hook_plugin_root() { (cd "$_pf_lib_dir/../../.." && pwd); }
 
-# The project the session works in: CLAUDE_PROJECT_DIR on Claude, else the
-# closest directory above the input's cwd holding .git, else that cwd.
-hook_project_dir() {
-	if [ "$PLUGINFINITY_HOST" = claude ] && [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
-		printf '%s\n' "$CLAUDE_PROJECT_DIR"
-		return 0
-	fi
-	local dir probe
-	dir=$(hook_input cwd)
-	[ -n "$dir" ] || dir=$PWD
-	probe=$dir
+# The closest directory at or above $1 holding .git (a directory, or a file in
+# a worktree). Prints nothing and returns 1 when there is none.
+_pf_git_root() {
+	local probe=$1
 	while [ -n "$probe" ] && [ "$probe" != / ] && [ "$probe" != . ]; do
 		if [ -e "$probe/.git" ]; then
 			printf '%s\n' "$probe"
@@ -201,7 +194,37 @@ hook_project_dir() {
 		fi
 		probe=$(dirname "$probe")
 	done
-	printf '%s\n' "$dir"
+	return 1
+}
+
+# Where this call runs: the input's cwd walked up to the nearest .git, else
+# CLAUDE_PROJECT_DIR (Claude), else $PWD walked up the same way, else $PWD.
+hook_project_dir() {
+	local dir root
+	dir=$(hook_input cwd)
+	if [ -n "$dir" ] && root=$(_pf_git_root "$dir"); then
+		printf '%s\n' "$root"
+		return 0
+	fi
+	if [ "$PLUGINFINITY_HOST" = claude ] && [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
+		printf '%s\n' "$CLAUDE_PROJECT_DIR"
+		return 0
+	fi
+	if root=$(_pf_git_root "$PWD"); then
+		printf '%s\n' "$root"
+		return 0
+	fi
+	printf '%s\n' "$PWD"
+}
+
+# The session's project: CLAUDE_PROJECT_DIR on Claude when set, else what
+# hook_project_dir finds. In a git worktree the two differ.
+hook_session_dir() {
+	if [ "$PLUGINFINITY_HOST" = claude ] && [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
+		printf '%s\n' "$CLAUDE_PROJECT_DIR"
+		return 0
+	fi
+	hook_project_dir
 }
 
 # cd into hook_project_dir, ignoring CDPATH and treating a leading dash as a path.
@@ -315,13 +338,14 @@ hook_deny() {
 	_pf_permission deny "${1:-Blocked by ${PLUGINFINITY_PLUGIN:-a plugin}}"
 }
 
-# PreToolUse: allow the tool call, optionally replacing its input (JSON).
+# PreToolUse: allow the tool call, with an optional reason and an optional
+# replacement input (JSON).
 hook_allow() {
 	hook_supports allow || {
 		_pf_unsupported hook_allow
 		return 0
 	}
-	_pf_permission allow "" "${1:-null}"
+	_pf_permission allow "${1:-}" "${2:-}"
 }
 
 # PreToolUse: ask the user.
