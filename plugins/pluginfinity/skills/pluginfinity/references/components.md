@@ -112,6 +112,8 @@ In an agent id or a skill command, `<plugin>` is the plugin's name on that host:
 `claude.name` override, else `name`, on both hosts. A token writes the
 bare string; add backticks yourself, as in `` `\{{tool Read}}` ``.
 
+There is no wildcard token: prose about "all of this plugin's MCP tools" must name the tools, each as `\{{tool …}}`.
+
 - **Tokens are replaced everywhere,** fenced and inline code included.
 - **`\{{` before a token keeps it literal** and drops the backslash, which is how this page shows them.
   Before any other `{{` the backslash stays.

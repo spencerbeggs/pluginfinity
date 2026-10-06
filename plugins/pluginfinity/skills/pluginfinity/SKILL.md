@@ -69,6 +69,8 @@ In an agent id or skill command `<plugin>` is the plugin's name on that host (`c
   `create`, not `Read`, `Bash`, `Edit` and `Write`, and this plugin's MCP tools as `<server>-<tool>`. A
   tool name written plainly stays Claude's on Copilot. A token writes the bare name, so put the backticks
   around it yourself.
+  There is no wildcard token: prose about "all of this plugin's MCP tools" must name each tool, each as
+  `\{{tool …}}`.
 - **Name agents with `\{{agent …}}`.** Copilot namespaces agent ids, so a bare `okf-docs` is no agent
   there. On the command line it is `copilot --agent <plugin>:<agent>`.
 - **Link to another skill's file or to an agent** with an inline link,
@@ -161,10 +163,11 @@ build does:
 - **Exclude `builds/**` from formatters that write.** Biome `--write` collapses short arrays in built JSON,
   and `markdownlint --fix` rewrites built Markdown. Add `builds/**` to Biome's ignored files and to the
   markdownlint ignores, and to any lint-staged pattern that runs them.
-- **Keep source and build executable bits in step.** A copied file keeps its source file's mode. A commit
-  hook that sets or clears the executable bit, such as lint-staged running `chmod -x` on staged `*.sh`,
-  can flip the built copy but not the source, or the other way round. Give the source the mode the hook leaves (`644` for `*.sh` under a
-  `chmod -x` hook, which is fine with the default `scripts.invoke: "bash"`), then rebuild.
+- **A mode flip is fixed by a rebuild, not by the source mode.** A copied file keeps its source file's
+  mode, and `build --check` compares that bit, so a hook that sets or clears it on the source (lint-staged
+  `chmod -x` on `*.sh`, or husky `chmod +x` after a commit, merge or checkout) leaves the committed build
+  stale until you run `pluginfinity build`. Source scripts need no particular mode, and `644` is fine with
+  the default `scripts.invoke: "bash"`.
 - **Rebuild after `changeset version`.** Every manifest copies `version` from the plugin's `package.json`,
   so after a version bump run `pluginfinity build` and commit `builds/`, for example in the script that
   runs `changeset version`. When you migrate, retarget any changesets `versionFiles` entry that wrote
