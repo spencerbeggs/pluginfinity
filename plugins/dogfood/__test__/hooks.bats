@@ -44,7 +44,7 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 	run_hook copilot hooks/crash.sh pretooluse.crash.copilot.json
 	assert_hook_exit 0
 	[ -z "$output" ]
-	grep -q "exited 1" "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/hook-error.log"
+	grep -q "exited 1" "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/error.log"
 }
 
 @test "PostToolUse adds context after the marker command on both targets" {

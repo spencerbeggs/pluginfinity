@@ -1,6 +1,7 @@
 # shellcheck shell=bash
 bats_require_minimum_version 1.5.0
 LIB_SRC="$BATS_TEST_DIRNAME/../../server-lib"
+LOG_SRC="$BATS_TEST_DIRNAME/../../log-lib"
 
 # Physical (symlink-free) path: sh derives PWD physically, and on macOS
 # $BATS_TEST_TMPDIR sits under /var, a symlink to /private/var.
@@ -12,7 +13,9 @@ make_build() {
 	mkdir -p "$TMP/build $1"
 	BUILD=$(physical "$TMP/build $1")
 	mkdir -p "$BUILD/lib/pluginfinity" "$BUILD/bin"
-	cp "$LIB_SRC/server.sh" "$BUILD/lib/pluginfinity/"
+	cp "$LIB_SRC/server.sh" "$LOG_SRC/log.sh" "$BUILD/lib/pluginfinity/"
+	printf "PLUGINFINITY_HOST=%s\nPLUGINFINITY_PLUGIN='fixture'\nPLUGINFINITY_LIB_VERSION=0.0.0-test\n" \
+		"$1" >"$BUILD/lib/pluginfinity/host.sh"
 	HOST=$1
 }
 

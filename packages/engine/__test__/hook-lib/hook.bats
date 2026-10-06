@@ -277,7 +277,7 @@ echo done'
 @test "hook_context is a logged no-op on copilot UserPromptSubmit" {
 	make_plugin copilot
 	hook_script 'hook_context "lost"'
-	run_script '{"hook_event_name":"UserPromptSubmit","prompt":"hi"}' PLUGINFINITY_HOOK_DEBUG=1
+	run_script '{"hook_event_name":"UserPromptSubmit","prompt":"hi"}' PLUGINFINITY_DEBUG=1
 	[ "$output" = "{}" ]
 	[[ "$(debug_log)" == *"hook_context does nothing on copilot for UserPromptSubmit"* ]]
 }
@@ -404,7 +404,7 @@ echo done'
 @test "a second response is ignored" {
 	make_plugin claude
 	hook_script 'hook_block "first"; hook_block "second"'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ "$output" = '{"decision":"block","reason":"first"}' ]
 	[[ "$(debug_log)" == *"ignored a second response"* ]]
 }
@@ -541,15 +541,15 @@ echo done'
 	make_plugin claude my-plugin
 	hook_script 'hook_log "boom"'
 	run_script "$FIXTURES/stop.json"
-	[[ "$(error_log my-plugin)" == *"[claude] test.sh: boom"* ]]
+	[[ "$(error_log my-plugin)" == *"[claude] hook/test.sh: boom"* ]]
 }
 
-@test "hook_debug writes nothing unless PLUGINFINITY_HOOK_DEBUG=1" {
+@test "hook_debug writes nothing unless PLUGINFINITY_DEBUG=1" {
 	make_plugin claude
 	hook_script 'hook_debug "quiet"'
 	run_script "$FIXTURES/stop.json"
 	[ -z "$(debug_log)" ]
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[[ "$(debug_log)" == *"quiet"* ]]
 }
 
@@ -558,7 +558,7 @@ echo done'
 	hook_script 'true'
 	run_script "$FIXTURES/stop.json"
 	[ -z "$(debug_log)" ]
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[[ "$(debug_log)" == *"input: {"* ]]
 	[[ "$(debug_log)" == *'"hook_event_name":"Stop"'* ]]
 }
@@ -595,7 +595,7 @@ echo done'
 @test "with debug on, hook_block logs its outcome and stdout is unchanged" {
 	make_plugin claude
 	hook_script 'hook_block "no"'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ "$output" = '{"decision":"block","reason":"no"}' ]
 	[[ "$(debug_log)" == *"outcome: block"* ]]
 }
@@ -603,30 +603,30 @@ echo done'
 @test "with debug on, hook_noop logs outcome: noop" {
 	make_plugin claude
 	hook_script 'hook_noop'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ "$output" = "{}" ]
 	[[ "$(debug_log)" == *"outcome: noop"* ]]
 }
 
 @test "with debug on, each response helper names its outcome, in a fresh log per case" {
 	make_plugin claude
-	local log="$BATS_TEST_TMPDIR/state/pluginfinity/fixture/hook-debug.log"
+	local log="$BATS_TEST_TMPDIR/state/pluginfinity/fixture/debug.log"
 	hook_script 'hook_deny "x"'
-	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
 	[[ "$(debug_log)" == *"outcome: deny"* ]]
 	rm -f "$log"
 	hook_script 'hook_context "x"'
-	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
 	[[ "$(debug_log)" == *"outcome: context"* ]]
 	[[ "$(debug_log)" != *"outcome: deny"* ]]
 	rm -f "$log"
 	hook_script 'hook_system_message "x"'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[[ "$(debug_log)" == *"outcome: system_message"* ]]
 	[[ "$(debug_log)" != *"outcome: context"* ]]
 	rm -f "$log"
 	hook_script 'hook_raw claude "{\"a\":1}"'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[[ "$(debug_log)" == *"outcome: raw"* ]]
 	[[ "$(debug_log)" != *"outcome: system_message"* ]]
 }
@@ -634,7 +634,7 @@ echo done'
 @test "with debug on, hook_allow logs outcome: allow" {
 	make_plugin claude
 	hook_script 'hook_allow'
-	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
 	[ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = "allow" ]
 	[[ "$(debug_log)" == *"outcome: allow"* ]]
 }
@@ -642,7 +642,7 @@ echo done'
 @test "with debug on, hook_ask logs outcome: ask" {
 	make_plugin claude
 	hook_script 'hook_ask "sure?"'
-	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
 	[ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = "ask" ]
 	[[ "$(debug_log)" == *"outcome: ask"* ]]
 }
@@ -650,7 +650,7 @@ echo done'
 @test "with debug on, a second response is ignored and the first kind stays the outcome" {
 	make_plugin claude
 	hook_script 'hook_block "first"; hook_noop'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ "$output" = '{"decision":"block","reason":"first"}' ]
 	[[ "$(debug_log)" == *"outcome: block"* ]]
 	[[ "$(debug_log)" != *"outcome: noop"* ]]
@@ -660,7 +660,7 @@ echo done'
 @test "with debug on, an unsupported helper logs outcome: noop" {
 	make_plugin claude
 	hook_script 'hook_deny "x"'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ "$output" = "{}" ]
 	[[ "$(debug_log)" == *"outcome: noop"* ]]
 }
@@ -668,7 +668,7 @@ echo done'
 @test "with debug on, a hook that emits nothing logs outcome: none, exactly once" {
 	make_plugin claude
 	hook_script 'true'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ -z "$output" ]
 	[[ "$(debug_log)" == *"outcome: none"* ]]
 	[ "$(debug_log | grep -c 'outcome:')" -eq 1 ]
@@ -678,7 +678,7 @@ echo done'
 	make_plugin claude
 	hook_script 'hook_fail_closed
 exit 7'
-	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
 	[ "$status" -eq 0 ]
 	[[ "$output" == *'"permissionDecision":"deny"'* ]]
 	[[ "$(debug_log)" == *"outcome: fail-closed deny (exit 7)"* ]]
@@ -688,7 +688,7 @@ exit 7'
 	make_plugin claude
 	hook_script 'hook_fail_closed
 exit 7'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ "$status" -eq 0 ]
 	[[ "$output" == *'"decision":"block"'* ]]
 	[[ "$(debug_log)" == *"outcome: fail-closed block (exit 7)"* ]]
@@ -697,7 +697,7 @@ exit 7'
 @test "with debug on, a fail-open crash logs outcome: none with the exit code" {
 	make_plugin claude
 	hook_script 'exit 3'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ -z "$output" ]
 	[[ "$(debug_log)" == *"outcome: none (exit 3)"* ]]
 }

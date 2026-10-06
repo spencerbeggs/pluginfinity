@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { assert, describe, it } from "@effect/vitest";
 import { HOOK_LIB_FILES } from "../src/hook-lib.generated.js";
+import { LOG_LIB_FILES } from "../src/log-lib.generated.js";
 import { SERVER_LIB_FILES } from "../src/server-lib.generated.js";
 
 const read = (dir: string) => {
@@ -21,5 +22,11 @@ describe("embedded hook library", () => {
 describe("embedded server library", () => {
 	it("matches server-lib/*.sh byte for byte; run `pnpm --filter @pluginfinity/engine hook-lib:embed` after editing them", () => {
 		assert.deepStrictEqual(SERVER_LIB_FILES, read("server-lib"));
+	});
+});
+
+describe("embedded logging library", () => {
+	it("matches log-lib/*.sh byte for byte; run `pnpm --filter @pluginfinity/engine hook-lib:embed` after editing them", () => {
+		assert.deepStrictEqual(LOG_LIB_FILES, read("log-lib"));
 	});
 });

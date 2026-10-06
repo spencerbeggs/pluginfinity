@@ -11,18 +11,21 @@
 
 _pf_server_lib_dir=$(cd "$(dirname "$PLUGINFINITY_LIB/server.sh")" && pwd -P)
 
+# log.sh sits beside this file.
+_pf_log_dir=$_pf_server_lib_dir
+# shellcheck source=/dev/null
+. "$_pf_log_dir/log.sh"
+
 # claude or copilot.
 server_host() { printf '%s\n' "${PLUGINFINITY_HOST:-unknown}"; }
 
 # The build root the launcher runs from.
 server_plugin_root() { (cd "$_pf_server_lib_dir/../.." && pwd -P); }
 
-# Append a line to the plugin's server error log.
-server_log() {
-	_pf_dir="${XDG_STATE_HOME:-${HOME:-/nonexistent}/.local/state}/pluginfinity/${PLUGINFINITY_PLUGIN:-unknown}"
-	mkdir -p "$_pf_dir" 2>/dev/null || return 0
-	printf '%s [%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(server_host)" "$*" >>"$_pf_dir/server-error.log" 2>/dev/null || return 0
-}
+# Append a line to the plugin's error log.
+server_log() { pf_log server "$*"; }
+# Append a line to the plugin's debug log when PLUGINFINITY_DEBUG=1.
+server_debug() { pf_debug server "$*"; }
 
 # The project the session works in. Prints it and returns 0, or prints nothing
 # and returns 1 when there is none to report:

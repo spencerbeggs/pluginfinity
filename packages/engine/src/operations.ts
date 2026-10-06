@@ -27,6 +27,7 @@ import {
 import { HOOK_LIB_DIR, hookLibFiles } from "./hook-lib.js";
 import type { TargetHookEvent } from "./hooks.js";
 import { hookCommandFiles, hookScripts, renderHooks, targetHooks } from "./hooks.js";
+import { LIB_DIR, libFiles } from "./lib-files.js";
 import type { LoadedConfig } from "./loader.js";
 import { pluginName, renderManifest, serializeManifest } from "./manifest.js";
 import type { BuildNote } from "./notes.js";
@@ -457,6 +458,7 @@ const planPlugin = (
 				generated.push({ path: target.hooks.path, content: hooksFile });
 				generated.push(...hookLibFiles(id, String(manifest.name), ENGINE_VERSION));
 			}
+			generated.push(...libFiles(id, String(manifest.name), ENGINE_VERSION, { monitors: false }));
 			generated.push(...rendered.files);
 			notes.push(...rendered.notes);
 			if (rendered.stdio) generated.push(...serverLibFiles());
@@ -485,7 +487,7 @@ const planPlugin = (
 			const reserved = copied.find(
 				(file) =>
 					reservedFiles.has(file.path) ||
-					[HOOK_LIB_DIR, SERVER_LIB_DIR].some((dir) => file.path === dir || file.path.startsWith(`${dir}/`)),
+					[HOOK_LIB_DIR, LIB_DIR].some((dir) => file.path === dir || file.path.startsWith(`${dir}/`)),
 			);
 			if (reserved !== undefined) {
 				return yield* Effect.fail(

@@ -172,5 +172,5 @@ stub_npx() { # body
 	make_build claude
 	launcher 'server_log "boom"'
 	run_launcher
-	grep -q "boom" "$TMP/state/pluginfinity/fixture/server-error.log"
+	grep -q "boom" "$TMP/state/pluginfinity/fixture/error.log"
 }

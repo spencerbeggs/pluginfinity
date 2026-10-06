@@ -5,15 +5,18 @@
 bats_require_minimum_version 1.5.0
 
 LIB_SRC="$BATS_TEST_DIRNAME/../../hook-lib"
+LOG_SRC="$BATS_TEST_DIRNAME/../../log-lib"
 FIXTURES="$BATS_TEST_DIRNAME/../fixtures/hooks"
 
 # make_plugin <host> [plugin-name]: a fake build root at $PLUGIN.
 make_plugin() {
 	PLUGIN="$BATS_TEST_TMPDIR/plugin $1"
-	mkdir -p "$PLUGIN/hooks/lib/pluginfinity"
+	mkdir -p "$PLUGIN/hooks/lib/pluginfinity" "$PLUGIN/lib/pluginfinity"
 	cp "$LIB_SRC"/*.sh "$PLUGIN/hooks/lib/pluginfinity/"
+	cp "$LOG_SRC"/*.sh "$PLUGIN/lib/pluginfinity/"
 	printf "PLUGINFINITY_HOST=%s\nPLUGINFINITY_PLUGIN='%s'\nPLUGINFINITY_LIB_VERSION=0.0.0-test\n" \
 		"$1" "${2:-fixture}" >"$PLUGIN/hooks/lib/pluginfinity/host.sh"
+	cp "$PLUGIN/hooks/lib/pluginfinity/host.sh" "$PLUGIN/lib/pluginfinity/host.sh"
 }
 
 # hook_script <body>: write $PLUGIN/hooks/test.sh, which sources the library then runs <body>.
@@ -39,8 +42,8 @@ run_script() {
 }
 
 # error_log / debug_log: the plugin's log files under the test's state dir.
-error_log() { cat "$BATS_TEST_TMPDIR/state/pluginfinity/${1:-fixture}/hook-error.log" 2>/dev/null; }
-debug_log() { cat "$BATS_TEST_TMPDIR/state/pluginfinity/${1:-fixture}/hook-debug.log" 2>/dev/null; }
+error_log() { cat "$BATS_TEST_TMPDIR/state/pluginfinity/${1:-fixture}/error.log" 2>/dev/null; }
+debug_log() { cat "$BATS_TEST_TMPDIR/state/pluginfinity/${1:-fixture}/debug.log" 2>/dev/null; }
 
 # no_jq_path: a PATH holding every tool the library needs except jq.
 no_jq_path() {

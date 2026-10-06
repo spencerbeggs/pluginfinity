@@ -130,8 +130,8 @@ describe("build", () => {
 				assert.deepStrictEqual(
 					builds.map((entry) => [entry.target, entry.plan.added]),
 					[
-						["claude", [".claude-plugin/plugin.json"]],
-						["copilot", ["plugin.json"]],
+						["claude", [".claude-plugin/plugin.json", "lib/pluginfinity/host.sh", "lib/pluginfinity/log.sh"]],
+						["copilot", ["lib/pluginfinity/host.sh", "lib/pluginfinity/log.sh", "plugin.json"]],
 					],
 				);
 				const claude = JSON.parse(yield* fs.readFileString(path.join(root, CLAUDE_MANIFEST)));
@@ -270,7 +270,7 @@ describe("build", () => {
 			}),
 		);
 
-		it.effect("a remote-only plugin gets no server library", () =>
+		it.effect("a remote-only plugin gets no server library but still gets log.sh and host.sh", () =>
 			Effect.gen(function* () {
 				const fs = yield* FileSystem.FileSystem;
 				const path = yield* Path.Path;
@@ -280,7 +280,9 @@ describe("build", () => {
 					yield* fs.readFileString(path.join(root, "builds/claude/.claude-plugin/plugin.json")),
 				);
 				assert.deepStrictEqual(manifest.mcpServers.docs, { type: "http", url: "https://example.com/mcp" });
-				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/lib/pluginfinity")));
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/lib/pluginfinity/server.sh")));
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/claude/lib/pluginfinity/log.sh")));
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/claude/lib/pluginfinity/host.sh")));
 			}),
 		);
 
@@ -696,6 +698,8 @@ describe("build with hooks", () => {
 								...lib("claude"),
 								"hooks/lib/output.sh",
 								"hooks/start.sh",
+								"lib/pluginfinity/host.sh",
+								"lib/pluginfinity/log.sh",
 							].sort(),
 						],
 						[
@@ -705,6 +709,8 @@ describe("build with hooks", () => {
 								...lib("copilot"),
 								"hooks/lib/output.sh",
 								"hooks/start.copilot.sh",
+								"lib/pluginfinity/host.sh",
+								"lib/pluginfinity/log.sh",
 								"plugin.json",
 							].sort(),
 						],

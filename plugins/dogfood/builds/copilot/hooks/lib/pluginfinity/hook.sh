@@ -19,21 +19,22 @@ _pf_kind_prefix=""
 
 # --- logging --------------------------------------------------------------
 
-_pf_write_log() { # kind message
-	local dir="${XDG_STATE_HOME:-${HOME:-/nonexistent}/.local/state}/pluginfinity/${PLUGINFINITY_PLUGIN:-unknown}"
-	mkdir -p "$dir" 2>/dev/null || return 0
-	printf '%s [%s] %s: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${PLUGINFINITY_HOST:-unknown}" \
-		"$(basename "$0")" "$2" >>"$dir/hook-$1.log" 2>/dev/null || return 0
+_pf_lib_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd) || exit 0
+# The one logging standard lives at <root>/lib/pluginfinity. A build without it
+# must still fail open, so fall back to no-ops.
+_pf_log_dir="$_pf_lib_dir/../../../lib/pluginfinity"
+# shellcheck source=/dev/null
+. "$_pf_log_dir/log.sh" 2>/dev/null || {
+	pf_log() { :; }
+	pf_debug() { :; }
+	pf_debug_on() { return 1; }
 }
 
 # Append a line to the plugin's error log.
-hook_log() { _pf_write_log error "$*"; }
+hook_log() { pf_log hook "$*"; }
 
-# Append a line to the plugin's debug log when PLUGINFINITY_HOOK_DEBUG=1.
-hook_debug() {
-	[ "${PLUGINFINITY_HOOK_DEBUG:-0}" = 1 ] || return 0
-	_pf_write_log debug "$*"
-}
+# Append a line to the plugin's debug log when PLUGINFINITY_DEBUG=1.
+hook_debug() { pf_debug hook "$*"; }
 
 # Until the library is fully loaded a failure must still fail open: on Copilot
 # a non-zero exit from a preToolUse hook denies the tool.
@@ -49,7 +50,6 @@ _pf_cleanup() {
 }
 trap _pf_early_exit EXIT
 
-_pf_lib_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd) || exit 0
 # shellcheck source=/dev/null
 . "$_pf_lib_dir/host.sh" 2>/dev/null || {
 	hook_log "host.sh not loadable; hook skipped"
@@ -133,7 +133,7 @@ _pf_on_exit() {
 			esac
 		fi
 	fi
-	if [ "${PLUGINFINITY_HOOK_DEBUG:-0}" = 1 ]; then
+	if pf_debug_on; then
 		if _pf_has_emitted; then outcome=$(cat "$_pf_marker" 2>/dev/null) || outcome=response; fi
 		if [ "$code" -ne 0 ]; then outcome="$outcome (exit $code)"; fi
 		hook_debug "outcome: $outcome"
@@ -353,4 +353,4 @@ hook_raw() {
 
 trap _pf_on_exit EXIT
 
-if [ "${PLUGINFINITY_HOOK_DEBUG:-0}" = 1 ]; then hook_debug "input: ${_pf_input:0:4000}"; fi
+if pf_debug_on; then hook_debug "input: ${_pf_input:0:4000}"; fi
