@@ -142,10 +142,54 @@ describe("inlineCodeSpans", () => {
 		inlineCodeSpans(line);
 		assert.isBelow(performance.now() - t, 200);
 	});
-	it("scans 50k alternating '`x' in linear time", () => {
-		const line = "`x".repeat(50_000);
+	it("scans one backtick then runs of every length 1..k, which the old regex rescanned per run", () => {
+		const k = 1000;
+		let line = "`";
+		for (let n = 2; n <= k; n++) line += `${"`".repeat(n)} `;
 		const t = performance.now();
 		inlineCodeSpans(line);
-		assert.isBelow(performance.now() - t, 200);
+		assert.isBelow(performance.now() - t, 500);
+	});
+});
+
+describe("host block scanning stays linear on pathological lines", () => {
+	const within = (run: () => unknown): void => {
+		const t = performance.now();
+		run();
+		assert.isBelow(performance.now() - t, 500);
+	};
+	it("rejects an opener with a very long whitespace run and no close", () => {
+		const line = `<!-- pluginfinity:only${" ".repeat(200_000)}x`;
+		within(() => {
+			const result = applyHostBlocks(line, "claude", KNOWN);
+			assert.deepStrictEqual(result, {
+				problem: { line: 1, message: "a host block marker must be on a line of its own" },
+			});
+		});
+	});
+	it("rejects a marker line followed by runs of every backtick length", () => {
+		let line = "see <!-- pluginfinity:only claude `";
+		for (let n = 2; n <= 1000; n++) line += `${"`".repeat(n)} `;
+		within(() => {
+			assert.deepStrictEqual(mapHostBlocks(line, "claude", KNOWN), {
+				problem: { line: 1, message: "a host block marker must be on a line of its own" },
+			});
+		});
+	});
+	it("still opens on a long id list with generous whitespace", () => {
+		const open = `  <!--   pluginfinity:only${" ".repeat(50_000)}claude${"\t".repeat(50_000)}-->  `;
+		const body = [open, "kept", "<!-- /pluginfinity:only -->"].join("\n");
+		within(() => assert.deepStrictEqual(applyHostBlocks(body, "claude", KNOWN), { text: "kept" }));
+	});
+	it("treats an opener with no ids or a stray angle bracket as before", () => {
+		assert.deepStrictEqual(
+			applyHostBlocks("<!-- pluginfinity:only -->\nx\n<!-- /pluginfinity:only -->", "claude", KNOWN),
+			{
+				problem: { line: 1, message: "a host block names no target" },
+			},
+		);
+		assert.deepStrictEqual(applyHostBlocks("<!-- pluginfinity:only a>b -->", "claude", KNOWN), {
+			problem: { line: 1, message: "a host block marker must be on a line of its own" },
+		});
 	});
 });

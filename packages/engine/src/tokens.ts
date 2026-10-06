@@ -50,12 +50,22 @@ const LINK = /(!?)\[([^[\]]*)\]\(\s*<?pluginfinity:\/\/([^\s<>()]*)>?\s*\)/g;
 /** Every `pluginfinity://` occurrence, in any case. */
 const SCHEMES = /pluginfinity:\/\//gi;
 const SCHEME = /pluginfinity:\/\//i;
-/** The run of non-whitespace around position `at`, to quote a stray occurrence. */
+/** How far a quoted stray occurrence reaches either side of its start, so each problem is cheap to build. */
+const WINDOW = 80;
+/** How many stray occurrences on one line are reported individually. */
+const STRAY_LIMIT = 3;
+const isSpace = (char: string | undefined): boolean => char === undefined || /\s/.test(char);
+/** The run of non-whitespace around position `at`, clipped to a window, to quote a stray occurrence. */
 const around = (line: string, at: number): string => {
+	const floor = Math.max(0, at - WINDOW);
 	let start = at;
-	while (start > 0 && !/\s/.test(line[start - 1] ?? "")) start -= 1;
-	const end = line.slice(at).search(/\s/);
-	return line.slice(start, end === -1 ? line.length : at + end);
+	while (start > floor && !isSpace(line[start - 1])) start -= 1;
+	const ceiling = Math.min(line.length, at + WINDOW);
+	let end = at;
+	while (end < ceiling && !isSpace(line[end])) end += 1;
+	const clippedStart = start === floor && start > 0 && !isSpace(line[start - 1]);
+	const clippedEnd = end === ceiling && end < line.length && !isSpace(line[end]);
+	return `${clippedStart ? "…" : ""}${line.slice(start, end)}${clippedEnd ? "…" : ""}`;
 };
 
 const article = (word: string): string => (/^[aeiou]/.test(word) ? `an ${word}` : `a ${word}`);
@@ -217,12 +227,24 @@ const links = (line: string, ctx: TokenContext, problems: Array<string>): string
 	});
 	// Every occurrence is checked on its own, so a stray one glued to a built
 	// link (no whitespace between) is still caught.
+	// Matches and handled ranges are both in line order, so one pointer walks
+	// the ranges as the matches advance.
+	let range = 0;
+	let strays = 0;
 	for (const match of line.matchAll(SCHEMES)) {
 		const at = match.index;
-		if (inCode(at) || handled.some(([start, end]) => at >= start && at < end)) continue;
+		while (range < handled.length && (handled[range] as readonly [number, number])[1] <= at) range += 1;
+		const current = handled[range];
+		if (current !== undefined && current[0] <= at) continue;
+		if (inCode(at)) continue;
+		strays += 1;
+		if (strays > STRAY_LIMIT) continue;
 		problems.push(
 			`${around(line, at)}: only inline links [text](pluginfinity://skill/<skill>[/<path>][#anchor]) and [text](pluginfinity://agent/<agent>) are built, with no title`,
 		);
+	}
+	if (strays > STRAY_LIMIT) {
+		problems.push(`and ${strays - STRAY_LIMIT} more pluginfinity:// occurrences on this line that are not built links`);
 	}
 	return out;
 };

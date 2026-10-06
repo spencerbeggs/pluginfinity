@@ -415,3 +415,42 @@ describe("renderTokens: determinism", () => {
 		}
 	});
 });
+
+describe("renderTokens stays linear on pathological lines", () => {
+	const within = (run: () => unknown): void => {
+		const t = performance.now();
+		run();
+		assert.isBelow(performance.now() - t, 500);
+	};
+	it("reports a long line of glued schemes with bounded, capped problems", () => {
+		const line = "pluginfinity://".repeat(40_000);
+		within(() => {
+			const found = problems(renderTokens(line, claude));
+			assert.isAtMost(found.length, 10);
+			for (const problem of found) assert.isBelow(problem.message.length, 600);
+			assert.include(found.map((p) => p.message).join("\n"), "more");
+		});
+	});
+	it("builds many links on one line", () => {
+		const line = "[a](pluginfinity://skill/alpha) ".repeat(40_000);
+		within(() => assert.include(text(renderTokens(line, claude)), "SKILL.md"));
+	});
+	it("checks many strays among many built links", () => {
+		const line = "[a](pluginfinity://skill/alpha)pluginfinity://x ".repeat(20_000);
+		within(() => {
+			const found = problems(renderTokens(line, claude));
+			assert.isAtMost(found.length, 10);
+		});
+	});
+	it("keeps a stray's quoted context readable", () => {
+		const [problem] = problems(renderTokens("see pluginfinity://nope here", claude));
+		assert.include(problem?.message, "pluginfinity://nope: only inline links");
+	});
+	it("renders a body through host blocks with an opener of long whitespace", () => {
+		const body = `<!-- pluginfinity:only${" ".repeat(200_000)}x\n{{tool Read}}`;
+		within(() => {
+			const applied = applyHostBlocks(body, "claude", ["claude", "copilot"]);
+			assert.property(applied, "problem");
+		});
+	});
+});

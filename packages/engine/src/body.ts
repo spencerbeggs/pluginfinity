@@ -4,9 +4,24 @@
  * `<!-- /pluginfinity:only -->` closes it. A marker inside fenced code or an
  * inline code span is text, so a body can show one.
  */
-const OPEN = /^\s*<!--\s*pluginfinity:only\s+([^>]*?)\s*-->\s*$/;
+const OPEN_PREFIX = /^\s*<!--\s*pluginfinity:only\s+/;
 const CLOSE = /^\s*<!--\s*\/pluginfinity:only\s*-->\s*$/;
 const MARKER = /<!--\s*\/?pluginfinity:only/;
+
+/**
+ * The target ids of a host block's opening line, or `undefined` when the line
+ * is not an opener. A prefix match, then string operations on the rest, so no
+ * pattern has overlapping quantifiers to backtrack on.
+ */
+const openingIds = (line: string): ReadonlyArray<string> | undefined => {
+	const prefix = OPEN_PREFIX.exec(line);
+	if (prefix === null) return undefined;
+	const rest = line.slice(prefix[0].length).trimEnd();
+	if (!rest.endsWith("-->")) return undefined;
+	const inner = rest.slice(0, -3);
+	if (inner.includes(">")) return undefined;
+	return inner.split(/\s+/).filter((id) => id.length > 0);
+};
 export const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
 /**
@@ -106,10 +121,9 @@ export const mapHostBlocks = (
 			if (keep) push(line, number);
 			continue;
 		}
-		const opening = OPEN.exec(line);
-		if (opening !== null) {
+		const ids = openingIds(line);
+		if (ids !== undefined) {
 			if (open !== undefined) return { problem: { line: number, message: "host blocks do not nest" } };
-			const ids = (opening[1] ?? "").split(/\s+/).filter((id) => id.length > 0);
 			const unknown = ids.filter((id) => !known.includes(id));
 			if (ids.length === 0) return { problem: { line: number, message: "a host block names no target" } };
 			if (unknown.length > 0) {
