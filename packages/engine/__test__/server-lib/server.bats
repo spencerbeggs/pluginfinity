@@ -116,6 +116,27 @@ stub_npx() { # body
 	[[ "$stderr" == *"pnpm add -D @demo/mcp"* ]]
 }
 
+@test "server_exec_bin --install names a separate package in the install hint" {
+	make_build claude
+	stub_npx 'echo "npx $*"'
+	: >"$PROJECT/pnpm-lock.yaml"
+	launcher 'server_exec_bin okfit-mcp @okfit/mcp --install @okfit/plugin --stdio'
+	PATH="$TMP/stub:$PATH" run_launcher CLAUDE_PROJECT_DIR="$PROJECT"
+	[ "$output" = "npx --yes @okfit/mcp --stdio" ]
+	[[ "$stderr" == *"add -D @okfit/plugin"* ]]
+	[[ "$stderr" != *"add -D @okfit/mcp"* ]]
+}
+
+@test "server_exec_bin passes a later --install through to the binary" {
+	make_build claude
+	mkdir -p "$PROJECT/node_modules/.bin"
+	printf '#!/bin/sh\necho "local $*"\n' >"$PROJECT/node_modules/.bin/b"
+	chmod +x "$PROJECT/node_modules/.bin/b"
+	launcher 'server_exec_bin b p --stdio --install x'
+	run_launcher CLAUDE_PROJECT_DIR="$PROJECT"
+	[ "$output" = "local --stdio --install x" ]
+}
+
 @test "server_exec_bin goes straight to npx when there is no project directory" {
 	make_build copilot
 	stub_npx 'echo "npx $*"'

@@ -89,11 +89,18 @@ _pf_install_line() { # pm package
 
 # Exec the project's node_modules/.bin/<bin>, else npx --yes <package>. With no
 # project directory (see server_project_dir) it skips the lookup and the
-# install hint, and goes straight to npx.
-server_exec_bin() { # bin package [args...]
+# install hint, and goes straight to npx. An optional `--install <package>`
+# straight after the two positionals names a different package in the install
+# hint only; npx still runs <package>. Later args pass through untouched.
+server_exec_bin() { # bin package [--install install-package] [args...]
 	_pf_bin=$1
 	_pf_pkg=$2
+	_pf_install=$2
 	shift 2
+	if [ "${1:-}" = --install ] && [ $# -ge 2 ]; then
+		_pf_install=$2
+		shift 2
+	fi
 	if _pf_project=$(server_project_dir); then
 		if [ -x "$_pf_project/node_modules/.bin/$_pf_bin" ]; then
 			exec "$_pf_project/node_modules/.bin/$_pf_bin" "$@"
@@ -102,7 +109,7 @@ server_exec_bin() { # bin package [args...]
 		{
 			printf '%s: %s is not installed in %s.\n' "${PLUGINFINITY_PLUGIN:-plugin}" "$_pf_bin" "$_pf_project"
 			printf 'Install it with:\n'
-			_pf_install_line "$_pf_pm" "$_pf_pkg"
+			_pf_install_line "$_pf_pm" "$_pf_install"
 		} >&2
 	else
 		printf '%s: no project directory is known, so %s cannot be looked up in node_modules.\n' \
