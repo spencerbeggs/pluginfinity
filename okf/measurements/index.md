@@ -1,5 +1,6 @@
 # Measurement
 
+* [Copilot CLI run-time tool, skill and agent names, 2026-10-06](copilot-runtime-names.md) - The names GitHub Copilot CLI 1.0.92 shows a model at run time for its built-in tools, a plugin's MCP tools, a plugin skill and a plugin agent, measured with a throwaway Agent Plugins 1.0 probe plugin, against the frontmatter aliases a target's tool table emits.
 * [Copilot honours a Claude-style PreToolUse deny, 2026-10-02](copilot-claude-style-pretooluse-deny.md) - A Copilot CLI 1.0.91 plugin hook declared under the PascalCase PreToolUse name, matched on the Claude tool name Bash, received a Claude-shaped payload and blocked the tool with a Claude-shaped deny.
 * [Copilot honours flat additionalContext from a PascalCase SessionStart hook, 2026-10-03](copilot-pascalcase-sessionstart-context.md) - A Copilot CLI 1.0.91 plugin hook declared under the PascalCase SessionStart name, printing a flat additionalContext object, reached the model's context.
 * [Copilot plugin hook environment, 2026-10-02](copilot-plugin-hook-environment.md) - What a Copilot CLI 1.0.91 plugin hook command sees for the plugin root, plugin data, working directory and placeholder expansion, measured with a probe plugin both loaded through --plugin-dir and installed.
