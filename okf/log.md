@@ -10,6 +10,9 @@
 * Updated Target description
 * Updated The pluginfinity command line
 * Updated pluginfinity.config.ts
+* Updated @pluginfinity/core
+* Updated Plugin source model
+* Updated Server launchers ship by discovery and files, beside an injected server library
 
 ## 2026-10-03
 

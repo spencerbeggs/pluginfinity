@@ -1,6 +1,6 @@
 # Hook recipes
 
-Each recipe is a real hook from pluginfinity's dogfood plugin, `plugins/dogfood/`. Bats tests it against the Claude Code and Copilot builds, and a drift test keeps every block below identical to the dogfood file. Copy a recipe whole, then change only what its last line names.
+Each recipe is a real hook from pluginfinity's dogfood plugin, `plugins/dogfood/`. Bats tests it against the Claude Code and Copilot builds, and a drift test keeps every recipe's blocks identical to the dogfood file. Copy a recipe whole, then change only what its last line names.
 
 ## Recipe: Command guard
 
@@ -165,3 +165,24 @@ hook_context "pluginfinity-dogfood subagent context"
 ```
 
 **Change for your plugin:** the context text.
+
+## A capability one host lacks
+
+Not a tested recipe: a pattern to combine with one. When the response you want is honoured on one host only, branch on `hook_supports` and fall back to the nearest response the other host honours. This is not a host branch: it asks the library about the capability, so it stays right when a host gains it. For example, `hook_block` on `PostToolUse` works on Claude Code and does nothing on Copilot, which does honour `hook_context` there:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+. "$(dirname "$0")/lib/pluginfinity/hook.sh"
+
+file=$(hook_input tool_input.file_path)
+if [ -z "$file" ] || mytool check "$file" >/dev/null 2>&1; then
+	hook_noop
+elif hook_supports block; then
+	hook_block "mytool check failed on $file; fix it before going on"
+else
+	hook_context "mytool check failed on $file; fix it before going on"
+fi
+```
+
+Test both branches: assert `.decision` is `block` on claude and `.additionalContext` carries the message on copilot. Check which responses each host honours for the event in the `hook-events` skill's table.

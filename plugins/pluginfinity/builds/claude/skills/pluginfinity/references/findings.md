@@ -5,6 +5,22 @@ line and a hint on the next; under `--agent` or `--ci` it is one JSON object on 
 `error.message` and `error.remediation.hint`. A usage error, such as an unknown flag or `--target`,
 exits 64.
 
+## Notes are not findings
+
+`build`, `build --check` and `validate` also list notes: what a host dropped, degraded or omitted. A note
+never fails a command or changes its exit code. For people, each target's `✓` line is followed by one
+line per file with notes, `· <path>: <kind> <names>; <kind> <names>`. Under `--agent` or `--ci`, each
+entry of `builds` or `validations` carries a `notes` array of `{ "path", "kind", "name" }`.
+
+| Kind | Means | What to do |
+| :-- | :-- | :-- |
+| `dropped` | The host has no such field, so the build left it out. `name` is the field, or `<origin>.<server>.<field>` for a server field under `config` | Nothing, if expected. If the host needs it, set that host's own field in the component's `targets` block |
+| `degraded` | The field was moved into another form: a `description` suffix (`when_to_use`, `paths`) or a body section (`skills`) | Nothing, or set `targets.<id>.description` to write that host's description yourself |
+| `tool-dropped` | The host has no name for the tool: a Claude-only tool, another plugin's MCP tool, or this plugin's MCP tool on a server that host does not declare | Check the name. For this plugin's own tools write `mcp__plugin_<plugin>_<server>__<tool>`; see [what each host gets](targets.md#tools) |
+| `hook-omitted` | The host lacks the event and every entry sets `fallback: "omit"` | Nothing, if the hook is optional on that host |
+
+`path` is the source file (`agents/<name>.md`, `skills/<name>/SKILL.md`), or `config` for hooks and servers.
+
 ## Finding the config
 
 | Tag | Cause | Fix |

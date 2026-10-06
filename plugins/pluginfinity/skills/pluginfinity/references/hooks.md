@@ -50,8 +50,10 @@ script opts in by sourcing it first, with a path relative to the script:
 . "$(dirname "$0")/../lib/pluginfinity/hook.sh"
 ```
 
-The library needs `jq` on the host's `PATH`; without it the hook is skipped and the reason is logged. It is
-Bash 3.2 compatible and writes nothing when sourced. Do not edit a copy under `builds/`: the next build
+The library needs `jq` on the host's `PATH`; without it the hook is skipped and the reason is logged. It
+also runs `cat`, `mktemp`, `rm`, `date`, `mkdir`, `basename` and `dirname`, so a test that runs a hook
+under a minimal `PATH` must keep all eight reachable. It is Bash 3.2 compatible and writes nothing when
+sourced. Do not edit a copy under `builds/`: the next build
 overwrites it.
 
 ### Reading the event
@@ -63,6 +65,7 @@ overwrites it.
 | `hook_host` | `claude` or `copilot` |
 | `hook_plugin_root` | The build root the script runs from |
 | `hook_project_dir` | `CLAUDE_PROJECT_DIR` on Claude Code. On Copilot, the closest directory above the input's `cwd` that holds `.git`, else the `cwd` |
+| `hook_cd_project` | Changes into `hook_project_dir`. Prints nothing; when it cannot, it logs the reason with `hook_log` and returns 1 |
 | `hook_supports <capability> [event]` | Succeeds when the host honours the capability on the event, which defaults to the current one |
 
 ```bash
@@ -72,6 +75,19 @@ host=$(hook_host)                        # claude
 root=$(hook_plugin_root)                 # the build root
 project=$(hook_project_dir)              # the user's project
 if hook_supports context; then hook_context "hello"; fi
+```
+
+Copilot runs a hook with the plugin root as its working directory, not the user's project. A CLI that
+finds its project from the working directory, such as one that walks up to a config file, would find the
+plugin instead. Call `hook_cd_project` before running one:
+
+```bash
+hook_cd_project || { hook_noop; exit 0; }
+if mytool check >/dev/null 2>&1; then
+  hook_noop
+else
+  hook_context "mytool check failed in $(pwd)"
+fi
 ```
 
 `hook_input` reads stdin when the library is sourced, and caches it; read input only through `hook_input`. It accepts Copilot's camelCase payloads too (`toolName`,
@@ -201,6 +217,27 @@ temp directory (`$BATS_TEST_TMPDIR`). Set it in front of the call to point `hook
 Tests run against `builds/`, not the source, so run `pluginfinity build` first. Run them with
 `bats --recursive __test__`.
 
+A hand-written fixture must set `hook_event_name`, as Claude Code's input does. `run_hook` reads it on
+both targets: the claude run takes it from the input, and the copilot run gets it as
+`PLUGINFINITY_EVENT`, as the build sets on every Copilot entry. Without it the hook has no event, so
+`hook_context` and every other event-dependent call answers `{}`, and a test that expects a no-op can
+pass for the wrong reason. `hook_fixture` sets it for you.
+
+The `load` path above assumes `pluginfinity` is installed in the plugin's own `node_modules`, as in a
+workspace package that lists it as a devDependency. When it is installed only at the repository root,
+such as a plugin folder that is not a workspace package, load it from there instead. Count one `..` per
+directory between `__test__/` and the root, and keep the path in one shared file each test loads:
+
+```bash
+# plugin/__test__/common.bash, for a plugin at <root>/plugin/
+load "$BATS_TEST_DIRNAME/../../node_modules/pluginfinity/bats/pluginfinity.bash"
+```
+
+```bash
+# plugin/__test__/hooks.bats
+load common
+```
+
 ## What ships
 
 Every host gets the source `hooks/` directory whole, so a script can source helpers the config never
@@ -224,7 +261,7 @@ and `Notification` map to Copilot's `subagentStart` and `notification`. Copilot 
 Code event.
 
 An event a host lacks fails the build unless every entry for it sets `fallback: "omit"`, which skips it
-there. To give one host a different script for an event, override that event under the host's key in the
+there and lists it as a `hook-omitted` note under that host's line in the build output. To give one host a different script for an event, override that event under the host's key in the
 config.
 
 Every Copilot entry the build writes carries `env: { PLUGINFINITY_EVENT: "<Claude event name>" }`, which

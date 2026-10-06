@@ -21,8 +21,8 @@ sources:
     title: The MCP and LSP encoders
 generated:
   by: okfit/claude-code
-  at: 2026-10-05T18:11:03Z
-  body_sha256: 7869bb01106ae9ca4bb52f99ac2097e7e31a0455d11c740ea58530cb9fda7184
+  at: 2026-10-06T00:41:19Z
+  body_sha256: 741652b1da19040516b3af4f7a98a02c1394d080b0a8536dd6fa9666efe0e642
 ---
 
 # Target description
@@ -38,7 +38,7 @@ This is the agreed design for Phase 1 of [the roadmap](../roadmaps/pluginfinity-
 - **`mcp`.** A `path`, a `format` (`"claude-mcp-json"` or `"agent-plugins-mcp-1.0"`) and an optional `$schema`. MCP has no field map; the host differences are the `type` and `cwd` rules below.
 - **`lsp`.** A `path`, a `format` (`"claude-lsp-json"` or `"copilot-lsp-json"`) and a field map over every core LSP field. A server field takes `keep`, `rename`, `drop` or `unresolved`.
 - **`references`.** How a `pluginfinity://` link renders: as a path under the root's body spelling, or as prose ("the `<skill>` skill's `<path>`"), plugin-bot's Copilot convention.
-- **`tools`.** A table translating Claude Code tool names in agent `tools` and skill `allowed-tools`; a name maps to the target's name, `drop`, or `unresolved`, and an unlisted name follows the target's `tools.unlisted`: kept on Claude Code, dropped on Copilot, which has no Claude-only tools such as `ToolSearch` and no name for another plugin's MCP server. Claude's `mcp__<server>__<tool>` names are rewritten to the target's MCP spelling, and a rule such as `Bash(git log:*)` on a tool the target renames is unresolved, since dropping the rule would widen the tool. Hook matchers are written unchanged: Copilot applies Claude matcher semantics to Claude tool names under the PascalCase events.
+- **`tools`.** A table translating Claude Code tool names in agent `tools` and skill `allowed-tools`; a name maps to the target's name, `drop`, or `unresolved`, and an unlisted name follows the target's `tools.unlisted`: kept on Claude Code, dropped on Copilot, which has no Claude-only tools such as `ToolSearch` and no name for another plugin's MCP server. Claude's `mcp__<server>__<tool>` names are rewritten to the target's MCP spelling, and so is the plugin's own `mcp__plugin_<plugin>_<server>__<tool>` when `<server>` is one the target declares (Claude Code keeps it as written), and a rule such as `Bash(git log:*)` on a tool the target renames is unresolved, since dropping the rule would widen the tool. Hook matchers are written unchanged: Copilot applies Claude matcher semantics to Claude tool names under the PascalCase events.
 - **`models` and `efforts`.** Tables translating Claude Code model names and effort levels; a value maps to the target's value, `drop`, which leaves the field out, or `unresolved`. Copilot drops `inherit`, since an agent with no model inherits the session's, leaves Claude's model aliases and the `xhigh` and `max` efforts unresolved, and writes `effort` as `reasoningEffort`.
 
 ## Field-map entries
@@ -52,7 +52,7 @@ This is the agreed design for Phase 1 of [the roadmap](../roadmaps/pluginfinity-
 | `drop` | Not written; the host lacks it | `color` on Copilot |
 | `unresolved` | The docs leave it open | uses the component's fallback, or fails |
 
-The degrade forms are a closed set owned by the engine, for now `"description-suffix"` and `"body-section"`. Dropping a field is silent; building a degraded form is reported at info level.
+The degrade forms are a closed set owned by the engine, for now `"description-suffix"` and `"body-section"`. A dropped or degraded field, a tool with no spelling on the target and an omitted hook event are each reported as an info-level build note, which never fails the build; a value a translation table drops, such as `model: inherit` on Copilot, is not ([decision](../decisions/build-notes-report-dropped-fields.md)).
 
 ## The two first values
 

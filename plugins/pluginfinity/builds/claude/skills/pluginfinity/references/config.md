@@ -5,6 +5,13 @@ from `pluginfinity`. pluginfinity finds it by walking up from the working direct
 `[path]` a command is given; `--config <file>` names it directly, and `--all` builds every config below
 `[path]`.
 
+When the plugin folder is not a workspace package, run pluginfinity from the repository root and give the
+folder as `[path]`: `pluginfinity build plugin`, `pluginfinity build --check plugin`. `pnpm exec` inside a
+folder with no `package.json` of its own fails with `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL`.
+
+Write the config by hand, from the fields below. `pluginfinity plugin add` is a stub today: it checks its
+flags and fails with `NotImplemented`, so a migration writes the config itself too.
+
 ```ts
 import { defineConfig } from "pluginfinity";
 
@@ -40,7 +47,10 @@ export default defineConfig({
 | `claude`, `copilot` | At least one | Enables that target; see below |
 
 The version is not a config field: every manifest copies `version` from the `package.json` beside the
-config. Bump it there, or let changesets bump it.
+config. Bump it there, or let changesets bump it, then run `pluginfinity build` so the manifests in
+`builds/` follow. A changesets `versionFiles` entry is optional; if you keep one, point it at the built
+manifests (`builds/claude/.claude-plugin/plugin.json`, `builds/copilot/plugin.json`), never at a
+hand-written `plugin.json`.
 
 An unknown top-level key fails, listing both the config fields and the known targets, so a misspelt
 field is caught rather than read as a target.
@@ -55,6 +65,11 @@ overrides:
   that host only; `[]` removes the event there. Copilot's object also accepts `userPromptTransformed`
   and `errorOccurred`, events only Copilot has.
 - `mcpServers`, `lspServers`: a server here replaces the base server of the same name on that host.
+
+No other key is accepted. In particular the plugin's `description` has no per-target override: every
+manifest gets the same one, so word it for both hosts. A skill's or agent's own `description` can differ
+per host, through `targets.<id>.description` in that component's frontmatter (see
+[skills and agents](components.md)).
 
 ## Servers
 

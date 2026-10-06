@@ -1,5 +1,6 @@
 # Decision
 
+* [Build notes report what a target drops, degrades or omits](build-notes-report-dropped-fields.md) - Every build and validate reports, at info level and without failing, each frontmatter or server field a target drops or degrades, each tool it cannot name and each hook event it omits, replacing the rule that a dropped field is silent.
 * [Built plugins carry no Node dependencies](plugins-carry-no-node-dependencies.md) - For the first release, a plugin pluginfinity builds is markdown, JSON and bash scripts only, with no Node runtime dependencies to install.
 * [Claude Code's names are the source vocabulary](claude-code-names-are-the-source-vocabulary.md) - Plugin source writes hook events, tool names and skill and agent frontmatter fields with Claude Code's names, and each target maps them; per-host additions go in a targets block.
 * [Hooks fail open on both hosts](hooks-fail-open.md) - A hook script that fails exits 0 with no response on Claude Code and Copilot alike, unless it opted into failing closed with hook\_fail\_closed.

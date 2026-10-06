@@ -17,7 +17,9 @@ when_to_use: the situations that should trigger it
 
 `description` is required. `name`, when set, must equal the directory name; every build writes it
 either way. Support files are copied to every host: a `.md` file gets the same host-block pass as the
-body, and any other file is copied byte for byte. Files keep their source mode.
+body, and any other file is copied byte for byte. Files keep their source mode, and `build --check`
+compares modes as well as bytes, so a commit hook that changes a mode on one side fails the check; see
+the `pluginfinity` skill's "Repository hygiene".
 
 ## Agents
 
@@ -27,7 +29,8 @@ An agent is one file, `agents/<name>.md`. Its `name` is required and must equal 
 ## Frontmatter rules
 
 - **Claude Code's field names are the source vocabulary.** Each host's build renames, translates or drops
-  them; [what each host gets](targets.md) lists every field.
+  them; [what each host gets](targets.md) lists every field. Every field a host drops or degrades, and
+  every tool it cannot name, is listed as a note under that host's line in the build output.
 - **An unknown field fails the build**, so a misspelling never ships silently.
 - **It must be valid YAML.** Two plain-value traps that Claude Code's own reader forgives and every YAML
   parser does not:

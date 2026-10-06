@@ -21,6 +21,9 @@ sources:
   - id: render-config-error
     resource: ../../packages/cli/src/render/config-error.ts
     title: How a config error is reported and why it exits 1
+  - id: render-build
+    resource: ../../packages/cli/src/render/build.ts
+    title: The build and validate lines, their note lines and their JSON
   - id: render-doctor
     resource: ../../packages/cli/src/render/doctor.ts
     title: The doctor checklist and its JSON form
@@ -29,8 +32,8 @@ sources:
     title: The usage-error and NotImplemented exit-code cases
 generated:
   by: okfit/claude-code
-  at: 2026-10-05T18:11:03Z
-  body_sha256: a5049569420146cb71a48f914824b542349d8bd26c1487e785338a07457b6dfd
+  at: 2026-10-06T00:41:19Z
+  body_sha256: 1fb59b675d55f545571d388e6ab9e53cf11bea723685b074c05e1d692f9ef62d
 ---
 
 # The pluginfinity command line
@@ -43,7 +46,7 @@ The promise the `pluginfinity` bin makes to the people, agents and CI jobs that 
 | :-- | :-- |
 | `pluginfinity init [dir]` | Stub. Takes `--layout root\|plugin\|plugins`, `--name`, `--pm pnpm\|npm\|yarn\|bun`, `--target`, `--no-changesets`, `--no-ci` and `--yes`, checks them, then fails with `NotImplemented`. |
 | `pluginfinity plugin add <name>` | Stub. Takes `--target` and `--dir`, checks the name, then fails with `NotImplemented`. A bare `pluginfinity plugin` prints the group's help. |
-| `pluginfinity build [path]` | Renders each enabled target's manifest, hooks, skills, agents and MCP and LSP server config, with the shipped hook scripts, server launchers, `files` entries, skill files and the injected hook and server libraries, into `builds/<id>/` beside the config, writing only files that differ, and prints what it added, changed and removed. Takes `--target`, `--all`, `--config` and `--check` (rebuild in memory, compare with `builds/`, and fail with `BuildStale` on any difference, writing nothing). |
+| `pluginfinity build [path]` | Renders each enabled target's manifest, hooks, skills, agents and MCP and LSP server config, with the shipped hook scripts, server launchers, `files` entries, skill files and the injected hook and server libraries, into `builds/<id>/` beside the config, writing only files that differ, and prints what it added, changed and removed, with the build's notes: what each target dropped, degraded or omitted ([decision](../decisions/build-notes-report-dropped-fields.md)). Takes `--target`, `--all`, `--config` and `--check` (rebuild in memory, compare with `builds/`, and fail with `BuildStale` on any difference, writing nothing). |
 | `pluginfinity validate [path]` | Requires current builds (`BuildStale` otherwise), then runs each host's check: `claude plugin validate` on `builds/claude/`, and a `copilot --plugin-dir` plugin listing that must load `builds/copilot/` under its manifest name and version (`HostRejected` otherwise). Takes `--target`, `--all`, `--config` and `--no-host` (skip the host CLIs). |
 | `pluginfinity doctor [path]` | Works. Reports on the runtime, the host CLIs, the tools and the config. Takes `--all`, `--config` and `--strict`. |
 
@@ -65,8 +68,8 @@ The root command shares `--human`, `--agent` and `--ci` with every subcommand an
 
 The audience decides the output form. It comes from `--human`, `--agent` or `--ci`, from `PLUGINFINITY_AUDIENCE`, or from detection of an agent or CI environment.[^run] `PLUGINFINITY_LOG_LEVEL` sets the log level.
 
-- **For people**, a finding is a `✗` line and a hint on stderr, `build` and `validate` print one `✓` line per target, and `doctor` prints a checklist grouped into Runtime, Hosts, Tools and Config.[^render-doctor]
-- **For agents and CI**, a finding, a doctor report, or a build or validate result is one JSON object on stdout. It carries `engine_version`, `distribution` and `ok`, plus `error` (`tag`, `path`, `message`, `remediation`), `checks` (`id`, `status`, `severity`, `version`, `path`, `remediation`), `builds` (`config`, `target`, `out`, `added`, `changed`, `removed`) or `validations` (`config`, `target`, `out`, `host`).
+- **For people**, a finding is a `✗` line and a hint on stderr, `build` and `validate` print one `✓` line per target followed by one indented line per component with notes, `· <path>: <kind> <names>; <kind> <names>` (kinds in the order `dropped`, `degraded`, `tool-dropped`, `hook-omitted`, names joined by `,`, the `config` line last), and `doctor` prints a checklist grouped into Runtime, Hosts, Tools and Config.[^render-build][^render-doctor]
+- **For agents and CI**, a finding, a doctor report, or a build or validate result is one JSON object on stdout. It carries `engine_version`, `distribution` and `ok`, plus `error` (`tag`, `path`, `message`, `remediation`), `checks` (`id`, `status`, `severity`, `version`, `path`, `remediation`), `builds` (`config`, `target`, `out`, `added`, `changed`, `removed`, `notes`) or `validations` (`config`, `target`, `out`, `host`, `notes`), where each note is `{path, kind, name}`. Notes are info only and never change the exit code.
 - stdout carries only that structured output. A usage error's help goes to stderr with the error, and `--help` alone goes to stdout. A `NotImplemented` failure is reported on stderr for every audience.
 
 `--version` prints `pluginfinity v<version>` and, when the bin was launched through the carrier, `via pluginfinity <version>`.
@@ -77,5 +80,6 @@ Under Claude Code the environment selects the agent audience on its own; see [th
 [^run]: `../../packages/cli/src/cli/run.ts`
 [^shared]: `../../packages/cli/src/commands/shared.ts`
 [^render-config-error]: `../../packages/cli/src/render/config-error.ts`
+[^render-build]: `../../packages/cli/src/render/build.ts`
 [^render-doctor]: `../../packages/cli/src/render/doctor.ts`
 [^commands-test]: `../../packages/cli/__test__/commands.test.ts`

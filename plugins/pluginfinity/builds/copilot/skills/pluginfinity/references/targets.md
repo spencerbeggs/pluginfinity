@@ -43,7 +43,8 @@ Claude Code keeps every field. On Copilot:
 ## Agent fields
 
 Claude Code keeps every field except `permissionMode`, `mcpServers`, `hooks` and `initialPrompt`, which
-it ignores in plugin agents, so the build drops them. On Copilot:
+it ignores in plugin agents, so the build drops them and reports each as a `dropped` note for Claude. On
+Copilot:
 
 | Field | Copilot |
 | :-- | :-- |
@@ -74,9 +75,33 @@ On Copilot each Claude Code tool name becomes its documented alias, with duplica
 | `Agent`, `Task` | `agent` |
 | `Skill` | Dropped; Copilot has no alias |
 | `mcp__<server>__<tool>` | `<server>/<tool>` |
+| `mcp__plugin_<plugin>_<server>__<tool>`, this plugin's own server | `<server>/<tool>` |
+
+Claude Code names a plugin's MCP tools `mcp__plugin_<plugin>_<server>__<tool>`, so that is how a skill or
+agent names a tool of this plugin's own server. `<plugin>` is the plugin's name on Claude Code (the
+`claude.name` override, else `name`), and `<server>` must be an MCP server the Copilot build declares
+(the base `mcpServers` plus `copilot.mcpServers`). Such a name becomes `<server>/<tool>` on Copilot and is
+kept as written on Claude Code. Write it once in the base field; no `targets.copilot` override is needed.
 
 A rule such as `Bash(git log:*)` on a renamed tool is unresolved: Copilot has no per-command rules, and
 dropping the rule would widen the tool, so set the field under `targets.copilot`. Any other name is
-dropped on Copilot: a Claude-only tool such as `ToolSearch`, `SendMessage` or the `Task` tools, and a
-`mcp__plugin_...` name, which belongs to another plugin whose server name on Copilot is unknown. Claude
-Code keeps every name as written.
+dropped on Copilot and reported as a `tool-dropped` note: a Claude-only tool such as `ToolSearch`,
+`SendMessage` or the `Task` tools, a `mcp__plugin_...` name of another plugin, whose server name on
+Copilot is unknown, and one of this plugin's that names a server the Copilot build does not declare.
+Claude Code keeps every name as written.
+
+## Notes
+
+Every field a host drops or degrades, every tool it drops and every hook event it omits is reported as an
+info-level note under that host's `✓` line, one line per file, with the hooks and servers under `config`
+last:
+
+```text
+✓ copilot: /work/x/builds/copilot (0 added, 1 changed, 0 removed)
+  · agents/x.md: dropped color, maxTurns
+  · skills/s/SKILL.md: degraded paths; tool-dropped ToolSearch
+  · config: dropped lspServers.md.diagnostics; hook-omitted Setup
+```
+
+A value the host's table drops is not reported, since the host does the same without it: `model: inherit`
+on Copilot is the one today. See [the findings](findings.md) for the kinds and the JSON form.
