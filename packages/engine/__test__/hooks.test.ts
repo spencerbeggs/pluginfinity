@@ -142,17 +142,87 @@ describe("renderHooks", () => {
 			hooks: {
 				SessionStart: [
 					{
-						hooks: [{ type: "command", command: "bash", args: [`\${CLAUDE_PLUGIN_ROOT}/hooks/start.sh`], timeout: 5 }],
+						hooks: [
+							{
+								type: "command",
+								command: "env",
+								args: ["PLUGINFINITY_EVENT=SessionStart", "bash", `\${CLAUDE_PLUGIN_ROOT}/hooks/start.sh`],
+								timeout: 5,
+							},
+						],
 					},
 				],
 				PreToolUse: [
 					{
 						matcher: "Bash",
-						hooks: [{ type: "command", command: `bash "\${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh" --quiet` }],
+						hooks: [
+							{
+								type: "command",
+								command: `export PLUGINFINITY_EVENT='PreToolUse'; bash "\${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh" --quiet`,
+							},
+						],
 					},
 				],
 			},
 		});
+	});
+
+	it("Claude passes the event and fail policy through env, keeping the author's args in order", () => {
+		const hooked = config({
+			name: "x",
+			description: "Fixture plugin.",
+			claude: true,
+			hooks: { PreToolUse: [{ script: "hooks/guard.sh", args: ["--a", "b c"], failClosed: true, matcher: "Bash" }] },
+		});
+		const json = JSON.parse(renderHooks(CLAUDE, targetHooks(CLAUDE, "claude", hooked).events, "bash") ?? "{}");
+		assert.deepStrictEqual(json.hooks.PreToolUse[0].hooks[0], {
+			type: "command",
+			command: "env",
+			args: [
+				"PLUGINFINITY_EVENT=PreToolUse",
+				"PLUGINFINITY_FAIL_CLOSED=1",
+				"bash",
+				"${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh",
+				"--a",
+				"b c",
+			],
+		});
+	});
+
+	it("a Claude command entry exports the event before the author's command", () => {
+		const hooked = config({
+			name: "x",
+			description: "Fixture plugin.",
+			claude: true,
+			hooks: { Stop: [{ command: `node "\${PLUGIN_ROOT}/x.mjs" && echo done` }] },
+		});
+		const json = JSON.parse(renderHooks(CLAUDE, targetHooks(CLAUDE, "claude", hooked).events, "bash") ?? "{}");
+		assert.strictEqual(
+			json.hooks.Stop[0].hooks[0].command,
+			`export PLUGINFINITY_EVENT='Stop'; node "\${CLAUDE_PLUGIN_ROOT}/x.mjs" && echo done`,
+		);
+	});
+
+	it("Claude exec invoke puts the script path right after env pairs", () => {
+		assert.deepStrictEqual(
+			hookExec({ script: "hooks/a.sh" }, `\${CLAUDE_PLUGIN_ROOT}`, "exec", { PLUGINFINITY_EVENT: "Stop" }),
+			{ command: "env", args: ["PLUGINFINITY_EVENT=Stop", `\${CLAUDE_PLUGIN_ROOT}/hooks/a.sh`] },
+		);
+	});
+
+	it("Copilot carries failClosed in its env field", () => {
+		const hooked = config({
+			name: "x",
+			description: "Fixture plugin.",
+			copilot: true,
+			hooks: { PreToolUse: [{ script: "hooks/guard.sh", failClosed: true }] },
+		});
+		const json = JSON.parse(renderHooks(COPILOT, targetHooks(COPILOT, "copilot", hooked).events, "bash") ?? "{}");
+		assert.deepStrictEqual(json.hooks.PreToolUse[0].env, {
+			PLUGINFINITY_EVENT: "PreToolUse",
+			PLUGINFINITY_FAIL_CLOSED: "1",
+		});
+		assert.strictEqual(json.hooks.PreToolUse[0].bash, 'bash "${PLUGIN_ROOT}/hooks/guard.sh"');
 	});
 
 	it("copilot: version 1, the command under bash, timeoutSec", () => {

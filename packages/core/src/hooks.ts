@@ -87,6 +87,8 @@ const sharedHookFields = {
 	timeout: Schema.optionalKey(PositiveInt),
 	/** What a target without this event does. Defaults to `"fail"`. */
 	fallback: Schema.optionalKey(HookFallback),
+	/** Deny or block when the script fails before answering. Defaults to failing open. */
+	failClosed: Schema.optionalKey(Schema.Boolean),
 };
 
 /**

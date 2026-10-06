@@ -13,6 +13,7 @@
 # fail-open / fail-closed trap, and a failing hook would then exit non-zero.
 
 _pf_fail_closed=0
+[ "${PLUGINFINITY_FAIL_CLOSED:-0}" = 1 ] && _pf_fail_closed=1
 _pf_event=""
 _pf_marker=""
 _pf_kind_prefix=""

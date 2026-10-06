@@ -20,14 +20,15 @@ hooks: {
 | `matcher` | Which tools or sources the hook applies to, in Claude Code's terms |
 | `timeout` | Seconds, a positive whole number |
 | `fallback` | What a host without the event does: `"fail"`, the default, or `"omit"` |
+| `failClosed` | Deny or block when the script fails before answering. Defaults to failing open |
 
 An entry has exactly one of `script` or `command`.
 
 ## How scripts run
 
 With `scripts.invoke: "bash"`, the default, a script entry runs through `bash`, so the file needs no
-executable bit. On Claude Code it is written in exec form, `"command": "bash"` with the script path in
-`args`, so no shell parses the path. On Copilot it is the shell string `bash "<root>/<script>"`, with a
+executable bit. On Claude Code it is written in exec form, `"command": "env"` with the entry's `PLUGINFINITY_*`
+variables, `bash` and the script path in `args`, so no shell parses the path. On Copilot it is the shell string `bash "<root>/<script>"`, with a
 path the shell would read, such as one holding `$` or a space, single-quoted. Running through `bash` suits
 repositories that keep scripts in git without the executable bit. A `command` entry is written as the
 shell string you gave. With `"exec"`, the

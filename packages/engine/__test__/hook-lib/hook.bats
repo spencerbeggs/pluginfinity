@@ -709,3 +709,10 @@ exit 7'
 	[ "$output" = '{"decision":"block","reason":"no"}' ]
 	[ -z "$(debug_log)" ]
 }
+
+@test "PLUGINFINITY_FAIL_CLOSED=1 makes a crashing PreToolUse hook deny" {
+	make_plugin claude; hook_script 'false'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_FAIL_CLOSED=1
+	[ "$status" -eq 0 ]
+	[ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = deny ]
+}
