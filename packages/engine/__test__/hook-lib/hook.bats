@@ -589,3 +589,72 @@ echo done'
 	done
 	[ -z "$missing" ] || { echo "untested:$missing"; false; }
 }
+
+# --- debug outcome ---
+
+@test "with debug on, hook_block logs its outcome and stdout is unchanged" {
+	make_plugin claude
+	hook_script 'hook_block "no"'
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	[ "$output" = '{"decision":"block","reason":"no"}' ]
+	[[ "$(debug_log)" == *"outcome: block"* ]]
+}
+
+@test "with debug on, hook_noop logs outcome: noop" {
+	make_plugin claude
+	hook_script 'hook_noop'
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	[ "$output" = "{}" ]
+	[[ "$(debug_log)" == *"outcome: noop"* ]]
+}
+
+@test "with debug on, each response helper names its outcome" {
+	make_plugin claude
+	hook_script 'hook_deny "x"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	[[ "$(debug_log)" == *"outcome: deny"* ]]
+	hook_script 'hook_context "x"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	[[ "$(debug_log)" == *"outcome: context"* ]]
+	hook_script 'hook_system_message "x"'
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	[[ "$(debug_log)" == *"outcome: system_message"* ]]
+	hook_script 'hook_raw claude "{\"a\":1}"'
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	[[ "$(debug_log)" == *"outcome: raw"* ]]
+}
+
+@test "with debug on, a hook that emits nothing logs outcome: none, exactly once" {
+	make_plugin claude
+	hook_script 'true'
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	[ -z "$output" ]
+	[[ "$(debug_log)" == *"outcome: none"* ]]
+	[ "$(debug_log | grep -c 'outcome:')" -eq 1 ]
+}
+
+@test "with debug on, a fail-closed crash logs the synthesised outcome and the exit code" {
+	make_plugin claude
+	hook_script 'hook_fail_closed
+exit 7'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'"permissionDecision":"deny"'* ]]
+	[[ "$(debug_log)" == *"outcome: fail-closed deny (exit 7)"* ]]
+}
+
+@test "with debug on, a fail-open crash logs outcome: none with the exit code" {
+	make_plugin claude
+	hook_script 'exit 3'
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	[ -z "$output" ]
+	[[ "$(debug_log)" == *"outcome: none (exit 3)"* ]]
+}
+
+@test "with debug off, no outcome is logged and stdout is unchanged" {
+	make_plugin claude
+	hook_script 'hook_block "no"'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = '{"decision":"block","reason":"no"}' ]
+	[ -z "$(debug_log)" ]
+}

@@ -15,6 +15,7 @@
 _pf_fail_closed=0
 _pf_event=""
 _pf_marker=""
+_pf_kind_prefix=""
 
 # --- logging --------------------------------------------------------------
 
@@ -70,7 +71,8 @@ if ! command -v jq >/dev/null 2>&1; then
 	exit 0
 fi
 
-# One marker file records that a response went out. It is a file, not a
+# One marker file records that a response went out, and holds its kind for the
+# debug log. It is a file, not a
 # variable, so a response sent from a subshell or a pipeline still counts.
 _pf_marker=$(mktemp "${TMPDIR:-/tmp}/pluginfinity-emitted.XXXXXX" 2>/dev/null) ||
 	_pf_marker="${TMPDIR:-/tmp}/pluginfinity-emitted.$$"
@@ -108,16 +110,17 @@ _pf_has_emitted() { [ -s "$_pf_marker" ]; }
 
 _pf_closed_response() { # code
 	local reason="${PLUGINFINITY_PLUGIN:-a plugin} hook failed (exit $1)" body
+	_pf_kind_prefix="fail-closed "
 	if hook_supports deny; then
 		_pf_permission deny "$reason"
 	elif hook_supports block; then
 		body=$(jq -nc --arg r "$reason" '{decision: "block", reason: $r}') || return 1
-		_pf_emit "$body"
+		_pf_emit "$body" block
 	fi
 }
 
 _pf_on_exit() {
-	local code=$?
+	local code=$? outcome=none
 	if [ "$code" -ne 0 ]; then
 		hook_log "exited $code during ${_pf_event:-an unknown event}"
 		if [ "$_pf_fail_closed" = 1 ] && ! _pf_has_emitted; then
@@ -129,6 +132,11 @@ _pf_on_exit() {
 			*) _pf_closed_response "$code" || true ;;
 			esac
 		fi
+	fi
+	if [ "${PLUGINFINITY_HOOK_DEBUG:-0}" = 1 ]; then
+		if _pf_has_emitted; then outcome=$(cat "$_pf_marker" 2>/dev/null) || outcome=response; fi
+		if [ "$code" -ne 0 ]; then outcome="$outcome (exit $code)"; fi
+		hook_debug "outcome: $outcome"
 	fi
 	_pf_cleanup
 	exit 0
@@ -224,7 +232,7 @@ hook_supports() {
 
 # --- output ---------------------------------------------------------------
 
-_pf_emit() { # json
+_pf_emit() { # json [kind]
 	if [ -z "${1:-}" ]; then
 		hook_log "refused to send an empty response"
 		return 1
@@ -233,7 +241,7 @@ _pf_emit() { # json
 		hook_debug "ignored a second response: $1"
 		return 0
 	fi
-	printf 1 >"$_pf_marker" 2>/dev/null || true
+	printf '%s' "${_pf_kind_prefix}${2:-response}" >"$_pf_marker" 2>/dev/null || true
 	printf '%s\n' "$1"
 }
 
@@ -258,11 +266,11 @@ _pf_permission() { # decision reason [updated-input-json]
 	if [ "$PLUGINFINITY_HOST" != copilot ]; then
 		body=$(jq -nc --argjson b "$body" '{hookSpecificOutput: ({hookEventName: "PreToolUse"} + $b)}') || return 1
 	fi
-	_pf_emit "$body"
+	_pf_emit "$body" "$1"
 }
 
 # Respond with nothing to change.
-hook_noop() { _pf_emit '{}'; }
+hook_noop() { _pf_emit '{}' noop; }
 
 # Add text to the model's context.
 hook_context() {
@@ -277,7 +285,7 @@ hook_context() {
 		body=$(jq -nc --arg e "$_pf_event" --arg c "${1:-}" \
 			'{hookSpecificOutput: {hookEventName: $e, additionalContext: $c}}') || return 1
 	fi
-	_pf_emit "$body"
+	_pf_emit "$body" context
 }
 
 # PreToolUse: refuse the tool call.
@@ -315,7 +323,7 @@ hook_block() {
 	}
 	local body
 	body=$(jq -nc --arg r "${1:-Blocked by ${PLUGINFINITY_PLUGIN:-a plugin}}" '{decision: "block", reason: $r}') || return 1
-	_pf_emit "$body"
+	_pf_emit "$body" block
 }
 
 # Show the user a message.
@@ -326,7 +334,7 @@ hook_system_message() {
 	}
 	local body
 	body=$(jq -nc --arg m "${1:-}" '{systemMessage: $m}') || return 1
-	_pf_emit "$body"
+	_pf_emit "$body" system_message
 }
 
 # Emit a host-specific JSON response verbatim, only on that host.
@@ -340,7 +348,7 @@ hook_raw() {
 		hook_log "hook_raw: not JSON: ${2:-}"
 		return 1
 	}
-	_pf_emit "$body"
+	_pf_emit "$body" raw
 }
 
 trap _pf_on_exit EXIT

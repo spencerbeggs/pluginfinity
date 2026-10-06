@@ -9,7 +9,7 @@
 `pluginfinity build` now injects a bash hook library, `hook.sh`, plus a generated `host.sh` into `hooks/lib/pluginfinity/` of every target that has hooks. Hook scripts can source it to read hook input and emit decisions the same way on Claude Code and GitHub Copilot.
 
 * The library reads Copilot's `tool_input` key names through Claude's names, so one script handles both hosts
-* Setting `PLUGINFINITY_HOOK_DEBUG=1` logs the raw hook input for debugging
+* Setting `PLUGINFINITY_HOOK_DEBUG=1` logs the raw hook input and one `outcome:` line per hook exit (block, deny, noop, none, a fail-closed response, plus any non-zero exit code) for debugging
 * Copilot hook entries now carry `env: { PLUGINFINITY_EVENT: <event> }` so the library knows which event fired
 
 ## Breaking Changes
