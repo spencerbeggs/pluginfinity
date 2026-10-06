@@ -1,5 +1,17 @@
 # @pluginfinity/ai-plugins
 
+## 0.2.1
+
+### Documentation
+
+- The `pluginfinity` skill's host table and findings now say Claude Code's servers go inline in `plugin.json`, why a gitignored `.mcp.json` no longer matters, and that a build deletes the `.mcp.json` and `.lsp.json` an older pluginfinity wrote. [#15][#15]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#15]: https://github.com/spencerbeggs/pluginfinity/pull/15
+
 ## 0.2.0
 
 ### Features
