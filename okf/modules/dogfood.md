@@ -37,8 +37,8 @@ sources:
     title: The doctor smoke test that runs inside the fixture
 generated:
   by: okfit/claude-code
-  at: 2026-10-05T16:27:40Z
-  body_sha256: f5d31a88628b7ccb315fcb302f45ee0bf75d7d7bd71b567564de19de199889b5
+  at: 2026-10-06T21:43:13Z
+  body_sha256: 815c036084bc156a170e33da8438a222eaef319040a3887567811df52cf643b5
 ---
 
 # dogfood plugin fixture
@@ -53,7 +53,7 @@ generated:
 - It is listed under `ignore` in `.changeset/config.json`, so it is never versioned or released.[^changeset-config]
 - It is not distributed through any marketplace. It is unrelated to the `plugins/dogfood/` sandbox in the bot repository.
 
-- `pluginfinity.config.ts` is a real config: `name: "pluginfinity-dogfood"` with both `claude` and `copilot` enabled and its hooks declared, imported through `defineConfig` from the workspace carrier.[^config]
+- `pluginfinity.config.ts` is a real config: `name: "pluginfinity-dogfood"` with both `claude` and `copilot` enabled, its hooks declared (the Bash `PreToolUse` guard sets `failClosed`), two monitors and a shipped `share/` directory, plus a Copilot-only `files` entry (`copilot-only/`), imported through `defineConfig` from the workspace carrier.[^config]
 
 ## Hooks
 
@@ -61,9 +61,13 @@ Eight scripts under `hooks/` exercise every feature of the [hook library](../dec
 
 `__test__/hooks.bats` runs the built scripts from `builds/<target>/` through the carrier's [bats helper](pluginfinity.md), with JSON fixtures under `__test__/fixtures/`, including a Copilot-shaped Read for the crash test.[^hooks-suite] The post-edit hook (`hooks/post-edit.sh`) reads `tool_input.file_path`, which the library aliases to Copilot's `path`, so its test covers both input shapes on both targets; it is also the source of the post-edit recipe in the [companion plugin](pluginfinity-plugin.md).[^post-edit] `pnpm test:bats` runs it with the engine's library suite, and a build has to be current first.
 
+## Monitors and logging
+
+Two monitors under `monitors/` exercise the [monitor library](../decisions/monitors-are-a-component.md): `heartbeat` notifies once per session, and `skill-watch` starts with `when: on-skill-invoke:hook-eval` and notifies once, so a live run can show whether the bare skill name matches. `__test__/monitors.bats` runs them through the bats helper's `run_monitor`, and `hooks.bats` covers `failClosed`, run-time matchers and the Copilot tool names through `run_hook`. The scripts log through the [shared log library](../decisions/one-logging-standard.md). What a Claude monitor's working directory and environment are, and how `on-skill-invoke` matches, are pending a human live run and are not yet measured.
+
 ## Live evaluation
 
-`skills/hook-eval/SKILL.md` is a skill an agent runs inside a debug session to perform the live checklist on that host and write a report to `.pluginfinity/hook-eval/`. It uses host blocks for the checks only one host can do.[^hook-eval] Two root scripts start such a session: `pnpm claude:debug` and `pnpm copilot:debug` load both this plugin's build and the companion plugin's build, and set `PLUGINFINITY_HOOK_DEBUG=1`, while plain `pnpm claude` and `pnpm copilot` load only the companion. Both runs are recorded in [a measurement](../measurements/hook-library-live-2026-10-03.md).[^root-manifest]
+`skills/hook-eval/SKILL.md` is a skill an agent runs inside a debug session to perform the live checklist on that host and write a report to `.pluginfinity/hook-eval/`. It uses host blocks for the checks only one host can do.[^hook-eval] Two root scripts start such a session: `pnpm claude:debug` and `pnpm copilot:debug` load both this plugin's build and the companion plugin's build, and set `PLUGINFINITY_DEBUG=1`, while plain `pnpm claude` and `pnpm copilot` load only the companion. Both runs are recorded in [a measurement](../measurements/hook-library-live-2026-10-03.md).[^root-manifest]
 
 Where a step needs a subagent, hook-eval delegates to `eval-subagent`, a neutral agent (`tools: Read, Bash`, `model: inherit`, no skills preloaded or listed) whose only context is what the hooks inject, so a quoted prompt or context shows hook output and nothing else. It is for hook-eval runs only, and a build test checks it builds to both hosts without skills.[^eval-subagent]
 

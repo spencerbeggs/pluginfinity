@@ -15,6 +15,7 @@
 * Updated pluginfinity companion plugin
 * Updated pluginfinity first release
 * Updated @pluginfinity/core
+* Added Claude Code's MCP and LSP servers go inline in plugin.json
 
 ## 2026-10-05
 

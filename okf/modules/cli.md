@@ -33,8 +33,8 @@ sources:
     title: The audience-aware renderers for config errors, the doctor report and build and validate results
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T00:41:19Z
-  body_sha256: 33e6a96913885500e5f33d3be000d00488c9ad6ff979fbdcc28f933d260d8082
+  at: 2026-10-06T21:43:13Z
+  body_sha256: 6dfbead61ddca6799ae715dbb4c70a01a33c10222996a16a49949542433ec66b
 ---
 
 # @pluginfinity/cli
@@ -57,7 +57,7 @@ Behind the entry:
 - `src/cli/run.ts` runs the program under `CliRuntime.main` from `@effected/cli`, which reports failures through the logger, maps usage errors to exit 64, and resolves the audience and colour.[^run] The audience and log level can also be set through `PLUGINFINITY_AUDIENCE` and `PLUGINFINITY_LOG_LEVEL`. A usage error's help goes to stderr, so stdout carries only structured output. `main.ts` calls `run` with the real platform; tests in `__test__/` call the same `run` over a test platform, so they exercise the shipped wiring without spawning a process.
 - `src/cli/program.ts` holds the root command, which shares the `--human`, `--agent` and `--ci` audience flags with every subcommand and prints help when run bare.[^program]
 - `src/commands/` holds one file per command (`init`, `plugin add`, `build`, `validate`, `doctor`).[^commands] `shared.ts` holds the `[path]`, `--target`, `--all` and `--config` inputs and turns them into the engine's `ConfigSelection`; `name.ts` checks a plugin name against core's `PluginName`.
-- `src/render/` draws engine results for the audience: a config error as a message and a hint on stderr for people or one JSON object on stdout for agents and CI, the doctor report as a grouped checklist or one JSON object, and build and validate results as one `✓` line per target, each followed by its [build notes](../decisions/build-notes-report-dropped-fields.md) one line per component, or one JSON object whose builds and validations carry a `notes` array.[^render]
+- `src/render/` draws engine results for the audience: a config error as a message and a hint on stderr for people or one JSON object on stdout for agents and CI, the doctor report as a grouped checklist or one JSON object, and build and validate results as one `✓` line per target, each followed by its [build notes](../decisions/build-notes-cover-hooks-and-monitors.md) one line per component, or one JSON object whose builds and validations carry a `notes` array.[^render]
 
 The custom `--version` formatter prints the version line as plain text. `@effected/cli` 0.11.0 offers no way to add a suffix while keeping its coloured default.
 

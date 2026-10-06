@@ -21,8 +21,8 @@ sources:
     title: The MCP and LSP encoders
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T05:08:28Z
-  body_sha256: e1cf4e5753fa258c5211500189f78d27dcdf50bbeef7740df1a7179f11356492
+  at: 2026-10-06T21:43:13Z
+  body_sha256: e31e97c28a2d1171e5c7e3beab506009f62324565b9f725ca28b9548a4e20bf2
 ---
 
 # Target description
@@ -34,7 +34,8 @@ This is the agreed design for Phase 1 of [the roadmap](../roadmaps/pluginfinity-
 - **`manifest`.** A `path`, a `format` (`"claude-plugin-json"` or `"agent-plugins-1.0"`, with its pinned `$schema`), and the allowlist of keys the build may write, in the order it writes them. A key a server placement names must be in it.
 - **`pluginRoot`.** The root's spelling per site: hook commands, MCP config, LSP config, and skill and agent bodies. Any site can be unresolved.
 - **`skills` and `agents`.** The directory, the agent file suffix, and a field map over every core frontmatter field. `skills.invoke` is how a user invokes a plugin skill, a template over `{plugin}` and `{skill}` or unresolved, and `agents.id` is a plugin agent's run-time id, a template over `{plugin}` and `{agent}`; a `{{skill …}}` or `{{agent …}}` body token writes them.
-- **`hooks`.** A `path`, a `format` (`"claude-hooks-json"` or `"copilot-hooks-v1"`), a table from each Claude Code event to the target's name or `absent`, and the target's own event names.
+- **`hooks`.** A `path`, a `format` (`"claude-hooks-json"` or `"copilot-hooks-v1"`), a table from each Claude Code event to the target's name or `absent`, the target's own event names, `matcherIgnored` (the Claude events whose matcher the host ignores, so the build drops the host `matcher` and the hook library applies it at run time) and `output` (the events where the host honours a hook's `context` and `system_message`, which the build reads to note ignored output).
+- **`monitors`.** A `{path, root}` placement (where the host reads background monitors, and how it spells the plugin root in their commands), or `unresolved` when the host has none ([decision](../decisions/monitors-are-a-component.md)).
 - **`mcp`.** A `placement`, a `format` (`"claude-mcp-servers"`, the bare server map, or `"agent-plugins-mcp-1.0"`) and an optional `$schema`. A placement is `InFile` with a plugin-relative `path`, or `InManifest` with the manifest key the map goes under and the default server file it reserves, which no shipped file may land on ([decision](../decisions/claude-servers-go-inline-in-the-manifest.md)). MCP has no field map; the host differences are the `type` and `cwd` rules below.
 - **`lsp`.** A `placement`, a `format` (`"claude-lsp-servers"`, the bare server map, or `"copilot-lsp-json"`) and a field map over every core LSP field. A server field takes `keep`, `rename`, `drop` or `unresolved`.
 - **`references`.** How a `pluginfinity://` link renders: as a path under the root's body spelling, keeping any `#anchor`, or as prose ("the `<skill>` skill's `<path>`"), plugin-bot's Copilot convention, which drops it. An agent link renders as its `agents.id` in either style.
@@ -52,7 +53,7 @@ This is the agreed design for Phase 1 of [the roadmap](../roadmaps/pluginfinity-
 | `drop` | Not written; the host lacks it | `color` on Copilot |
 | `unresolved` | The docs leave it open | uses the component's fallback, or fails |
 
-The degrade forms are a closed set owned by the engine, for now `"description-suffix"` and `"body-section"`. A dropped or degraded field, a tool with no spelling on the target and an omitted hook event are each reported as an info-level build note, which never fails the build; a value a translation table drops, such as `model: inherit` on Copilot, is not ([decision](../decisions/build-notes-report-dropped-fields.md)).
+The degrade forms are a closed set owned by the engine, for now `"description-suffix"` and `"body-section"`. A dropped or degraded field, a tool with no spelling on the target and an omitted hook event, a matcher moved to run time, a hook output the host ignores and an omitted monitor are each reported as an info-level build note, which never fails the build; a value a translation table drops, such as `model: inherit` on Copilot, is not ([decision](../decisions/build-notes-cover-hooks-and-monitors.md)).
 
 ## The two first values
 

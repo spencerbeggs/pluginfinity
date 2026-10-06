@@ -27,8 +27,8 @@ sources:
     title: The COPILOT description
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T03:27:19Z
-  body_sha256: 54194e4aa6dd648b07a0eca21be307d11d23f4d2f61598fcac69a7ca6ac328f1
+  at: 2026-10-06T21:43:13Z
+  body_sha256: 5ae5fab3a50c0e311b6d566936705cff2d67403904be173f9dfcc05b567eec55
 ---
 
 # @pluginfinity/targets
@@ -44,6 +44,9 @@ generated:
 
 - **Run-time names.** Each description carries the names a model sees at run time, which body tokens write: `tools.runtime`, `agents.id` and `skills.invoke`. Claude Code's are its own names, `mcp__plugin_{plugin}_{server}__{tool}`, `{plugin}:{agent}` and `/{plugin}:{skill}`. Copilot's come from [the run-time names measurement](../measurements/copilot-runtime-names.md): `view`, `bash`, `edit`, `create`, `task`, `grep`, `glob`, `web_fetch`, `web_search` and `skill`, the MCP spelling `{server}-{tool}`, `{plugin}:{agent}` and `/{plugin}:{skill}`, with `TodoWrite`, the notebook tools and `PowerShell` unresolved and any unlisted name unresolved.[^claude][^copilot] The built-in names rest on the model's own listing in one non-interactive run.
 - **Frontmatter names follow the measurement.** Copilot's `tools.names` writes `grep`, `glob`, `web_fetch` and `web_search` by their literal names, because agents restricted to the documented aliases `search`, `web` or `todo` executed no tool (0/6 each, two models) while the literal names executed 6/6 ([alias follow-up](../measurements/copilot-runtime-names.md)). `TodoWrite` is dropped with a `tool-dropped` note, as is `Skill`; `read`, `edit`, `execute` and `agent` stay as documented.
+
+- **Hook facts.** Each description's `hooks` part lists `matcherIgnored`, the Claude events whose matcher the host ignores (Copilot: `SessionStart`, `SessionEnd`, `SubagentStop`; Claude Code: none), and `output`, the events where the host honours a hook's `context` and `system_message` (Copilot honours no system message). The `output` lists mirror `hook_supports` in the engine's hook library, and a test pins the two together. See [the entry-env decision](../decisions/entry-facts-travel-as-env.md).
+- **Monitors.** Claude Code's `monitors` placement is `monitors/monitors.json` with the `${CLAUDE_PLUGIN_ROOT}` spelling; Copilot's is unresolved, because Copilot CLI has no monitors ([decision](../decisions/monitors-are-a-component.md)). The assembled config also takes a target-level `files` and `monitors`.
 
 Adding a host means a registry entry and a config key here, in one release.
 

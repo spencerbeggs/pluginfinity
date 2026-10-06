@@ -33,8 +33,8 @@ sources:
     title: End-to-end tests that run the built bin
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T20:49:08Z
-  body_sha256: 467fb3cbf1d34cc053498d13c56be5f36ea125c54b1c3d89848e940a77df3106
+  at: 2026-10-06T21:43:13Z
+  body_sha256: 49fa5d77b59cd166121333801b4dbf5ea228bf16f9aa483cbde5023505e29a29
 ---
 
 # pluginfinity carrier package
@@ -53,7 +53,7 @@ generated:
 
 ## Bats helper
 
-`bats/pluginfinity.bash` is the helper a plugin's bats tests load from `node_modules/pluginfinity/bats/`. Its `run_hook <target> <script> <fixture>` runs a built hook script from `builds/<target>/` under `env -i` with that host's environment, and for Copilot the `PLUGINFINITY_EVENT` the build writes, so a hook is tested as built. It sets `$status`, `$output` and `$stderr` and needs bats 1.5.0 or later.[^bats-helper] The bundler copies only what the exports and bin reach, so `savvy.build.ts` copies `bats/` into `dist/dev/pkg` and `dist/prod/npm/pkg` after the build, and `turbo.json` lists `bats/**` as a build input.[^build-script] A test in `__test__/` covers the helper against a fixture plugin under `__test__/fixtures/`, kept there so CI's repository-wide bats run does not pick up the fixture's own suite. The [dogfood fixture](dogfood.md) is the helper's real user, and the library it tests is in [the engine](engine.md).
+`bats/pluginfinity.bash` is the helper a plugin's bats tests load from `node_modules/pluginfinity/bats/`. Its `run_hook <target> <script> <fixture>` runs a built hook script from `builds/<target>/` under `env -i` with that host's environment, and for Copilot the `PLUGINFINITY_EVENT` the build writes, so a hook is tested as built. It sets `$status`, `$output` and `$stderr` and needs bats 1.5.0 or later. `run_script <target> <path> [--stdin <file>] [args...]` runs a built skill script or server launcher the same way, under `env -i` with the host's environment, and `run_monitor <target> <name> [--ticks <n>] [VAR=value...]` runs a built monitor's command from `builds/claude/monitors/monitors.json`, bounded by `PLUGINFINITY_MONITOR_MAX_TICKS` (one tick by default) and refusing a target with no monitors.[^bats-helper] The bundler copies only what the exports and bin reach, so `savvy.build.ts` copies `bats/` into `dist/dev/pkg` and `dist/prod/npm/pkg` after the build, and `turbo.json` lists `bats/**` as a build input.[^build-script] A test in `__test__/` covers the helper against a fixture plugin under `__test__/fixtures/`, kept there so CI's repository-wide bats run does not pick up the fixture's own suite. The [dogfood fixture](dogfood.md) is the helper's real user, and the library it tests is in [the engine](engine.md).
 
 ## Tests
 
