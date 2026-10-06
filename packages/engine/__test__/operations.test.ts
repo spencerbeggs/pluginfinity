@@ -39,6 +39,7 @@ import {
 	SERVER_PATH_ENV,
 	SERVER_PLAIN,
 	SERVER_SHARED_LAUNCHER,
+	SHADOW_SERVERS,
 	SYNTAX_ERROR,
 	VALID,
 	WITH_MCP,
@@ -538,7 +539,11 @@ describe("build", () => {
 				});
 				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
 				assert.strictEqual(error._tag, "PathConflict");
-				if (error._tag === "PathConflict") assert.strictEqual(error.file, "lib/pluginfinity/server.sh");
+				if (error._tag !== "PathConflict") return;
+				assert.strictEqual(error.file, "lib/pluginfinity/server.sh");
+				assert.strictEqual(error.conflict, "reserved-dir");
+				assert.include(error.message, "reserves for its injected library");
+				assert.include(error.remediation.hint, "Move lib/pluginfinity/server.sh");
 			}),
 		);
 
@@ -551,15 +556,19 @@ describe("build", () => {
 				});
 				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
 				assert.strictEqual(error._tag, "PathConflict");
-				if (error._tag === "PathConflict") assert.strictEqual(error.file, "mcp.json");
+				if (error._tag !== "PathConflict") return;
+				assert.strictEqual(error.file, "mcp.json");
+				assert.strictEqual(error.conflict, "generated");
+				assert.include(error.message, "copilot generates mcp.json");
+				assert.include(error.remediation.hint, "pluginfinity writes that file itself");
 			}),
 		);
 
-		for (const file of [".mcp.json", ".lsp.json"]) {
+		for (const file of [".mcp.json", ".lsp.json"] as const) {
 			it.effect(`a ${file} that would ship to Claude, beside its inline servers, is PathConflict`, () =>
 				Effect.gen(function* () {
 					const root = yield* writeTree({
-						"pluginfinity.config.ts": FILES_SHADOW(file, "claude: true,"),
+						"pluginfinity.config.ts": FILES_SHADOW(file, "claude: true,", SHADOW_SERVERS[file]),
 						"package.json": PACKAGE_JSON,
 						[file]: "{}\n",
 					});
@@ -568,6 +577,24 @@ describe("build", () => {
 					if (error._tag !== "PathConflict") return;
 					assert.strictEqual(error.target, "claude");
 					assert.strictEqual(error.file, file);
+					assert.strictEqual(error.conflict, "reserved-server-file");
+					assert.include(error.message, `claude loads ${file} as a server config file`);
+					assert.include(error.remediation.hint, "mcpServers or lspServers");
+					assert.notInclude(error.remediation.hint, "writes that file itself");
+				}),
+			);
+
+			it.effect(`a ${file} ships to Claude when the plugin has no inline servers of that kind`, () =>
+				Effect.gen(function* () {
+					const fs = yield* FileSystem.FileSystem;
+					const path = yield* Path.Path;
+					const root = yield* writeTree({
+						"pluginfinity.config.ts": FILES_SHADOW(file, "claude: true,"),
+						"package.json": PACKAGE_JSON,
+						[file]: "{}\n",
+					});
+					yield* build({ selection: nearest(root), targets: [], check: false });
+					assert.isTrue(yield* fs.exists(path.join(root, "builds/claude", file)));
 				}),
 			);
 		}

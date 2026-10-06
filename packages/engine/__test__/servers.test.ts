@@ -87,6 +87,39 @@ describe("renderServers: MCP", () => {
 		assert.strictEqual(json(render, "mcp.json").mcpServers.mcp.command, "b");
 	});
 
+	it("a claude.mcpServers override replaces the base server inline, and a Claude-only server lands there too", () => {
+		const render = renderServers(
+			CLAUDE,
+			"claude",
+			base({
+				mcpServers: { docs: { type: "http", url: "https://base.com/mcp" } },
+				claude: {
+					mcpServers: {
+						docs: { type: "http", url: "https://claude.com/mcp" },
+						only: { type: "http", url: "https://only.com/mcp" },
+					},
+				},
+			}),
+			"demo",
+			LIB,
+		);
+		assert.deepStrictEqual(render.files, []);
+		const servers = inline(render, "mcpServers");
+		assert.strictEqual(servers.docs.url, "https://claude.com/mcp");
+		assert.strictEqual(servers.only.url, "https://only.com/mcp");
+	});
+
+	it("a Claude-only server with no base lands inline", () => {
+		const render = renderServers(
+			CLAUDE,
+			"claude",
+			base({ claude: { mcpServers: { only: { type: "http", url: "https://only.com/mcp" } } } }),
+			"demo",
+			LIB,
+		);
+		assert.deepStrictEqual(Object.keys(inline(render, "mcpServers")), ["only"]);
+	});
+
 	it("a Claude MCP cwd naming the root is an issue, since Claude ignores an MCP cwd", () => {
 		const render = renderServers(
 			CLAUDE,

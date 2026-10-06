@@ -399,7 +399,9 @@ export class ShippedFileInvalid extends Schema.TaggedError<ShippedFileInvalid>()
 }
 
 /**
- * A copied source file and a generated file would land on the same build path.
+ * A copied source file would land on a path pluginfinity owns: a file it
+ * generates, a directory it reserves for an injected library, or a server
+ * config file the host loads beside servers written inline.
  *
  * @public
  */
@@ -409,13 +411,31 @@ export class PathConflict extends Schema.TaggedError<PathConflict>()("PathConfli
 	target: Schema.String,
 	/** The build path both claim, relative to `builds/<target>/`. */
 	file: Schema.String,
+	/** Why the path is taken: a generated file, a reserved library directory, or a reserved server file. */
+	conflict: Schema.Literals(["generated", "reserved-dir", "reserved-server-file"]),
 }) {
 	override get message(): string {
-		return `${this.target} generates ${this.file}, but the plugin also ships a source file at that path`;
+		switch (this.conflict) {
+			case "reserved-dir":
+				return `${this.file} is under a directory pluginfinity reserves for its injected library`;
+			case "reserved-server-file":
+				return `${this.target} loads ${this.file} as a server config file, but the plugin also ships a source file at that path`;
+			default:
+				return `${this.target} generates ${this.file}, but the plugin also ships a source file at that path`;
+		}
 	}
 
 	get remediation(): Remediation {
-		return { hint: `Delete or move the source ${this.file}; pluginfinity writes that file itself.` };
+		switch (this.conflict) {
+			case "reserved-dir":
+				return { hint: `Move ${this.file} out of the reserved directory.` };
+			case "reserved-server-file":
+				return {
+					hint: `Declare those servers under mcpServers or lspServers in the pluginfinity config instead of shipping ${this.file}.`,
+				};
+			default:
+				return { hint: `Delete or move the source ${this.file}; pluginfinity writes that file itself.` };
+		}
 	}
 }
 

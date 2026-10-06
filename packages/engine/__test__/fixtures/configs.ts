@@ -138,12 +138,19 @@ export const FILES_COLLIDE = `export default {
 	copilot: true,
 };\n`;
 
-export const FILES_SHADOW = (file: string, targets: string) => `export default {
+export const FILES_SHADOW = (file: string, targets: string, servers = "") => `export default {
 	name: "files-shadow",
 	description: "Fixture plugin.",
+	${servers}
 	files: ["${file}"],
 	${targets}
 };\n`;
+
+/** Inline servers of the kind whose default file is `file`: an HTTP MCP server, or a bare-command LSP server. */
+export const SHADOW_SERVERS = {
+	".mcp.json": 'mcpServers: { docs: { type: "http", url: "https://example.com/mcp" } },',
+	".lsp.json": 'lspServers: { md: { command: "sh", extensionToLanguage: { ".md": "markdown" } } },',
+} as const;
 
 export const FILES_SHADOW_SERVER = `export default {
 	name: "files-shadow-server",
