@@ -23,6 +23,9 @@ describe("defineConfig", () => {
 			description: "x",
 			copilot: { hooks: { userPromptTransformed: [{ script: "hooks/a.sh" }] } },
 		});
+		defineConfig({ name: "foo", description: "x", claude: { files: ["a/"] }, copilot: { files: ["b/", "c.json"] } });
+		// @ts-expect-error -- a files entry is a string path.
+		defineConfig({ name: "foo", description: "x", copilot: { files: [1] } });
 		assert.ok(true);
 	});
 });

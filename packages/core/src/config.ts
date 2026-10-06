@@ -104,6 +104,8 @@ export const makeTargetSetting = <H extends Schema.Top>(hooks: H) =>
 		Schema.Struct({
 			/** The plugin's name on this host, when it differs from the base `name`. */
 			name: Schema.optionalKey(PluginName),
+			/** Extra files and directories (ending in `/`) shipped to this target only, on top of the base `files`. */
+			files: Schema.optionalKey(Schema.Array(ShippedPath)),
 			hooks: Schema.optionalKey(hooks),
 			mcpServers: Schema.optionalKey(McpServers),
 			lspServers: Schema.optionalKey(LspServers),

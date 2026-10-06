@@ -97,7 +97,10 @@ const tool = (name: string, raw: string, ctx: TokenContext): Spelled => {
 /** Spell the inside of one `{{…}}` that opens with a known kind; `raw` is the whole token as written. */
 const token = (inner: string, raw: string, ctx: TokenContext): Spelled => {
 	if (/[{}]/.test(inner)) return { problem: `malformed token ${raw}; write \\{{ for a literal {{` };
-	const [kind = "", ...args] = inner
+	const bar = inner.indexOf("|");
+	const head = bar === -1 ? inner : inner.slice(0, bar);
+	const fallback = bar === -1 ? undefined : inner.slice(bar + 1).trim();
+	const [kind = "", ...args] = head
 		.trim()
 		.split(/\s+/)
 		.filter((part) => part.length > 0);
@@ -105,10 +108,15 @@ const token = (inner: string, raw: string, ctx: TokenContext): Spelled => {
 		if (args.length > 0) return { problem: `${raw}: plugin_root takes no argument` };
 		return spelling(ctx.target.pluginRoot.body, raw);
 	}
+	if (fallback !== undefined && kind !== "tool") return { problem: `${raw}: only a tool token takes a | fallback` };
 	const [name] = args;
 	if (name === undefined) return { problem: `${raw} needs ${article(kind)} name` };
 	if (args.length > 1) return { problem: `${raw} takes one ${kind} name` };
-	if (kind === "tool") return tool(name, raw, ctx);
+	if (kind === "tool") {
+		if (fallback === "") return { problem: `${raw}: the fallback after | is empty` };
+		const spelled = tool(name, raw, ctx);
+		return fallback !== undefined && "problem" in spelled ? { value: fallback } : spelled;
+	}
 	if (kind === "agent") {
 		if (!ctx.agents.has(name)) return { problem: `${raw}: this plugin has no agent "${name}"` };
 		return { value: fill(ctx.target.agents.id, { plugin: ctx.plugin, agent: name }) };
@@ -254,8 +262,12 @@ const links = (line: string, ctx: TokenContext, problems: Array<string>): string
  * or report every one it cannot render.
  *
  * @remarks
- * A token is `{{tool <name>}}`, `{{agent <name>}}`, `{{skill <name>}}` or
- * `{{plugin_root}}`, with whitespace allowed inside the braces, on one line.
+ * A token is `{{tool <name>}}`, `{{tool <name> | <fallback>}}`,
+ * `{{agent <name>}}`, `{{skill <name>}}` or `{{plugin_root}}`, with
+ * whitespace allowed inside the braces, on one line. Only a tool token takes
+ * a `|` fallback: literal prose, trimmed, that replaces the token on a target
+ * where the tool has no spelling (and is discarded where it has one). It may
+ * not be empty or contain `{{` or `}}`.
  * Tokens are replaced everywhere, fenced and inline code included; `\{{`
  * before a token renders it literally, and before any other `{{` the
  * backslash stays. A `{{` whose first word is not a kind is text, so

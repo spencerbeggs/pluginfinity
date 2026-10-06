@@ -19,6 +19,26 @@ const problems = (result: ReturnType<typeof renderTokens>): ReadonlyArray<{ line
 	return result.problems;
 };
 
+describe("renderTokens: tool fallback", () => {
+	it("uses the spelling when the tool spells and the fallback when it does not", () => {
+		assert.strictEqual(text(renderTokens("{{tool AskUserQuestion | ask the user}}", copilot)), "ask the user");
+		assert.strictEqual(text(renderTokens("{{tool AskUserQuestion | ask the user}}", claude)), "AskUserQuestion");
+		assert.strictEqual(text(renderTokens("{{tool Read | look}}", copilot)), "view");
+		assert.strictEqual(text(renderTokens("a {{tool AskUserQuestion|  ask  }} b", copilot)), "a ask b");
+	});
+
+	it("rejects an empty fallback and a | on any other token", () => {
+		assert.deepStrictEqual(
+			problems(renderTokens("{{tool X |}}", claude)).map((p) => p.message),
+			["{{tool X |}}: the fallback after | is empty"],
+		);
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill a | b}}", claude)).map((p) => p.message),
+			["{{skill a | b}}: only a tool token takes a | fallback"],
+		);
+	});
+});
+
 describe("renderTokens: tools", () => {
 	it("keeps a built-in name on Claude and spells it at run time on Copilot", () => {
 		assert.strictEqual(text(renderTokens("Use {{tool Read}}.", claude)), "Use Read.");

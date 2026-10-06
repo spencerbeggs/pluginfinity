@@ -188,6 +188,21 @@ export const FILES_SHARE = `export default {
 	claude: true,
 };\n`;
 
+export const FILES_PER_TARGET = `export default {
+	name: "files-per-target",
+	description: "Fixture plugin.",
+	files: ["share/"],
+	claude: true,
+	copilot: { files: ["copilot-only/"] },
+};\n`;
+
+export const FILES_PER_TARGET_MISSING = `export default {
+	name: "files-per-target-missing",
+	description: "Fixture plugin.",
+	claude: true,
+	copilot: { files: ["nope/"] },
+};\n`;
+
 export const FILES_BUILDS = `export default {
 	name: "files-builds",
 	description: "Fixture plugin.",

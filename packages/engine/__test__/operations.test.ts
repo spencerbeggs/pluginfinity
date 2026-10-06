@@ -10,6 +10,8 @@ import {
 	FILES_COLLIDE,
 	FILES_MISSING,
 	FILES_OVERLAP,
+	FILES_PER_TARGET,
+	FILES_PER_TARGET_MISSING,
 	FILES_RESERVED,
 	FILES_SHADOW,
 	FILES_SHADOW_SERVER,
@@ -518,6 +520,36 @@ describe("build", () => {
 				assert.include(claude?.plan.added ?? [], "share/data.json");
 				const check = yield* build({ selection: nearest(root), targets: [], check: true });
 				assert.isTrue(check.every((target) => target.plan.clean));
+			}),
+		);
+
+		it.effect("a target's own files ship to that target only, on top of the base files", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_PER_TARGET,
+					"package.json": PACKAGE_JSON,
+					"share/data.json": "{}\n",
+					"copilot-only/x": "x\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/copilot/copilot-only/x")));
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/copilot/share/data.json")));
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/claude/share/data.json")));
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/copilot-only/x")));
+			}),
+		);
+
+		it.effect("a missing target files entry is ShippedFileInvalid naming the target's files", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_PER_TARGET_MISSING,
+					"package.json": PACKAGE_JSON,
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") assert.strictEqual(error.referencedBy, "copilot.files");
 			}),
 		);
 

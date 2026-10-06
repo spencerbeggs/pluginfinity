@@ -260,6 +260,7 @@ const expandShipped = (
 const listedFiles = (
 	config: LoadedConfig,
 	entries: ReadonlyArray<string>,
+	referencedBy = "files",
 ): Effect.Effect<
 	ReadonlyArray<string>,
 	ShippedFileInvalid | PlatformError.PlatformError,
@@ -267,7 +268,7 @@ const listedFiles = (
 > =>
 	Effect.gen(function* () {
 		const fail = (file: string, problem: ShippedFileInvalid["problem"]) =>
-			Effect.fail(new ShippedFileInvalid({ path: config.path, file, referencedBy: "files", problem }));
+			Effect.fail(new ShippedFileInvalid({ path: config.path, file, referencedBy, problem }));
 		const out: Array<string> = [];
 		// The config schema admits only canonical entries; canonicalise anyway so the
 		// reserved-path and collision checks never see a path spelled two ways.
@@ -275,7 +276,7 @@ const listedFiles = (
 			const file = canonical(entry);
 			if (file === undefined) return yield* fail(entry, "outside-root");
 			if (file === "") return yield* fail(entry, "not-normal");
-			out.push(...(yield* expandShipped(config, file, file, "files")));
+			out.push(...(yield* expandShipped(config, file, file, referencedBy)));
 		}
 		return out;
 	});
@@ -403,7 +404,7 @@ const planPlugin = (
 			for (const file of hookCommandFiles(events)) yield* checkScript(config, file, "bash");
 		}
 		const hooksDir = yield* sourceFiles(config.root, "hooks");
-		const listed = yield* listedFiles(config, config.config.files ?? []);
+		const baseListed = yield* listedFiles(config, config.config.files ?? []);
 		const { skills, failures: skillFailures } = yield* readSkills(config.root, KNOWN_TARGET_IDS);
 		const { agents, failures: agentFailures } = yield* readAgents(config.root, KNOWN_TARGET_IDS);
 		// Every component problem in the plugin, so one build reports them all.
@@ -453,12 +454,19 @@ const planPlugin = (
 					...(yield* serverShipped(config, file, servers.owners.get(file) ?? "mcpServers", false)),
 				);
 			}
+			const setting = config.config[id];
+			const targetListed = yield* listedFiles(
+				config,
+				typeof setting === "object" ? (setting.files ?? []) : [],
+				`${id}.files`,
+			);
 			const shipped = [
 				...new Set([
 					...hooksDir.filter((file) => own.has(file) || !everyScript.has(file)),
 					...[...own].filter((script) => !script.startsWith("hooks/")),
 					...serverFilesShipped,
-					...listed,
+					...baseListed,
+					...targetListed,
 				]),
 			];
 			const copied: Array<EmittedFile> = [];
