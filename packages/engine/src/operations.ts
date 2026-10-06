@@ -180,24 +180,25 @@ const checkScript = (
 	config: LoadedConfig,
 	script: string,
 	invoke: "bash" | "exec",
-	referencedBy: "hooks" | "monitors" = "hooks",
+	component: "hooks" | "monitors" = "hooks",
 ): Effect.Effect<void, HookScriptInvalid, FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
 		// Claude runs an exec-invoked script as `env K=V... <path>`, and env reads a `=` in the path as an assignment.
-		if (invoke === "exec" && script.includes("=")) {
+		// A monitor runs as a shell string, where "=" in the path is harmless.
+		if (invoke === "exec" && component === "hooks" && script.includes("=")) {
 			return yield* Effect.fail(
-				new HookScriptInvalid({ path: config.path, script, problem: "equals-in-path", referencedBy }),
+				new HookScriptInvalid({ path: config.path, script, problem: "equals-in-path", component }),
 			);
 		}
 		const info = yield* fs.stat(path.join(config.root, script)).pipe(Effect.option);
 		if (info._tag === "None" || info.value.type !== "File") {
-			return yield* Effect.fail(new HookScriptInvalid({ path: config.path, script, problem: "missing", referencedBy }));
+			return yield* Effect.fail(new HookScriptInvalid({ path: config.path, script, problem: "missing", component }));
 		}
 		if (invoke === "exec" && (info.value.mode & 0o111) === 0) {
 			return yield* Effect.fail(
-				new HookScriptInvalid({ path: config.path, script, problem: "not-executable", referencedBy }),
+				new HookScriptInvalid({ path: config.path, script, problem: "not-executable", component }),
 			);
 		}
 	});
@@ -374,6 +375,13 @@ const tokenContext = (
  * in its manifest also reserves the server file its host loads by default
  * (Claude Code's `.mcp.json` and `.lsp.json`), but only when this plugin
  * has servers of that kind inline.
+ *
+ * A target with monitors (Claude Code) writes them to `monitors/monitors.json`,
+ * which no source file may occupy, and ships each monitor `script` and each
+ * file a `command` names after `${PLUGIN_ROOT}/` (and the monitor library).
+ * Those files ship only to targets that build monitors, even from under
+ * `hooks/`; a target without monitors notes each as `monitor-omitted` and
+ * ships none.
  */
 const planPlugin = (
 	prepared: PreparedPlugin,
@@ -412,11 +420,18 @@ const planPlugin = (
 		// The files each target's monitors run, rendered once. Like hook scripts, over every enabled
 		// target for what ships, so a monitor script under hooks/ never rides the hooks directory
 		// to a target without monitors.
+		const monitorsOf = new Map(
+			config.targets.map((id) => {
+				const rendered = renderMonitors(targetOf(id), id, targetMonitors(id, config.config), invoke);
+				return [id, { rendered, files: [...rendered.scripts, ...rendered.commandFiles] }] as const;
+			}),
+		);
 		const monitorFilesOf = (id: KnownTargetId) => {
-			const rendered = renderMonitors(targetOf(id), targetMonitors(id, config.config), invoke);
-			return { rendered, files: [...rendered.scripts, ...rendered.commandFiles] };
+			const found = monitorsOf.get(id);
+			if (found === undefined) throw new Error(`no monitors for target "${id}"`);
+			return found;
 		};
-		const everyMonitorFile = new Set(config.targets.flatMap((id) => monitorFilesOf(id).files));
+		const everyMonitorFile = new Set([...monitorsOf.values()].flatMap((one) => one.files));
 		for (const id of prepared.targets) {
 			const { rendered } = monitorFilesOf(id);
 			for (const script of rendered.scripts) yield* checkScript(config, script, invoke, "monitors");

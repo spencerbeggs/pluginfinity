@@ -334,11 +334,11 @@ export class HookScriptInvalid extends Schema.TaggedError<HookScriptInvalid>()("
 	/** The script, relative to the plugin root. */
 	script: Schema.String,
 	problem: HookScriptProblem,
-	/** What names the script: `hooks` (the default) or `monitors`. */
-	referencedBy: Schema.optionalKey(Schema.Literals(["hooks", "monitors"])),
+	/** The component that runs the script: `hooks` or `monitors`. */
+	component: Schema.Literals(["hooks", "monitors"]),
 }) {
 	private get kind(): string {
-		return this.referencedBy === "monitors" ? "monitor script" : "hook script";
+		return this.component === "monitors" ? "monitor script" : "hook script";
 	}
 
 	override get message(): string {

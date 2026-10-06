@@ -129,6 +129,17 @@ export const entryEnv = (event: string, entry: HookEntry, matcher?: string): Rea
 const quoteValue = (value: string): string => `'${value.replaceAll("'", `'\\''`)}'`;
 
 /**
+ * An env as a shell prefix, `K='V' ` per pair: every value single-quoted, and
+ * empty for an empty env.
+ *
+ * @public
+ */
+export const shellEnvPrefix = (env: Readonly<Record<string, string>>): string =>
+	Object.entries(env)
+		.map(([key, value]) => `${key}=${quoteValue(value)} `)
+		.join("");
+
+/**
  * The shell command a hook entry runs on a target: a `script` through `bash`
  * (or executed directly under `scripts.invoke: "exec"`) at the target's
  * plugin root, or a `command` with `${PLUGIN_ROOT}` spelled the target's way.

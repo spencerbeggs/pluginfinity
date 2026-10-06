@@ -23,6 +23,7 @@ import {
 	LSP_UNRESOLVED,
 	MONITORED,
 	MONITORED_COLLIDE,
+	MONITORED_EXEC_EQUALS,
 	MONITORED_MISSING,
 	NOTED,
 	NOTED_AGENT,
@@ -790,6 +791,7 @@ describe("build with hooks", () => {
 				assert.strictEqual(error._tag, "HookScriptInvalid");
 				if (error._tag !== "HookScriptInvalid") return;
 				assert.deepStrictEqual([error.script, error.problem], ["hooks/start.copilot.sh", "missing"]);
+				assert.strictEqual(error.component, "hooks");
 			}),
 		);
 
@@ -1827,7 +1829,7 @@ describe("build with monitors", () => {
 				assert.strictEqual(error._tag, "HookScriptInvalid");
 				if (error._tag !== "HookScriptInvalid") return;
 				assert.deepStrictEqual([error.script, error.problem], ["monitors/missing.sh", "missing"]);
-				assert.include(error.message, "monitors");
+				assert.strictEqual(error.component, "monitors");
 			}),
 		);
 
@@ -1841,6 +1843,18 @@ describe("build with monitors", () => {
 				assert.strictEqual(error._tag, "HookScriptInvalid");
 				if (error._tag !== "HookScriptInvalid") return;
 				assert.strictEqual(error.script, "monitors/issues.mjs");
+				assert.strictEqual(error.component, "monitors");
+			}),
+		);
+
+		it.effect("under exec, a monitor script path with = builds", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* monitoredPlugin(MONITORED_EXEC_EQUALS, { "monitors/a=b.sh": "#!/usr/bin/env bash\n" });
+				yield* fs.chmod(path.join(root, "monitors/a=b.sh"), 0o755);
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.include(builds[0]?.plan.added ?? [], "monitors/a=b.sh");
 			}),
 		);
 

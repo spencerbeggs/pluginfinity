@@ -1,7 +1,6 @@
 import type { MonitorEntry, Target } from "@pluginfinity/core";
 import type { KnownTargetId, PluginfinityConfig } from "@pluginfinity/targets";
-import { TARGETS } from "@pluginfinity/targets";
-import { commandFiles, hookCommand } from "./hooks.js";
+import { commandFiles, hookCommand, shellEnvPrefix } from "./hooks.js";
 import type { BuildNote } from "./notes.js";
 import { CONFIG_NOTE_PATH } from "./notes.js";
 
@@ -29,29 +28,27 @@ export interface RenderedMonitors {
 	readonly commandFiles: ReadonlyArray<string>;
 }
 
-const idOf = (target: Target): KnownTargetId => {
-	const entry = TARGETS.find((candidate) => candidate.target === target);
-	if (entry === undefined) throw new Error("target is not in the registry");
-	return entry.id;
-};
-
 /**
  * Render a target's monitors file. A target with no monitors drops every
  * monitor with a `monitor-omitted` note and ships neither file nor script.
  *
  * @remarks
- * Each entry's command exports `PLUGINFINITY_MONITOR` (the monitor's name,
- * which the monitor library logs under), in the one shape the hook command
- * builder writes: a prefix on a script, an `export` before a command.
+ * Each entry's command carries `PLUGINFINITY_MONITOR` (the monitor's name,
+ * which the monitor library logs under), quoted by `shellEnvPrefix`: a prefix
+ * on a script, an `export` before a command.
  *
  * @public
  */
-export const renderMonitors = (target: Target, monitors: MonitorMap, invoke: "bash" | "exec"): RenderedMonitors => {
+export const renderMonitors = (
+	target: Target,
+	id: KnownTargetId,
+	monitors: MonitorMap,
+	invoke: "bash" | "exec",
+): RenderedMonitors => {
 	const entries = Object.entries(monitors);
 	if (entries.length === 0) return { notes: [], scripts: [], commandFiles: [] };
 	const placement = target.monitors;
 	if (!("path" in placement)) {
-		const id = idOf(target);
 		return {
 			notes: entries.map(([name]) => ({ target: id, path: CONFIG_NOTE_PATH, kind: "monitor-omitted", name })),
 			scripts: [],
@@ -59,12 +56,15 @@ export const renderMonitors = (target: Target, monitors: MonitorMap, invoke: "ba
 		};
 	}
 	const array = entries.map(([name, entry]) => {
-		const env = { PLUGINFINITY_MONITOR: name };
-		const command = hookCommand(entry, placement.root, invoke, env);
+		const env = shellEnvPrefix({ PLUGINFINITY_MONITOR: name });
+		// A script runs with the variable as a prefix, a command after an `export`.
+		const command =
+			"script" in entry
+				? `${env}${hookCommand(entry, placement.root, invoke)}`
+				: `export ${env.trimEnd()}; ${hookCommand(entry, placement.root, invoke)}`;
 		return {
 			name,
-			// A script entry carries the variable as a prefix: `K='V' bash "<path>"`.
-			command: "script" in entry ? `PLUGINFINITY_MONITOR='${name}' ${command}` : command,
+			command,
 			description: entry.description,
 			...(entry.when === undefined ? {} : { when: entry.when }),
 		};

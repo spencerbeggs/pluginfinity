@@ -7,6 +7,7 @@ describe("renderMonitors", () => {
 	it("Claude renders script and command monitors with the root spelled and the name exported", () => {
 		const out = renderMonitors(
 			CLAUDE,
+			"claude",
 			{
 				"dogfood-mail": { script: "monitors/mail.sh", args: ["--quiet"], description: "Mail." },
 				issues: {
@@ -37,20 +38,20 @@ describe("renderMonitors", () => {
 	});
 
 	it("under exec invoke a script entry drops bash", () => {
-		const out = renderMonitors(CLAUDE, { a: { script: "monitors/a.sh", description: "A." } }, "exec");
+		const out = renderMonitors(CLAUDE, "claude", { a: { script: "monitors/a.sh", description: "A." } }, "exec");
 		assert.deepStrictEqual(JSON.parse(out.file?.content ?? "[]"), [
 			{ name: "a", command: `PLUGINFINITY_MONITOR='a' "\${CLAUDE_PLUGIN_ROOT}/monitors/a.sh"`, description: "A." },
 		]);
 	});
 
 	it("with no monitors Claude writes no file", () => {
-		const out = renderMonitors(CLAUDE, {}, "bash");
+		const out = renderMonitors(CLAUDE, "claude", {}, "bash");
 		assert.strictEqual(out.file, undefined);
 		assert.deepStrictEqual(out.notes, []);
 	});
 
 	it("Copilot drops every monitor with a note and ships nothing", () => {
-		const out = renderMonitors(COPILOT, { a: { script: "monitors/a.sh", description: "A." } }, "bash");
+		const out = renderMonitors(COPILOT, "copilot", { a: { script: "monitors/a.sh", description: "A." } }, "bash");
 		assert.strictEqual(out.file, undefined);
 		assert.deepStrictEqual(
 			out.notes.map((n) => [n.kind, n.name, n.path, n.target]),
@@ -78,5 +79,12 @@ describe("targetMonitors", () => {
 			b: { script: "monitors/b.sh", description: "B." },
 		});
 		assert.deepStrictEqual(Object.keys(targetMonitors("copilot", config)), ["a", "b"]);
+	});
+});
+
+describe("renderMonitors under exec", () => {
+	it("a monitor script path with = renders without complaint", () => {
+		const out = renderMonitors(CLAUDE, "claude", { a: { script: "monitors/a=b.sh", description: "A." } }, "exec");
+		assert.include(out.file?.content ?? "", "a=b.sh");
 	});
 });

@@ -64,6 +64,7 @@ export {
 	hookExec,
 	hookScripts,
 	renderHooks,
+	shellEnvPrefix,
 	targetHooks,
 } from "./hooks.js";
 export type { LoadedConfig } from "./loader.js";

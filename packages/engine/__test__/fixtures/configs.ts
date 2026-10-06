@@ -300,3 +300,11 @@ export const MONITORED_COLLIDE = `export default {
 	files: ["monitors/monitors.json"],
 	claude: true,
 };\n`;
+
+export const MONITORED_EXEC_EQUALS = `export default {
+	name: "monitored",
+	description: "Fixture plugin.",
+	scripts: { invoke: "exec" },
+	monitors: { mail: { script: "monitors/a=b.sh", description: "Mail." } },
+	claude: true,
+};\n`;
