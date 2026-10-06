@@ -121,6 +121,7 @@ describe("renderTokens: grammar and malformed input", () => {
 		for (const kind of ["tool", "agent", "skill"]) {
 			const [problem] = problems(renderTokens(`{{${kind}}}`, claude));
 			assert.include(problem?.message, `{{${kind}}}`);
+			assert.include(problem?.message, kind === "agent" ? "needs an agent name" : `needs a ${kind} name`);
 		}
 	});
 
@@ -141,7 +142,8 @@ describe("renderTokens: grammar and malformed input", () => {
 
 	it("starts a token at the double brace right before its kind, so a third brace is text", () => {
 		assert.strictEqual(text(renderTokens("{{{tool Read}}}", copilot)), "{view}");
-		assert.strictEqual(text(renderTokens("\\{{{tool Read}}}", copilot)), "{{{tool Read}}}");
+		// The backslash escapes "{{{", which is not a token, so it stays and the inner token renders.
+		assert.strictEqual(text(renderTokens("\\{{{tool Read}}}", copilot)), "\\{view}");
 	});
 
 	it("fails a known token that holds another brace", () => {
@@ -153,6 +155,19 @@ describe("renderTokens: grammar and malformed input", () => {
 		for (const input of ["{{", "}}", "{{{", "}}}", "{{{{}}}}", "\\{{", "{{tool {{tool Read}}}}", "{{\\{{}}", "{"]) {
 			assert.doesNotThrow(() => renderTokens(input, copilot));
 		}
+	});
+
+	it("renders a CRLF body byte for byte apart from the replacement", () => {
+		const body = "# Title\r\n\r\nUse {{tool Read}} now.\r\n```\r\n{{tool Write}}\r\n```\r\n";
+		assert.strictEqual(text(renderTokens(body, copilot)), "# Title\r\n\r\nUse view now.\r\n```\r\ncreate\r\n```\r\n");
+	});
+
+	it("reports the right lines for problems in a CRLF body", () => {
+		const body = "ok\r\n{{tool TodoWrite}}\r\n\r\n[x](pluginfinity://agent/ghost)\r\n";
+		assert.deepStrictEqual(
+			problems(renderTokens(body, copilot)).map((p) => p.line),
+			[2, 4],
+		);
 	});
 
 	it("leaves text without tokens or links byte for byte", () => {
@@ -168,16 +183,23 @@ describe("renderTokens: the escape", () => {
 	});
 
 	it("honours the escape inside fenced and inline code", () => {
-		const body = ["`\\{{plugin_root}}`", "```sh", "echo \\{{ x }}", "```"].join("\n");
+		const body = ["`\\{{plugin_root}}`", "```sh", "echo \\{{tool Read}} \\{{ x }}", "```"].join("\n");
 		assert.strictEqual(
 			text(renderTokens(body, copilot)),
-			["`{{plugin_root}}`", "```sh", "echo {{ x }}", "```"].join("\n"),
+			["`{{plugin_root}}`", "```sh", "echo {{tool Read}} \\{{ x }}", "```"].join("\n"),
 		);
 	});
 
-	it("passes a GitHub Actions expression through, escaped or not", () => {
-		assert.strictEqual(text(renderTokens("$" + "{{ github.ref }}", claude)), "$" + "{{ github.ref }}");
-		assert.strictEqual(text(renderTokens("$\\{{ github.ref }}", claude)), "$" + "{{ github.ref }}");
+	it("keeps the backslash before a double brace that is not a token", () => {
+		for (const ctx of [claude, copilot]) {
+			assert.strictEqual(text(renderTokens("$" + "{{ github.ref }}", ctx)), "$" + "{{ github.ref }}");
+			assert.strictEqual(text(renderTokens("$\\{{ github.ref }}", ctx)), "$\\{{ github.ref }}");
+		}
+	});
+
+	it("leaves a regex sample with an escaped brace untouched in code and prose", () => {
+		const body = ["Match `/\\{{2}/` here.", "```js", "const twin = /\\{{2}/;", "```", "/a\\{{2,3}/"].join("\n");
+		for (const ctx of [claude, copilot]) assert.strictEqual(text(renderTokens(body, ctx)), body);
 	});
 });
 
@@ -264,13 +286,59 @@ describe("renderTokens: links", () => {
 		);
 	});
 
-	it("fails a pluginfinity link it cannot parse rather than ship it", () => {
+	it("fails a pluginfinity link it cannot parse rather than ship it, quoting it", () => {
 		const found = problems(
 			renderTokens('[a](pluginfinity://skill/alpha "title")\n![i](pluginfinity://skill/alpha)', claude),
 		);
 		assert.deepStrictEqual(
 			found.map((p) => p.line),
 			[1, 2],
+		);
+		assert.include(found[0]?.message, "[a](pluginfinity://skill/alpha");
+		assert.include(found[0]?.message, "only inline links");
+	});
+
+	it("fails a reference definition, an autolink and an uppercase scheme, on both targets", () => {
+		const cases = [
+			["[r]: pluginfinity://skill/alpha", "pluginfinity://skill/alpha"],
+			["See <pluginfinity://agent/reviewer>.", "<pluginfinity://agent/reviewer>."],
+			["[a](PLUGINFINITY://skill/alpha)", "[a](PLUGINFINITY://skill/alpha)"],
+			["bare Pluginfinity://skill/beta text", "Pluginfinity://skill/beta"],
+		] as const;
+		for (const ctx of [claude, copilot]) {
+			for (const [body, quoted] of cases) {
+				const [problem] = problems(renderTokens(body, ctx));
+				assert.strictEqual(problem?.line, 1);
+				assert.include(problem?.message, quoted);
+				assert.include(problem?.message, "only inline links");
+			}
+		}
+	});
+
+	it("leaves a stray pluginfinity:// in code alone", () => {
+		const body = ["`<pluginfinity://agent/reviewer>`", "```", "[r]: PLUGINFINITY://skill/alpha", "```"].join("\n");
+		assert.strictEqual(text(renderTokens(body, copilot)), body);
+	});
+
+	it("keeps a skill link's anchor in Claude's path and drops it from Copilot prose", () => {
+		const file = "[s](pluginfinity://skill/alpha/references/guide.md#sec)";
+		assert.strictEqual(text(renderTokens(file, claude)), `[s](${ROOT}/skills/alpha/references/guide.md#sec)`);
+		assert.strictEqual(text(renderTokens(file, copilot)), "s (the `alpha` skill's `references/guide.md`)");
+		const bare = "[s](pluginfinity://skill/beta#usage)";
+		assert.strictEqual(text(renderTokens(bare, claude)), `[s](${ROOT}/skills/beta/SKILL.md#usage)`);
+		assert.strictEqual(text(renderTokens(bare, copilot)), "s (the `beta` skill)");
+	});
+
+	it("validates only the path part of an anchored link", () => {
+		const [problem] = problems(renderTokens("[s](pluginfinity://skill/alpha/nope.md#sec)", claude));
+		assert.include(problem?.message, 'no file "nope.md"');
+	});
+
+	it("builds Claude's path from the target's skills directory", () => {
+		const target = Target.make({ ...CLAUDE, skills: { ...CLAUDE.skills, dir: "kit/skills" } });
+		assert.strictEqual(
+			text(renderTokens("[b](pluginfinity://skill/beta)", tokenContext(target))),
+			`[b](${ROOT}/kit/skills/beta/SKILL.md)`,
 		);
 	});
 });

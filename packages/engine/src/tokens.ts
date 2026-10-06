@@ -12,7 +12,10 @@ import { splitOwnMcp } from "./frontmatter.js";
 export interface TokenContext {
 	/** The target being built. */
 	readonly target: Target;
-	/** The plugin's Claude name: the `claude.name` override, else `name`. */
+	/**
+	 * The plugin's Claude name: the `claude.name` override, else `name`. It
+	 * must equal `own.plugin` when `own` is set; build one from the other.
+	 */
 	readonly plugin: string;
 	/** The plugin's skill names. */
 	readonly skills: ReadonlySet<string>;
@@ -20,7 +23,7 @@ export interface TokenContext {
 	readonly agents: ReadonlySet<string>;
 	/** Every file under a skill directory, as `<skill>/<path>`, `SKILL.md` included. */
 	readonly skillFiles: ReadonlySet<string>;
-	/** The plugin's own MCP servers on this target, if it declares any. */
+	/** The plugin's own MCP servers on this target, if it declares any; `own.plugin` must equal `plugin`. */
 	readonly own: OwnMcp | undefined;
 }
 
@@ -38,7 +41,11 @@ const KINDS = new Set(["tool", "agent", "skill", "plugin_root"]);
 /** The first word after `{{`: up to whitespace or a brace. */
 const KIND = /^\s*([^\s{}]+)/;
 const LINK = /(!?)\[([^[\]]*)\]\(\s*<?pluginfinity:\/\/([^\s<>()]*)>?\s*\)/g;
-const REFERENCE = /\]\(\s*<?pluginfinity:\/\//g;
+/** A `pluginfinity://` occurrence in any case, with the text around it up to whitespace. */
+const LEFTOVER = /\S*?pluginfinity:\/\/\S*/gi;
+const SCHEME = /pluginfinity:\/\//i;
+
+const article = (word: string): string => (/^[aeiou]/.test(word) ? `an ${word}` : `a ${word}`);
 
 type Spelled = { readonly value: string } | { readonly problem: string };
 
@@ -74,7 +81,7 @@ const token = (inner: string, raw: string, ctx: TokenContext): Spelled => {
 		return spelling(ctx.target.pluginRoot.body, raw);
 	}
 	const [name] = args;
-	if (name === undefined) return { problem: `${raw} needs a ${kind} name` };
+	if (name === undefined) return { problem: `${raw} needs ${article(kind)} name` };
 	if (args.length > 1) return { problem: `${raw} takes one ${kind} name` };
 	if (kind === "tool") return tool(name, raw, ctx);
 	if (kind === "agent") {
@@ -97,17 +104,18 @@ const tokens = (line: string, ctx: TokenContext, problems: Array<string>): strin
 			out += line.slice(at);
 			break;
 		}
+		const kind = KIND.exec(line.slice(open + 2))?.[1];
+		if (kind === undefined || !KINDS.has(kind)) {
+			// Not a token, so a backslash before it stays too. Keep one brace and
+			// look again from the next, so the token in `{{{tool Read}}}` starts
+			// at the pair right before its kind.
+			out += line.slice(at, open + 1);
+			at = open + 1;
+			continue;
+		}
 		if (open - 1 >= at && line[open - 1] === "\\") {
 			out += `${line.slice(at, open - 1)}{{`;
 			at = open + 2;
-			continue;
-		}
-		const kind = KIND.exec(line.slice(open + 2))?.[1];
-		if (kind === undefined || !KINDS.has(kind)) {
-			// Not a token: keep one brace and look again from the next, so the
-			// token in `{{{tool Read}}}` starts at the pair right before its kind.
-			out += line.slice(at, open + 1);
-			at = open + 1;
 			continue;
 		}
 		out += line.slice(at, open);
@@ -130,10 +138,15 @@ const tokens = (line: string, ctx: TokenContext, problems: Array<string>): strin
 };
 
 const link = (text: string, destination: string, raw: string, ctx: TokenContext): Spelled => {
-	const [kind = "", name = "", ...rest] = destination.split("/");
+	const hash = destination.indexOf("#");
+	const target = hash === -1 ? destination : destination.slice(0, hash);
+	const anchor = hash === -1 ? "" : destination.slice(hash);
+	const [kind = "", name = "", ...rest] = target.split("/");
 	const path = rest.join("/").replace(/\/+$/, "");
 	if (kind === "agent") {
-		if (name === "" || path !== "") return { problem: `${raw}: an agent link is pluginfinity://agent/<agent>` };
+		if (name === "" || path !== "" || anchor !== "") {
+			return { problem: `${raw}: an agent link is pluginfinity://agent/<agent>, with no path or anchor` };
+		}
 		if (!ctx.agents.has(name)) return { problem: `${raw}: this plugin has no agent "${name}"` };
 		return { value: `${text} (\`${fill(ctx.target.agents.id, { plugin: ctx.plugin, agent: name })}\`)` };
 	}
@@ -150,12 +163,17 @@ const link = (text: string, destination: string, raw: string, ctx: TokenContext)
 	}
 	const root = spelling(ctx.target.pluginRoot.body, raw);
 	if (!("value" in root)) return root;
-	return { value: `[${text}](${root.value}/skills/${name}/${path === "" ? "SKILL.md" : path})` };
+	const file = path === "" ? "SKILL.md" : path;
+	return { value: `[${text}](${root.value}/${ctx.target.skills.dir}/${name}/${file}${anchor})` };
 };
 
-/** Rewrite the `pluginfinity://` links on one line outside fenced code, skipping inline code spans. */
+/**
+ * Rewrite the inline `pluginfinity://` links on one line outside fenced code,
+ * skipping inline code spans; any other `pluginfinity://` outside code, in any
+ * case, is a problem, so nothing unbuilt ships.
+ */
 const links = (line: string, ctx: TokenContext, problems: Array<string>): string => {
-	if (!line.includes("pluginfinity://")) return line;
+	if (!SCHEME.test(line)) return line;
 	const code = [...line.matchAll(INLINE_CODE)].map((m) => [m.index, m.index + m[0].length] as const);
 	const inCode = (at: number): boolean => code.some(([start, end]) => at >= start && at < end);
 	const handled: Array<readonly [number, number]> = [];
@@ -171,11 +189,11 @@ const links = (line: string, ctx: TokenContext, problems: Array<string>): string
 		problems.push(spelled.problem);
 		return raw;
 	});
-	for (const match of line.matchAll(REFERENCE)) {
-		const at = match.index;
+	for (const match of line.matchAll(LEFTOVER)) {
+		const at = match.index + match[0].search(SCHEME);
 		if (inCode(at) || handled.some(([start, end]) => at >= start && at < end)) continue;
 		problems.push(
-			"a pluginfinity:// link must be [text](pluginfinity://skill/<skill>[/<path>]) or [text](pluginfinity://agent/<agent>), with no title",
+			`${match[0]}: only inline links [text](pluginfinity://skill/<skill>[/<path>][#anchor]) and [text](pluginfinity://agent/<agent>) are built, with no title`,
 		);
 	}
 	return out;
@@ -189,17 +207,24 @@ const links = (line: string, ctx: TokenContext, problems: Array<string>): string
  * A token is `{{tool <name>}}`, `{{agent <name>}}`, `{{skill <name>}}` or
  * `{{plugin_root}}`, with whitespace allowed inside the braces, on one line.
  * Tokens are replaced everywhere, fenced and inline code included; `\{{`
- * renders a literal `{{`. A `{{` whose first word is not a kind is text, so
+ * before a token renders it literally, and before any other `{{` the
+ * backslash stays. A `{{` whose first word is not a kind is text, so
  * GitHub Actions expressions, Jinja and Handlebars pass through;
  * a token starts at the `{{` right before its kind, so `{{{tool Read}}}`
  * keeps the outer braces. A known kind that cannot be spelled is a problem:
  * a missing or extra argument, a token never closed on its line, or a brace
  * inside one.
  *
- * A markdown link to `pluginfinity://skill/<skill>[/<path>]` or
- * `pluginfinity://agent/<agent>` outside fenced and inline code is built in
- * the target's reference style; inside code it stays text. A link the
- * renderer cannot parse is a problem rather than shipped.
+ * An inline markdown link to `pluginfinity://skill/<skill>[/<path>][#anchor]`
+ * or `pluginfinity://agent/<agent>` outside fenced and inline code is built in
+ * the target's reference style; inside code it stays text. A path style keeps
+ * the anchor; a prose style drops it. Any other `pluginfinity://` outside
+ * code, in any case (a title, an image, a reference definition, an autolink),
+ * is a problem rather than shipped.
+ *
+ * Known limits: an indented (four-space) code block is not treated as code,
+ * an inline code span across two lines is not recognised, and an escaped
+ * `\[text](pluginfinity://…)` is still built and keeps its backslash.
  *
  * Run it after host blocks are applied, so a token in another target's block
  * is never evaluated. The result is a pure function of its inputs.
@@ -210,7 +235,7 @@ export const renderTokens = (
 	text: string,
 	ctx: TokenContext,
 ): { readonly text: string } | { readonly problems: ReadonlyArray<TokenProblem> } => {
-	if (!text.includes("{{") && !text.includes("pluginfinity://")) return { text };
+	if (!text.includes("{{") && !SCHEME.test(text)) return { text };
 	const lines = text.split("\n");
 	const fenced = fencedLines(lines);
 	const problems: Array<TokenProblem> = [];
