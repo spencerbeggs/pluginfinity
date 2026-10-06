@@ -178,12 +178,12 @@ hook_project_dir() {
 	printf '%s\n' "$dir"
 }
 
-# cd into hook_project_dir. Writes nothing to stdout; on failure it logs through
-# hook_log and returns non-zero.
+# cd into hook_project_dir, ignoring CDPATH and treating a leading dash as a path.
+# Writes nothing to stdout; on failure it logs through hook_log and returns non-zero.
 hook_cd_project() {
 	local dir
 	dir=$(hook_project_dir)
-	cd "$dir" 2>/dev/null || {
+	CDPATH= cd -- "$dir" >/dev/null 2>&1 || {
 		hook_log "hook_cd_project: cannot cd to $dir"
 		return 1
 	}

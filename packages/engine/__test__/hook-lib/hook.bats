@@ -167,6 +167,15 @@ load helpers
 	[ "$output" = "$(cd "$BATS_TEST_TMPDIR/proj" && pwd -P)" ]
 }
 
+@test "hook_cd_project ignores CDPATH and keeps stdout to the script's own output" {
+	make_plugin claude
+	mkdir -p "$BATS_TEST_TMPDIR/work/proj" "$BATS_TEST_TMPDIR/elsewhere/proj"
+	hook_script 'cd "$WORK" && hook_cd_project; pwd -P'
+	run_script "$FIXTURES/stop.json" CLAUDE_PROJECT_DIR=proj WORK="$BATS_TEST_TMPDIR/work" CDPATH="$BATS_TEST_TMPDIR/elsewhere"
+	[ "$status" -eq 0 ]
+	[ "$output" = "$(cd "$BATS_TEST_TMPDIR/work/proj" && pwd -P)" ]
+}
+
 @test "hook_cd_project writes nothing to stdout and fails with a log when the cd fails" {
 	make_plugin claude
 	hook_script 'hook_cd_project || echo failed'
