@@ -46,6 +46,7 @@ const minimalTarget = {
 		format: "copilot-hooks-v1" as const,
 		events: { Stop: "Stop", Setup: absent },
 		ownEvents: [],
+		matcherIgnored: [],
 	},
 	mcp: { placement: inFile("mcp.json"), format: "agent-plugins-mcp-1.0" as const },
 	lsp: { placement: inFile("lsp.json"), format: "copilot-lsp-json" as const, fields: { command: keep } },

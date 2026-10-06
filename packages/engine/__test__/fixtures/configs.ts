@@ -228,7 +228,10 @@ export const SERVER_HOST_SPELLING = serverRefs(
 export const NOTED = `export default {
 	name: "noted",
 	description: "Fixture plugin.",
-	hooks: { Setup: [{ script: "hooks/setup.sh", fallback: "omit" }] },
+	hooks: {
+		Setup: [{ script: "hooks/setup.sh", fallback: "omit" }],
+		SessionStart: [{ script: "hooks/start.sh", matcher: "startup" }],
+	},
 	lspServers: { md: { command: "sh", extensionToLanguage: { ".md": "markdown" }, diagnostics: true } },
 	claude: true,
 	copilot: true,

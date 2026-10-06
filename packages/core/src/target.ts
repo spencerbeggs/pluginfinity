@@ -209,6 +209,12 @@ export class Target extends Schema.Class<Target>("Target")({
 		format: HooksFormat,
 		events: Schema.Record(Schema.String, EventMapping),
 		ownEvents: Schema.Array(Schema.String),
+		/**
+		 * The Claude events whose matcher the host ignores. The build drops the
+		 * host `matcher` key there and the hook library applies the matcher at
+		 * run time instead.
+		 */
+		matcherIgnored: Schema.Array(Schema.String),
 	}),
 	mcp: Schema.Struct({
 		placement: ServerPlacement,

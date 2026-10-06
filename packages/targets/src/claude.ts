@@ -81,6 +81,7 @@ export const CLAUDE: Target = Target.make({
 		format: "claude-hooks-json",
 		events: Object.fromEntries(CLAUDE_HOOK_EVENTS.map((event) => [event, event])),
 		ownEvents: [],
+		matcherIgnored: [],
 	},
 	// Servers go inline in plugin.json, not in a root .mcp.json or .lsp.json: repos conventionally gitignore
 	// .mcp.json as local dev config, so a committed build would silently ship no MCP server. Claude Code still

@@ -179,24 +179,29 @@ type HooksRenderer = (
 		entry: Extract<HookEntry, { readonly script: string }>,
 		env: Readonly<Record<string, string>>,
 	) => { command: string; args: ReadonlyArray<string> },
+	ignored: ReadonlyArray<string>,
 ) => unknown;
+
+// An entry's matcher runs in the hook library, not the host, on an event the host ignores matchers for.
+const runtimeMatcher = (ignored: ReadonlyArray<string>, event: string, entry: HookEntry): string | undefined =>
+	ignored.includes(event) ? entry.matcher : undefined;
 
 // One renderer per hooks format, total over HOOKS_FORMATS.
 const FORMATS: Record<Target["hooks"]["format"], HooksRenderer> = {
 	// Claude Code runs a script entry in exec form, with no shell; a command
 	// entry stays the shell string its author wrote.
-	"claude-hooks-json": (events, command, exec) => ({
+	"claude-hooks-json": (events, command, exec, ignored) => ({
 		hooks: Object.fromEntries(
 			events.map(({ event, name, entries }) => [
 				name,
 				entries.map((entry) => ({
-					...(entry.matcher === undefined ? {} : { matcher: entry.matcher }),
+					...(entry.matcher === undefined || ignored.includes(event) ? {} : { matcher: entry.matcher }),
 					hooks: [
 						{
 							type: "command",
 							...("script" in entry
-								? exec(entry, entryEnv(event, entry))
-								: { command: command(entry, entryEnv(event, entry)) }),
+								? exec(entry, entryEnv(event, entry, runtimeMatcher(ignored, event, entry)))
+								: { command: command(entry, entryEnv(event, entry, runtimeMatcher(ignored, event, entry))) }),
 							...(entry.timeout === undefined ? {} : { timeout: entry.timeout }),
 						},
 					],
@@ -204,7 +209,7 @@ const FORMATS: Record<Target["hooks"]["format"], HooksRenderer> = {
 			]),
 		),
 	}),
-	"copilot-hooks-v1": (events, command) => ({
+	"copilot-hooks-v1": (events, command, _exec, ignored) => ({
 		version: 1,
 		hooks: Object.fromEntries(
 			events.map(({ event, name, entries }) => [
@@ -212,10 +217,10 @@ const FORMATS: Record<Target["hooks"]["format"], HooksRenderer> = {
 				entries.map((entry) => ({
 					type: "command",
 					bash: command(entry),
-					...(entry.matcher === undefined ? {} : { matcher: entry.matcher }),
+					...(entry.matcher === undefined || ignored.includes(event) ? {} : { matcher: entry.matcher }),
 					...(entry.timeout === undefined ? {} : { timeoutSec: entry.timeout }),
 					// Copilot gets the env only here, never as a shell prefix on `bash`.
-					env: entryEnv(event, entry),
+					env: entryEnv(event, entry, runtimeMatcher(ignored, event, entry)),
 				})),
 			]),
 		),
@@ -243,6 +248,7 @@ export const renderHooks = (
 			events,
 			(entry, env) => hookCommand(entry, root, invoke, env),
 			(entry, env) => hookExec(entry, root, invoke, env),
+			target.hooks.matcherIgnored,
 		),
 		null,
 		"\t",

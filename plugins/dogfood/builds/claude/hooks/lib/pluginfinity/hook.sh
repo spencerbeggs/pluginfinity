@@ -524,3 +524,40 @@ hook_raw() {
 trap _pf_on_exit EXIT
 
 if pf_debug_on; then hook_debug "input: ${_pf_input:0:4000}"; fi
+
+# --- matcher ---------------------------------------------------------------
+
+# A host that ignores an event's matcher (Copilot on SessionStart, SessionEnd
+# and SubagentStop) has the build pass it as PLUGINFINITY_MATCHER. Apply
+# Claude's rules here: empty or `*` matches all; only [A-Za-z0-9_| ,-] is an
+# exact `|` list; anything else is an unanchored extended regex. No match ends
+# the script quietly, so nothing is emitted and the exit is 0.
+_pf_matcher_applies() { # matcher value
+	local m=$1 v=$2 item
+	local -a items
+	{ [ -z "$m" ] || [ "$m" = '*' ]; } && return 0
+	if [[ ! "$m" =~ [^A-Za-z0-9_\|\ ,-] ]]; then
+		IFS='|' read -r -a items <<<"$m"
+		for item in "${items[@]}"; do
+			[ "$item" = "$v" ] && return 0
+		done
+		return 1
+	fi
+	printf '%s' "$v" | grep -Eq -- "$m" 2>/dev/null
+}
+
+if [ -n "${PLUGINFINITY_MATCHER+x}" ]; then
+	_pf_match_field=""
+	case "$_pf_event" in
+	SessionStart) _pf_match_field=source ;;
+	SessionEnd) _pf_match_field=reason ;;
+	SubagentStop) _pf_match_field=agent_type ;;
+	esac
+	if [ -n "$_pf_match_field" ]; then
+		_pf_match_value=$(hook_input "$_pf_match_field")
+		if ! _pf_matcher_applies "$PLUGINFINITY_MATCHER" "$_pf_match_value"; then
+			hook_debug "matcher $PLUGINFINITY_MATCHER did not match $_pf_match_value"
+			exit 0
+		fi
+	fi
+fi

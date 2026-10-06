@@ -137,6 +137,11 @@ describe("the copilot description", () => {
 		assert.strictEqual(names?.Agent, "agent");
 	});
 
+	it("lists the events whose matcher the host ignores", () => {
+		assert.deepStrictEqual(copilot?.hooks.matcherIgnored, ["SessionStart", "SessionEnd", "SubagentStop"]);
+		assert.deepStrictEqual(TARGETS.find((t) => t.id === "claude")?.target.hooks.matcherIgnored, []);
+	});
+
 	it("keeps its own events out of the Claude event table", () => {
 		const claudeEvents = new Set<string>(CLAUDE_HOOK_EVENTS);
 		assert.deepStrictEqual(

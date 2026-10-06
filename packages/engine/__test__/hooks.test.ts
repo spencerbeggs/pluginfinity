@@ -241,6 +241,38 @@ describe("renderHooks", () => {
 		assert.strictEqual(json.hooks.PreToolUse[0].bash, 'bash "${PLUGIN_ROOT}/hooks/guard.sh"');
 	});
 
+	it("copilot: a matcher on an event the host ignores moves to PLUGINFINITY_MATCHER; other matchers stay", () => {
+		const hooked = config({
+			name: "x",
+			description: "Fixture plugin.",
+			copilot: true,
+			hooks: {
+				SessionStart: [{ matcher: "startup", script: "hooks/s.sh" }],
+				PreToolUse: [{ matcher: "Bash", script: "hooks/g.sh" }],
+			},
+		});
+		const json = JSON.parse(renderHooks(COPILOT, targetHooks(COPILOT, "copilot", hooked).events, "bash") ?? "{}");
+		assert.notProperty(json.hooks.SessionStart[0], "matcher");
+		assert.deepStrictEqual(json.hooks.SessionStart[0].env, {
+			PLUGINFINITY_EVENT: "SessionStart",
+			PLUGINFINITY_MATCHER: "startup",
+		});
+		assert.strictEqual(json.hooks.PreToolUse[0].matcher, "Bash");
+		assert.deepStrictEqual(json.hooks.PreToolUse[0].env, { PLUGINFINITY_EVENT: "PreToolUse" });
+	});
+
+	it("claude: a SessionStart matcher stays a host matcher", () => {
+		const hooked = config({
+			name: "x",
+			description: "Fixture plugin.",
+			claude: true,
+			hooks: { SessionStart: [{ matcher: "startup", script: "hooks/s.sh" }] },
+		});
+		const json = JSON.parse(renderHooks(CLAUDE, targetHooks(CLAUDE, "claude", hooked).events, "bash") ?? "{}");
+		assert.strictEqual(json.hooks.SessionStart[0].matcher, "startup");
+		assert.notInclude(JSON.stringify(json), "PLUGINFINITY_MATCHER");
+	});
+
 	it("copilot: version 1, the command under bash, timeoutSec", () => {
 		const text = renderHooks(COPILOT, targetHooks(COPILOT, "copilot", hooked).events, "bash") ?? "";
 		assert.deepStrictEqual(JSON.parse(text), {

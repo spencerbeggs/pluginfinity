@@ -426,6 +426,11 @@ const planPlugin = (
 				kind: "hook-omitted",
 				name: event,
 			}));
+			for (const { event, entries } of events) {
+				if (target.hooks.matcherIgnored.includes(event) && entries.some((entry) => entry.matcher !== undefined)) {
+					notes.push({ target: id, path: CONFIG_NOTE_PATH, kind: "hook-matcher-runtime", name: event });
+				}
+			}
 			const own = new Set(filesOf(events));
 			const servers = serverFiles(target, id, config.config);
 			const serverFilesShipped: Array<string> = [];

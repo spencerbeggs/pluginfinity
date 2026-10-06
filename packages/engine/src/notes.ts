@@ -5,13 +5,20 @@ import type { KnownTargetId } from "@pluginfinity/targets";
  *
  * @public
  */
-export const BUILD_NOTE_KINDS = ["dropped", "degraded", "tool-dropped", "hook-omitted"] as const;
+export const BUILD_NOTE_KINDS = [
+	"dropped",
+	"degraded",
+	"tool-dropped",
+	"hook-matcher-runtime",
+	"hook-omitted",
+] as const;
 
 /**
  * What a target did to something it could not carry as written: `dropped` a
  * field, `degraded` a field into another form (a description suffix or a body
- * section), `tool-dropped` a tool it cannot name, or `hook-omitted` an event
- * it lacks whose entries all set `fallback: "omit"`.
+ * section), `tool-dropped` a tool it cannot name, moved a
+ * `hook-matcher-runtime` matcher the host ignores into the hook library, or
+ * `hook-omitted` an event it lacks whose entries all set `fallback: "omit"`.
  *
  * @public
  */

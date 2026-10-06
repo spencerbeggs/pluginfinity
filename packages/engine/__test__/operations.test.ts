@@ -1631,6 +1631,7 @@ describe("build notes", () => {
 			"pluginfinity.config.ts": NOTED,
 			"package.json": PACKAGE_JSON,
 			"hooks/setup.sh": "#!/bin/bash\n",
+			"hooks/start.sh": "#!/bin/bash\n",
 			"agents/x.md": NOTED_AGENT,
 			"skills/s/SKILL.md": NOTED_SKILL,
 			"skills/plain/SKILL.md": PLAIN_SKILL,
@@ -1642,6 +1643,7 @@ describe("build notes", () => {
 		{ target: "copilot", path: "skills/s/SKILL.md", kind: "degraded", name: "paths" },
 		{ target: "copilot", path: "skills/s/SKILL.md", kind: "tool-dropped", name: "ToolSearch" },
 		{ target: "copilot", path: "config", kind: "dropped", name: "lspServers.md.diagnostics" },
+		{ target: "copilot", path: "config", kind: "hook-matcher-runtime", name: "SessionStart" },
 		{ target: "copilot", path: "config", kind: "hook-omitted", name: "Setup" },
 	];
 

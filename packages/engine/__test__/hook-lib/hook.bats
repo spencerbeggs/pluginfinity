@@ -868,3 +868,60 @@ exit 7'
 	run_script "$FIXTURES/sessionstart.startup.json"
 	[ "$output" = Whatever ]
 }
+
+# --- matchers a host ignores ---
+
+@test "a matcher passed by the build skips a non-matching SessionStart" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"hook_event_name":"SessionStart","source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER=startup
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "an alternation matcher matches either word" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER='startup|resume'
+	[ "$output" = ran ]
+}
+
+@test "a regex matcher is unanchored, as on Claude" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER='res.*'
+	[ "$output" = ran ]
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER='^res.*'
+	[ "$output" = ran ]
+}
+
+@test "an exact word does not match as a substring" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"source":"startup-x"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER=startup
+	[ -z "$output" ]
+}
+
+@test "an empty or star matcher matches everything" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER='*'
+	[ "$output" = ran ]
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER=
+	[ "$output" = ran ]
+}
+
+@test "SessionEnd matches on reason and SubagentStop on agent_type" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"reason":"logout"}' PLUGINFINITY_EVENT=SessionEnd PLUGINFINITY_MATCHER=clear
+	[ -z "$output" ]
+	run_script '{"reason":"clear"}' PLUGINFINITY_EVENT=SessionEnd PLUGINFINITY_MATCHER=clear
+	[ "$output" = ran ]
+	run_script '{"agent_type":"reviewer"}' PLUGINFINITY_EVENT=SubagentStop PLUGINFINITY_MATCHER=reviewer
+	[ "$output" = ran ]
+	run_script '{"agent_type":"other"}' PLUGINFINITY_EVENT=SubagentStop PLUGINFINITY_MATCHER=reviewer
+	[ -z "$output" ]
+}
+
+@test "a non-matching matcher logs a debug line and a fail-closed hook still emits nothing" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER=startup PLUGINFINITY_FAIL_CLOSED=1 PLUGINFINITY_DEBUG=1
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+	[[ "$(debug_log)" == *"matcher startup did not match resume"* ]]
+}
