@@ -21,6 +21,10 @@
 
 An agent `tools` or skill `allowed-tools` name `mcp__plugin_<plugin>_<server>__<tool>`, where `<plugin>` is the plugin's Claude Code name and `<server>` an MCP server the target declares, is now written as `<server>/<tool>` on Copilot instead of being dropped. Claude Code keeps it as written. Another plugin's `mcp__plugin_…` name is still dropped on Copilot, now with a `tool-dropped` note.
 
+### Body tokens and pluginfinity links
+
+`renderTokens` rewrites a skill or agent body for one target after host blocks. A `{{tool <name>}}`, `{{agent <name>}}`, `{{skill <name>}}` or `{{plugin_root}}` token is replaced everywhere, code included, with the target's run-time spelling; any other `{{…}}` is text, and `\{{` keeps a token literal. An inline `[text](pluginfinity://skill/<skill>[/<path>][#anchor])` or `[text](pluginfinity://agent/<agent>)` link outside code is built in the target's reference style instead of refused. `SKILL.md`, every other `.md` file in a skill directory and agent bodies are rendered; a token or link a target cannot spell, or any other `pluginfinity://` outside code, is a `ComponentInvalid` on the file, keyed by its source line and naming the target. `renderSkill` fails with a `ComponentsInvalid` when several files of one skill have problems. `TokenContext` and `TokenProblem` are exported.
+
 ### Hook and server library helpers
 
 * `hook_cd_project` changes into `hook_project_dir`, for a hook that runs a project-aware CLI on Copilot, where hooks run from the plugin root
@@ -34,4 +38,6 @@ An agent `tools` or skill `allowed-tools` name `mcp__plugin_<plugin>_<server>__<
 
 * `renderSkill` now returns a `RenderedSkill` (`files`, `notes`) and `renderAgent` a `RenderedAgent` (`file`, `notes`); `MappedFrontmatter` gains `drops`, and `targetHooks` returns `omitted`
 * `PlanError` no longer includes `NotImplemented`, and `BuildError` now includes `ShippedFileInvalid`
+* `renderSkill` and `renderAgent` now take a required `TokenContext` in place of the optional own-MCP argument
+* The `referenceLines` export is removed; links are built by `renderTokens`
 * `lib/pluginfinity/` is reserved in every target: a shipped source file there fails with `PathConflict`

@@ -39,6 +39,22 @@ Under `--agent` or `--ci`, each build and validation carries a `notes` array of 
 
 A skill or agent can now name its own plugin's MCP tools as Claude Code does, `mcp__plugin_<plugin>_<server>__<tool>`, and the Copilot build writes `<server>/<tool>` instead of dropping them.
 
+### Body tokens and pluginfinity links
+
+A skill or agent body can name a tool, an agent, a skill or the plugin root once and get each host's spelling:
+
+| Write | Claude Code | Copilot |
+| :-- | :-- | :-- |
+| `{{tool Read}}` | `Read` | `view` |
+| `{{tool mcp__plugin_<plugin>_<server>__<tool>}}` | as written | `<server>-<tool>` |
+| `{{agent <agent>}}` | `<plugin>:<agent>` | `<plugin>:<agent>` |
+| `{{skill <skill>}}` | `/<plugin>:<skill>` | `/<plugin>:<skill>` |
+| `{{plugin_root}}` | `${CLAUDE_PLUGIN_ROOT}` | fails the build |
+
+Tokens are replaced everywhere, code included, in `SKILL.md`, every other `.md` file in a skill directory and agent bodies. Only those four kinds are tokens, so GitHub Actions `${{ }}`, Jinja and Handlebars pass through, and `\{{` keeps a token literal. A token a host cannot spell fails the build with its file, line and host; put that passage in a host block.
+
+Inline `[text](pluginfinity://skill/<skill>[/<path>][#anchor])` and `[text](pluginfinity://agent/<agent>)` links are now built: a link under `${CLAUDE_PLUGIN_ROOT}` on Claude Code, prose on Copilot. Any other `pluginfinity://` outside code still fails the build.
+
 ### Hook and server library helpers
 
 * `hook_cd_project` in the hook library changes into the user's project before a hook runs a project-aware CLI
@@ -52,3 +68,4 @@ A skill or agent can now name its own plugin's MCP tools as Claude Code does, `m
 
 * `lib/pluginfinity/` is now reserved like `hooks/lib/pluginfinity/`: a shipped source file there fails the build with `PathConflict`
 * A server `env` key starting with `PLUGINFINITY_` now fails as `ConfigInvalid`
+* A body that already holds `{{tool …}}`, `{{agent …}}`, `{{skill …}}` or `{{plugin_root}}` text is now rendered as a token; write `\{{` to keep it literal
