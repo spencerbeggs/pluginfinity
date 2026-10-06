@@ -1,5 +1,26 @@
 # pluginfinity
 
+## 0.2.1
+
+### Bug Fixes
+
+- `pluginfinity build` now writes a Claude Code plugin's MCP and LSP servers inline in `.claude-plugin/plugin.json` instead of a root `.mcp.json` and `.lsp.json`. Many repositories gitignore `.mcp.json`, so the committed Claude build silently registered no MCP server and `build --check` failed on every clean checkout. The next build deletes the old files; commit the deletion. A source `.mcp.json` or `.lsp.json` that would ship to the Claude build now fails with `PathConflict`; move those servers into `mcpServers` or `lspServers`. Copilot output is unchanged. [#15][#15]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @pluginfinity/cli | dependency | updated | 0.2.0 | 0.2.1 |
+| @pluginfinity/core | dependency | updated | 0.2.0 | 0.2.1 |
+| @pluginfinity/engine | dependency | updated | 0.2.0 | 0.2.1 |
+| @pluginfinity/targets | dependency | updated | 0.2.0 | 0.2.1 |
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#15]: https://github.com/spencerbeggs/pluginfinity/pull/15
+
 ## 0.2.0
 
 ### Breaking Changes
