@@ -771,6 +771,18 @@ describe("build with hooks", () => {
 			}),
 		);
 
+		it.effect("under exec, a script path with = is HookScriptInvalid equals-in-path", () =>
+			Effect.gen(function* () {
+				const root = yield* hookedPlugin(HOOKED_EXEC.replaceAll("hooks/start.sh", "hooks/a=b.sh"), {
+					"hooks/a=b.sh": "#!/usr/bin/env bash\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookScriptInvalid");
+				if (error._tag !== "HookScriptInvalid") return;
+				assert.deepStrictEqual([error.script, error.problem], ["hooks/a=b.sh", "equals-in-path"]);
+			}),
+		);
+
 		it.effect("an event the target lacks is HookEventUnsupported naming it", () =>
 			Effect.gen(function* () {
 				const root = yield* hookedPlugin(HOOKED_UNSUPPORTED);

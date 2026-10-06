@@ -103,8 +103,8 @@ describe("build and validate", () => {
 				const result = yield* runCli(["build", "--human"], { cwd });
 				assert.strictEqual(result.code, 0);
 				assert.deepStrictEqual(result.stdout, [
-					`✓ claude: ${cwd}/builds/claude (1 added, 0 changed, 0 removed)`,
-					`✓ copilot: ${cwd}/builds/copilot (1 added, 0 changed, 0 removed)`,
+					`✓ claude: ${cwd}/builds/claude (3 added, 0 changed, 0 removed)`,
+					`✓ copilot: ${cwd}/builds/copilot (3 added, 0 changed, 0 removed)`,
 				]);
 			}),
 		);
@@ -126,7 +126,11 @@ describe("build and validate", () => {
 				assert.strictEqual(result.code, 0);
 				const report = JSON.parse(result.stdout[0] ?? "");
 				assert.strictEqual(report.ok, true);
-				assert.deepStrictEqual(report.builds[0].added, [".claude-plugin/plugin.json"]);
+				assert.deepStrictEqual(report.builds[0].added, [
+					".claude-plugin/plugin.json",
+					"lib/pluginfinity/host.sh",
+					"lib/pluginfinity/log.sh",
+				]);
 			}),
 		);
 

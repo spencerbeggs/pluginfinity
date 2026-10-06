@@ -1,7 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { CLAUDE, COPILOT, PluginfinityConfig } from "@pluginfinity/targets";
 import { Schema } from "effect";
-import { hookCommand, hookExec, hookScripts, renderHooks, targetHooks } from "../src/hooks.js";
+import { entryEnv, hookCommand, hookExec, hookScripts, renderHooks, targetHooks } from "../src/hooks.js";
 
 const config = (input: typeof PluginfinityConfig.Encoded) => Schema.decodeUnknownSync(PluginfinityConfig)(input);
 
@@ -207,6 +207,22 @@ describe("renderHooks", () => {
 		assert.deepStrictEqual(
 			hookExec({ script: "hooks/a.sh" }, `\${CLAUDE_PLUGIN_ROOT}`, "exec", { PLUGINFINITY_EVENT: "Stop" }),
 			{ command: "env", args: ["PLUGINFINITY_EVENT=Stop", `\${CLAUDE_PLUGIN_ROOT}/hooks/a.sh`] },
+		);
+	});
+
+	it("entryEnv adds the matcher only when given", () => {
+		assert.deepStrictEqual(entryEnv("Stop", { script: "a.sh" }), { PLUGINFINITY_EVENT: "Stop" });
+		assert.deepStrictEqual(entryEnv("PreToolUse", { script: "a.sh", failClosed: true }, "Bash"), {
+			PLUGINFINITY_EVENT: "PreToolUse",
+			PLUGINFINITY_FAIL_CLOSED: "1",
+			PLUGINFINITY_MATCHER: "Bash",
+		});
+	});
+
+	it("a shell-form env value with an embedded quote is escaped", () => {
+		assert.strictEqual(
+			hookCommand({ command: "x" }, `\${CLAUDE_PLUGIN_ROOT}`, "bash", { PLUGINFINITY_MATCHER: "it's" }),
+			`export PLUGINFINITY_MATCHER='it'\\''s'; x`,
 		);
 	});
 

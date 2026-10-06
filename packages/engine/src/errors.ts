@@ -321,7 +321,7 @@ export class HookEventUnsupported extends Schema.TaggedError<HookEventUnsupporte
  *
  * @public
  */
-export const HookScriptProblem = Schema.Literals(["missing", "not-executable"]);
+export const HookScriptProblem = Schema.Literals(["missing", "not-executable", "equals-in-path"]);
 
 /**
  * A hook `script` cannot be shipped as configured.
@@ -338,13 +338,17 @@ export class HookScriptInvalid extends Schema.TaggedError<HookScriptInvalid>()("
 	override get message(): string {
 		return this.problem === "missing"
 			? `hook script ${this.script} named in ${this.path} does not exist`
-			: `hook script ${this.script} is not executable, and ${this.path} sets scripts.invoke to "exec"`;
+			: this.problem === "equals-in-path"
+				? `hook script ${this.script} has "=" in its path, and ${this.path} sets scripts.invoke to "exec", where Claude Code runs it after env and env reads it as a variable assignment`
+				: `hook script ${this.script} is not executable, and ${this.path} sets scripts.invoke to "exec"`;
 	}
 
 	get remediation(): Remediation {
 		return this.problem === "missing"
 			? { hint: `Create ${this.script} under the plugin root, or fix the path in ${this.path}.` }
-			: { hint: `Run \`chmod +x ${this.script}\`, or drop scripts.invoke so hooks run through bash.` };
+			: this.problem === "equals-in-path"
+				? { hint: `Rename ${this.script} without "=", or drop scripts.invoke so hooks run through bash.` }
+				: { hint: `Run \`chmod +x ${this.script}\`, or drop scripts.invoke so hooks run through bash.` };
 	}
 }
 

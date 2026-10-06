@@ -144,7 +144,7 @@ export const hookCommand = (
 	// with characters the shell would read ($, `, ", spaces) is single-quoted.
 	const path = SAFE_PATH.test(entry.script) ? `"${root}/${entry.script}"` : `"${root}"/${shellQuote(entry.script)}`;
 	const args = (entry.args ?? []).map(shellQuote);
-	return [...pairs, ...(invoke === "bash" ? ["bash", path] : [path]), ...args].join(" ");
+	return [...(invoke === "bash" ? ["bash", path] : [path]), ...args].join(" ");
 };
 
 /**

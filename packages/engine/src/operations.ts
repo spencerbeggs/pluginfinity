@@ -181,6 +181,10 @@ const checkScript = (
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
+		// Claude runs an exec-invoked script as `env K=V... <path>`, and env reads a `=` in the path as an assignment.
+		if (invoke === "exec" && script.includes("=")) {
+			return yield* Effect.fail(new HookScriptInvalid({ path: config.path, script, problem: "equals-in-path" }));
+		}
 		const info = yield* fs.stat(path.join(config.root, script)).pipe(Effect.option);
 		if (info._tag === "None" || info.value.type !== "File") {
 			return yield* Effect.fail(new HookScriptInvalid({ path: config.path, script, problem: "missing" }));
