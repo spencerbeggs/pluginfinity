@@ -100,9 +100,21 @@ describe("renderTokens: agents, skills and the plugin root", () => {
 });
 
 describe("renderTokens: grammar and malformed input", () => {
-	it("fails an unknown kind", () => {
-		const [problem] = problems(renderTokens("{{tol Read}}", claude));
-		assert.include(problem?.message, '"tol"');
+	it("leaves braces whose first word is not a kind as text, in prose and code", () => {
+		const lines = [
+			"$" + "{{ secrets.GITHUB_TOKEN }}",
+			"Hello {{ name }} and {{}}",
+			"{{tol Read}} {{toolbox}} {{ tool.x }}",
+			"{{ unknown and never closed",
+		];
+		const body = [...lines, `\`$\{{ secrets.GITHUB_TOKEN }}\` and \`{{ name }}\``, "```yaml", ...lines, "```"].join(
+			"\n",
+		);
+		for (const ctx of [claude, copilot]) assert.strictEqual(text(renderTokens(body, ctx)), body);
+	});
+
+	it("replaces a known token on a line that also holds unknown braces", () => {
+		assert.strictEqual(text(renderTokens("{{ name }} uses {{tool Read}}", copilot)), "{{ name }} uses view");
 	});
 
 	it("fails a kind missing its argument", () => {
@@ -117,10 +129,6 @@ describe("renderTokens: grammar and malformed input", () => {
 		assert.lengthOf(problems(renderTokens("{{plugin_root x}}", claude)), 1);
 	});
 
-	it("fails an empty token", () => {
-		assert.lengthOf(problems(renderTokens("{{}} and {{  }}", claude)), 2);
-	});
-
 	it("fails a token that is never closed on its line", () => {
 		const [problem] = problems(renderTokens("ok\n{{ tool Read\n}}", claude));
 		assert.strictEqual(problem?.line, 2);
@@ -131,9 +139,14 @@ describe("renderTokens: grammar and malformed input", () => {
 		assert.strictEqual(text(renderTokens("a }} b", copilot)), "a }} b");
 	});
 
-	it("fails a token opened with three braces", () => {
-		const [problem] = problems(renderTokens("{{{tool Read}}}", claude));
-		assert.include(problem?.message, "{{{tool Read}}");
+	it("starts a token at the double brace right before its kind, so a third brace is text", () => {
+		assert.strictEqual(text(renderTokens("{{{tool Read}}}", copilot)), "{view}");
+		assert.strictEqual(text(renderTokens("\\{{{tool Read}}}", copilot)), "{{{tool Read}}}");
+	});
+
+	it("fails a known token that holds another brace", () => {
+		const [problem] = problems(renderTokens("{{tool {{x}}}}", claude));
+		assert.include(problem?.message, "{{tool {{x}}");
 	});
 
 	it("never throws on brace soup", () => {
@@ -162,8 +175,8 @@ describe("renderTokens: the escape", () => {
 		);
 	});
 
-	it("fails a GitHub Actions expression unless it is escaped", () => {
-		assert.lengthOf(problems(renderTokens("$" + "{{ github.ref }}", claude)), 1);
+	it("passes a GitHub Actions expression through, escaped or not", () => {
+		assert.strictEqual(text(renderTokens("$" + "{{ github.ref }}", claude)), "$" + "{{ github.ref }}");
 		assert.strictEqual(text(renderTokens("$\\{{ github.ref }}", claude)), "$" + "{{ github.ref }}");
 	});
 });

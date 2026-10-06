@@ -35,6 +35,8 @@ export interface TokenProblem {
 }
 
 const KINDS = new Set(["tool", "agent", "skill", "plugin_root"]);
+/** The first word after `{{`: up to whitespace or a brace. */
+const KIND = /^\s*([^\s{}]+)/;
 const LINK = /(!?)\[([^[\]]*)\]\(\s*<?pluginfinity:\/\/([^\s<>()]*)>?\s*\)/g;
 const REFERENCE = /\]\(\s*<?pluginfinity:\/\//g;
 
@@ -60,20 +62,13 @@ const tool = (name: string, raw: string, ctx: TokenContext): Spelled => {
 	};
 };
 
-/** Spell the inside of one `{{…}}`; `raw` is the whole token as written. */
+/** Spell the inside of one `{{…}}` that opens with a known kind; `raw` is the whole token as written. */
 const token = (inner: string, raw: string, ctx: TokenContext): Spelled => {
-	const literal = "write \\{{ for a literal {{";
-	if (/[{}]/.test(inner)) return { problem: `malformed token ${raw}; ${literal}` };
+	if (/[{}]/.test(inner)) return { problem: `malformed token ${raw}; write \\{{ for a literal {{` };
 	const [kind = "", ...args] = inner
 		.trim()
 		.split(/\s+/)
 		.filter((part) => part.length > 0);
-	if (kind === "") return { problem: `empty token ${raw}; ${literal}` };
-	if (!KINDS.has(kind)) {
-		return {
-			problem: `unknown token kind "${kind}" in ${raw}; kinds are tool, agent, skill and plugin_root, or ${literal}`,
-		};
-	}
 	if (kind === "plugin_root") {
 		if (args.length > 0) return { problem: `${raw}: plugin_root takes no argument` };
 		return spelling(ctx.target.pluginRoot.body, raw);
@@ -107,10 +102,18 @@ const tokens = (line: string, ctx: TokenContext, problems: Array<string>): strin
 			at = open + 2;
 			continue;
 		}
+		const kind = KIND.exec(line.slice(open + 2))?.[1];
+		if (kind === undefined || !KINDS.has(kind)) {
+			// Not a token: keep one brace and look again from the next, so the
+			// token in `{{{tool Read}}}` starts at the pair right before its kind.
+			out += line.slice(at, open + 1);
+			at = open + 1;
+			continue;
+		}
 		out += line.slice(at, open);
 		const close = line.indexOf("}}", open + 2);
 		if (close === -1) {
-			problems.push(`a token opened with {{ is never closed on its line; write \\{{ for a literal {{`);
+			problems.push(`a {{${kind} token is never closed on its line; write \\{{ for a literal {{`);
 			out += line.slice(open);
 			break;
 		}
@@ -186,9 +189,12 @@ const links = (line: string, ctx: TokenContext, problems: Array<string>): string
  * A token is `{{tool <name>}}`, `{{agent <name>}}`, `{{skill <name>}}` or
  * `{{plugin_root}}`, with whitespace allowed inside the braces, on one line.
  * Tokens are replaced everywhere, fenced and inline code included; `\{{`
- * renders a literal `{{`. Every other unescaped `{{` is a problem: an unknown
- * kind, a missing or extra argument, a token never closed on its line, or
- * braces inside one such as `{{{tool Read}}}`. A lone `}}` is text.
+ * renders a literal `{{`. A `{{` whose first word is not a kind is text, so
+ * GitHub Actions expressions, Jinja and Handlebars pass through;
+ * a token starts at the `{{` right before its kind, so `{{{tool Read}}}`
+ * keeps the outer braces. A known kind that cannot be spelled is a problem:
+ * a missing or extra argument, a token never closed on its line, or a brace
+ * inside one.
  *
  * A markdown link to `pluginfinity://skill/<skill>[/<path>]` or
  * `pluginfinity://agent/<agent>` outside fenced and inline code is built in
