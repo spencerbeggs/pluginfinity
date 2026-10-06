@@ -2,7 +2,7 @@
 type: Decision
 title: Build notes report what a target drops, degrades or omits
 description: Every build and validate reports, at info level and without failing, each frontmatter or server field a target drops or degrades, each tool it cannot name and each hook event it omits, replacing the rule that a dropped field is silent.
-status: draft
+status: stable
 tags:
   - dx
   - portability
@@ -24,6 +24,9 @@ generated:
   by: okfit/claude-code
   at: 2026-10-06T00:46:30Z
   body_sha256: e356919d868e86a88e176b7afa276cb5323eea201e8daa1552b71dc4393e2105
+verified:
+  - by: human:spencer
+    at: 2026-10-06T03:11:19Z
 ---
 
 # Build notes report what a target drops, degrades or omits

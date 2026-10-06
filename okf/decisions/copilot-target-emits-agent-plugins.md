@@ -2,7 +2,7 @@
 type: Decision
 title: The copilot target emits Agent Plugins 1.0
 description: pluginfinity's copilot target writes plugins in the Agent Plugins 1.0 (Open Plugin Spec) format, not Copilot CLI's legacy plugin format.
-status: draft
+status: stable
 tags:
   - portability
   - github
@@ -19,6 +19,9 @@ generated:
   by: okfit/claude-code
   at: 2026-10-02T22:08:02Z
   body_sha256: 99732066cde8cf51bfe05ba99897b1aabebd6c5b7eefcca38ef32f8465bb93c4
+verified:
+  - by: human:spencer
+    at: 2026-10-06T03:11:19Z
 ---
 
 # The copilot target emits Agent Plugins 1.0

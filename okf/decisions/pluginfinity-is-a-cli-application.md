@@ -2,7 +2,7 @@
 type: Decision
 title: pluginfinity is a CLI application in its own repository
 description: The single-source plugin builder ships as a standalone @effected/cli application with a companion plugin that succeeds plugin-bot, not as an @effected kit package developed inside the bot marketplace repository.
-status: draft
+status: stable
 tags:
   - architecture
   - release
@@ -22,6 +22,9 @@ generated:
   by: okfit/claude-code
   at: 2026-10-02T19:38:56Z
   body_sha256: 84252e0d88241936dac6e91f88aed1633f5f4da4ab47fc39a5e034b3fdbfa340
+verified:
+  - by: human:spencer
+    at: 2026-10-06T03:11:19Z
 ---
 
 # pluginfinity is a CLI application in its own repository

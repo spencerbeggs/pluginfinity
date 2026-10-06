@@ -2,7 +2,7 @@
 type: Decision
 title: The hook library is injected at build time
 description: The bash helper library for hook scripts ships inside the engine, and build writes it into every target that has hooks, with a generated host.sh that names the host at run time.
-status: draft
+status: stable
 tags:
   - architecture
   - portability
@@ -19,6 +19,9 @@ generated:
   by: okfit/claude-code
   at: 2026-10-03T21:06:07Z
   body_sha256: 0937ff89a9d81c2f0f819b259e62e018e74b9586cc91f421c0f192f56e5a1f93
+verified:
+  - by: human:spencer
+    at: 2026-10-06T03:11:19Z
 ---
 
 # The hook library is injected at build time

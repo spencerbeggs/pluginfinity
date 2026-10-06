@@ -2,7 +2,7 @@
 type: Decision
 title: Hooks fail open on both hosts
 description: A hook script that fails exits 0 with no response on Claude Code and Copilot alike, unless it opted into failing closed with hook_fail_closed.
-status: draft
+status: stable
 tags:
   - portability
   - security
@@ -23,6 +23,9 @@ generated:
   by: okfit/claude-code
   at: 2026-10-03T21:06:07Z
   body_sha256: 6d4afc0d271c08db6ebb8dda0f2007315a7f40cbab903ffef8c67e1648c98187
+verified:
+  - by: human:spencer
+    at: 2026-10-06T03:11:19Z
 ---
 
 # Hooks fail open on both hosts

@@ -2,7 +2,7 @@
 type: Decision
 title: Body tokens and pluginfinity links are built per target
 description: "Skill and agent bodies name tools, agents, skills and the plugin root through explicit {{kind name}} tokens, and other components through inline pluginfinity:// links, which each target spells from its own data; anything a target cannot spell fails the build, with host blocks as the escape hatch."
-status: draft
+status: stable
 tags:
   - portability
   - dx
@@ -29,6 +29,9 @@ generated:
   by: okfit/claude-code
   at: 2026-10-06T02:28:06Z
   body_sha256: 4597ba43f529482b9ba59255dd18a4ca4fe1773d8b77162e52be63f3d49b50ca
+verified:
+  - by: human:spencer
+    at: 2026-10-06T03:11:19Z
 ---
 
 # Body tokens and pluginfinity links are built per target
