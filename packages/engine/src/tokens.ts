@@ -45,7 +45,7 @@ export interface TokenProblem {
 
 const KINDS = new Set(["tool", "agent", "skill", "plugin_root"]);
 /** The first word after `{{`: up to whitespace or a brace. */
-const KIND = /^\s*([^\s{}]+)/;
+const KIND = /^\s*([^\s{}|]+)/;
 const LINK = /(!?)\[([^[\]]*)\]\(\s*<?pluginfinity:\/\/([^\s<>()]*)>?\s*\)/g;
 /** Every `pluginfinity://` occurrence, in any case. */
 const SCHEMES = /pluginfinity:\/\//gi;
@@ -104,11 +104,11 @@ const token = (inner: string, raw: string, ctx: TokenContext): Spelled => {
 		.trim()
 		.split(/\s+/)
 		.filter((part) => part.length > 0);
+	if (fallback !== undefined && kind !== "tool") return { problem: `${raw}: only a tool token takes a | fallback` };
 	if (kind === "plugin_root") {
 		if (args.length > 0) return { problem: `${raw}: plugin_root takes no argument` };
 		return spelling(ctx.target.pluginRoot.body, raw);
 	}
-	if (fallback !== undefined && kind !== "tool") return { problem: `${raw}: only a tool token takes a | fallback` };
 	const [name] = args;
 	if (name === undefined) return { problem: `${raw} needs ${article(kind)} name` };
 	if (args.length > 1) return { problem: `${raw} takes one ${kind} name` };
@@ -267,7 +267,7 @@ const links = (line: string, ctx: TokenContext, problems: Array<string>): string
  * whitespace allowed inside the braces, on one line. Only a tool token takes
  * a `|` fallback: literal prose, trimmed, that replaces the token on a target
  * where the tool has no spelling (and is discarded where it has one). It may
- * not be empty or contain `{{` or `}}`.
+ * not be empty or contain `{` or `}`.
  * Tokens are replaced everywhere, fenced and inline code included; `\{{`
  * before a token renders it literally, and before any other `{{` the
  * backslash stays. A `{{` whose first word is not a kind is text, so

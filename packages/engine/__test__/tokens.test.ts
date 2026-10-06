@@ -39,6 +39,23 @@ describe("renderTokens: tool fallback", () => {
 	});
 });
 
+describe("renderTokens: fallback guard", () => {
+	it("rejects a | on plugin_root and agent, and parses tool|x without a space", () => {
+		for (const raw of ["{{plugin_root | x}}", "{{agent a | b}}"]) {
+			assert.deepStrictEqual(
+				problems(renderTokens(raw, claude)).map((p) => p.message),
+				[`${raw}: only a tool token takes a | fallback`],
+			);
+		}
+		// No space before the bar: still a tool token (here missing its name), never silent text.
+		assert.deepStrictEqual(
+			problems(renderTokens("{{tool|x}}", claude)).map((p) => p.message),
+			["{{tool|x}} needs a tool name"],
+		);
+		assert.strictEqual(text(renderTokens("{{tool AskUserQuestion|ask}}", copilot)), "ask");
+	});
+});
+
 describe("renderTokens: tools", () => {
 	it("keeps a built-in name on Claude and spells it at run time on Copilot", () => {
 		assert.strictEqual(text(renderTokens("Use {{tool Read}}.", claude)), "Use Read.");
