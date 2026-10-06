@@ -3,7 +3,7 @@ import { ComponentName, SKILL_FIELDS, SkillFrontmatter } from "@pluginfinity/cor
 import type { KnownTargetId } from "@pluginfinity/targets";
 import type { PlatformError } from "effect";
 import { Effect, FileSystem, Path, Schema } from "effect";
-import { applyHostBlocks } from "./body.js";
+import { mapHostBlocks } from "./body.js";
 import {
 	decodeComponent,
 	frontmatterText,
@@ -199,14 +199,14 @@ export const renderSkill = (
 			);
 		}
 		// A malformed host block is wrong for every target, so it names none.
-		const body = applyHostBlocks(skill.body, id, known);
+		const body = mapHostBlocks(skill.body, id, known);
 		if ("problem" in body) {
 			return yield* Effect.fail(
 				invalid(skill.path, [issue(`line ${body.problem.line + skill.bodyOffset}`, body.problem.message)]),
 			);
 		}
 		const rendered = renderTokens(body.text, tokens);
-		if ("problems" in rendered) problems.push(...lineIssues(rendered.problems, skill.bodyOffset));
+		if ("problems" in rendered) problems.push(...lineIssues(rendered.problems, body.lines, skill.bodyOffset));
 		const failures: Array<ComponentInvalid> = problems.length > 0 ? [invalid(skill.path, problems, id)] : [];
 
 		const yaml = yield* frontmatterText({ name: skill.name, description, ...rest }, skill);
@@ -226,14 +226,14 @@ export const renderSkill = (
 				files.push({ path: `${out}/${file}`, content: yield* fs.readFile(absolute), mode });
 				continue;
 			}
-			const processed = applyHostBlocks(toLf(yield* fs.readFileString(absolute)), id, known);
+			const processed = mapHostBlocks(toLf(yield* fs.readFileString(absolute)), id, known);
 			if ("problem" in processed) {
 				failures.push(invalid(absolute, [issue(`line ${processed.problem.line}`, processed.problem.message)]));
 				continue;
 			}
 			const tokened = renderTokens(processed.text, tokens);
 			if ("problems" in tokened) {
-				failures.push(invalid(absolute, lineIssues(tokened.problems, 0), id));
+				failures.push(invalid(absolute, lineIssues(tokened.problems, processed.lines, 0), id));
 				continue;
 			}
 			files.push({ path: `${out}/${file}`, content: tokened.text, mode });

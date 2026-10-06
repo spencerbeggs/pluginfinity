@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { applyHostBlocks } from "../src/body.js";
+import { applyHostBlocks, mapHostBlocks } from "../src/body.js";
 
 const KNOWN = ["claude", "copilot"];
 
@@ -64,6 +64,18 @@ describe("applyHostBlocks", () => {
 			"End.",
 		].join("\n");
 		assert.deepStrictEqual(applyHostBlocks(text, "copilot", KNOWN), { text: "End." });
+	});
+
+	it("maps each kept line back to its source line", () => {
+		assert.deepStrictEqual(mapHostBlocks(BODY, "claude", KNOWN), {
+			text: ["Shared.", "Claude only.", "Both, listed.", "End."].join("\n"),
+			lines: [1, 3, 6, 8],
+		});
+		assert.deepStrictEqual(mapHostBlocks(BODY, "copilot", KNOWN), {
+			text: ["Shared.", "Both, listed.", "End."].join("\n"),
+			lines: [1, 6, 8],
+		});
+		assert.deepStrictEqual(mapHostBlocks("a\nb", "claude", KNOWN), { text: "a\nb", lines: [1, 2] });
 	});
 
 	it("leaves a pluginfinity:// link for the token renderer to build", () => {

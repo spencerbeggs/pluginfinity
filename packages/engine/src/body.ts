@@ -21,24 +21,27 @@ export interface HostBlockProblem {
 }
 
 /**
- * Keep the passages of a body's host blocks that list `target`, drop the
- * rest, and remove every marker line. Blocks do not nest; an unclosed block,
- * a stray close, a marker that is not on a line of its own, or an id outside
- * `known` is a problem, and the body is not rewritten. Tokens and
- * `pluginfinity://` links are left for {@link renderTokens}, which runs after.
+ * {@link applyHostBlocks}, also returning the 1-based source line of each
+ * line of the result, so a problem found in the result can be reported where
+ * the author wrote it.
  *
- * @public
+ * @internal
  */
-export const applyHostBlocks = (
+export const mapHostBlocks = (
 	text: string,
 	target: string,
 	known: ReadonlyArray<string>,
-): { readonly text: string } | { readonly problem: HostBlockProblem } => {
-	if (!MARKER.test(text)) return { text };
+): { readonly text: string; readonly lines: ReadonlyArray<number> } | { readonly problem: HostBlockProblem } => {
+	const lines = text.split("\n");
+	if (!MARKER.test(text)) return { text, lines: lines.map((_, index) => index + 1) };
 	const kept: Array<string> = [];
+	const sources: Array<number> = [];
+	const push = (line: string, number: number): void => {
+		kept.push(line);
+		sources.push(number);
+	};
 	let open: { readonly line: number; readonly keep: boolean } | undefined;
 	let fence: string | undefined;
-	const lines = text.split("\n");
 	for (const [index, line] of lines.entries()) {
 		const number = index + 1;
 		const keep = open === undefined || open.keep;
@@ -49,7 +52,7 @@ export const applyHostBlocks = (
 			else if (fenceMark !== undefined && fenceMark[0] === fence[0] && fenceMark.length >= fence.length) {
 				fence = undefined;
 			}
-			if (keep) kept.push(line);
+			if (keep) push(line, number);
 			continue;
 		}
 		const opening = OPEN.exec(line);
@@ -77,10 +80,28 @@ export const applyHostBlocks = (
 		if (MARKER.test(line.replace(INLINE_CODE, ""))) {
 			return { problem: { line: number, message: "a host block marker must be on a line of its own" } };
 		}
-		if (keep) kept.push(line);
+		if (keep) push(line, number);
 	}
 	if (open !== undefined) return { problem: { line: open.line, message: "a host block is never closed" } };
-	return { text: kept.join("\n") };
+	return { text: kept.join("\n"), lines: sources };
+};
+
+/**
+ * Keep the passages of a body's host blocks that list `target`, drop the
+ * rest, and remove every marker line. Blocks do not nest; an unclosed block,
+ * a stray close, a marker that is not on a line of its own, or an id outside
+ * `known` is a problem, and the body is not rewritten. Tokens and
+ * `pluginfinity://` links are left for {@link renderTokens}, which runs after.
+ *
+ * @public
+ */
+export const applyHostBlocks = (
+	text: string,
+	target: string,
+	known: ReadonlyArray<string>,
+): { readonly text: string } | { readonly problem: HostBlockProblem } => {
+	const mapped = mapHostBlocks(text, target, known);
+	return "problem" in mapped ? mapped : { text: mapped.text };
 };
 
 /**

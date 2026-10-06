@@ -312,25 +312,6 @@ const serverShipped = (
 	});
 
 /**
- * Render every requested target of one plugin and compare each with its build
- * directory.
- *
- * @remarks
- * Each target ships the source `hooks/` directory whole, so a script can
- * source its own helpers, except scripts only another target's hooks run; a
- * script outside `hooks/` ships to the targets that run it. A target with
- * hooks also gets the hook library under `hooks/lib/pluginfinity/`. That path
- * is always reserved, whether or not the target has hooks: no source file may
- * be at it or under it.
- *
- * Each target also ships the files its local MCP and LSP servers name after
- * `${PLUGIN_ROOT}/` (written without `.` or `..` segments, inside the plugin,
- * and an executable file when a whole `command`; a named directory ships every
- * file under it), and every file the `files` key lists, each once. A target
- * with a local server gets the server library under `lib/pluginfinity/`,
- * which is reserved the same way.
- */
-/**
  * What a target's skill and agent bodies may name: the skills and agents it
  * builds, every file of those skills, and the plugin's own MCP servers. The
  * plugin is its Claude name, which Claude Code namespaces MCP tools with and
@@ -357,6 +338,25 @@ const tokenContext = (
 	};
 };
 
+/**
+ * Render every requested target of one plugin and compare each with its build
+ * directory.
+ *
+ * @remarks
+ * Each target ships the source `hooks/` directory whole, so a script can
+ * source its own helpers, except scripts only another target's hooks run; a
+ * script outside `hooks/` ships to the targets that run it. A target with
+ * hooks also gets the hook library under `hooks/lib/pluginfinity/`. That path
+ * is always reserved, whether or not the target has hooks: no source file may
+ * be at it or under it.
+ *
+ * Each target also ships the files its local MCP and LSP servers name after
+ * `${PLUGIN_ROOT}/` (written without `.` or `..` segments, inside the plugin,
+ * and an executable file when a whole `command`; a named directory ships every
+ * file under it), and every file the `files` key lists, each once. A target
+ * with a local server gets the server library under `lib/pluginfinity/`,
+ * which is reserved the same way.
+ */
 const planPlugin = (
 	prepared: PreparedPlugin,
 ): Effect.Effect<ReadonlyArray<PlannedTarget>, PlanError, FileSystem.FileSystem | Path.Path> =>

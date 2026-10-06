@@ -873,6 +873,46 @@ describe("build with skills", () => {
 			}),
 		);
 
+		it.effect("a token problem below or inside a host block reports its source line", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": [
+						"---",
+						"description: Does alpha.",
+						"---",
+						"<!-- pluginfinity:only claude -->",
+						"Claude only.",
+						"<!-- /pluginfinity:only -->",
+						"{{plugin_root}}",
+						"<!-- pluginfinity:only copilot -->",
+						"Copilot only.",
+						"{{tool TodoWrite}}",
+						"<!-- /pluginfinity:only -->",
+						"",
+					].join("\n"),
+					"skills/alpha/references/guide.md": [
+						"<!-- pluginfinity:only claude -->",
+						"Claude only.",
+						"<!-- /pluginfinity:only -->",
+						"{{tool TodoWrite}}",
+						"",
+					].join("\n"),
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: ["copilot"], check: false }));
+				if (error._tag !== "ComponentsInvalid") throw new Error(`expected ComponentsInvalid, got ${error._tag}`);
+				assert.deepStrictEqual(
+					error.components.map((component) => [
+						component.path.split("/skills/")[1],
+						component.issues.map((found) => found.key),
+					]),
+					[
+						["alpha/SKILL.md", ["line 7", "line 10"]],
+						["alpha/references/guide.md", ["line 4"]],
+					],
+				);
+			}),
+		);
+
 		it.effect("a link to a skill a target leaves out fails on that target only", () =>
 			Effect.gen(function* () {
 				const root = yield* skillPlugin({
@@ -1244,6 +1284,30 @@ describe("build with agents", () => {
 					[["copilot", ["line 6"]]],
 				);
 				assert.match(error.components[0]?.path ?? "", /agents\/helper\.md$/);
+			}),
+		);
+
+		it.effect("an agent token problem below a host block reports its source line", () =>
+			Effect.gen(function* () {
+				const root = yield* agentPlugin({
+					"agents/helper.md": [
+						"---",
+						"name: helper",
+						"description: Helps.",
+						"---",
+						"<!-- pluginfinity:only claude -->",
+						"Claude only.",
+						"<!-- /pluginfinity:only -->",
+						"Use {{tool TodoWrite}}.",
+						"",
+					].join("\n"),
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: ["copilot"], check: false }));
+				if (error._tag !== "ComponentsInvalid") throw new Error(`expected ComponentsInvalid, got ${error._tag}`);
+				assert.deepStrictEqual(
+					error.components.map((component) => component.issues.map((found) => found.key)),
+					[["line 8"]],
+				);
 			}),
 		);
 

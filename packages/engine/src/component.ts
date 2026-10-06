@@ -15,13 +15,18 @@ const formatter = SchemaIssue.makeFormatterStandardSchemaV1();
 export const issue = (key: string, message: string): ConfigIssue => ConfigIssue.make({ key, message });
 
 /**
- * Token problems as issues keyed by their file line, `offset` lines before
- * the text.
+ * Token problems as issues keyed by their source file line: `lines` maps each
+ * line of the rendered text to its line in the source text (see
+ * `mapHostBlocks`), and the source text starts `offset` lines into the file.
  *
  * @internal
  */
-export const lineIssues = (found: ReadonlyArray<TokenProblem>, offset: number): Array<ConfigIssue> =>
-	found.map((problem) => issue(`line ${problem.line + offset}`, problem.message));
+export const lineIssues = (
+	found: ReadonlyArray<TokenProblem>,
+	lines: ReadonlyArray<number>,
+	offset: number,
+): Array<ConfigIssue> =>
+	found.map((problem) => issue(`line ${(lines[problem.line - 1] ?? problem.line) + offset}`, problem.message));
 
 /**
  * A `ComponentInvalid` for `path`, optionally specific to one target.

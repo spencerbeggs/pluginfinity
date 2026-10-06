@@ -3,7 +3,7 @@ import { AGENT_FIELDS, AgentFrontmatter } from "@pluginfinity/core";
 import type { KnownTargetId } from "@pluginfinity/targets";
 import type { PlatformError } from "effect";
 import { Effect, FileSystem, Path } from "effect";
-import { applyHostBlocks } from "./body.js";
+import { mapHostBlocks } from "./body.js";
 import {
 	decodeComponent,
 	frontmatterText,
@@ -143,14 +143,14 @@ export const renderAgent = (
 			...mapped.unknown.map((key) => issue(`targets.${id}.${key}`, `not an agent field or a ${id} agent field`)),
 		];
 		// A malformed host block is wrong for every target, so it names none.
-		const body = applyHostBlocks(agent.body, id, known);
+		const body = mapHostBlocks(agent.body, id, known);
 		if ("problem" in body) {
 			return yield* Effect.fail(
 				invalid(agent.path, [issue(`line ${body.problem.line + agent.bodyOffset}`, body.problem.message)]),
 			);
 		}
 		const rendered = renderTokens(body.text, tokens);
-		if ("problems" in rendered) problems.push(...lineIssues(rendered.problems, agent.bodyOffset));
+		if ("problems" in rendered) problems.push(...lineIssues(rendered.problems, body.lines, agent.bodyOffset));
 		if (problems.length > 0 || !("text" in rendered)) return yield* Effect.fail(invalid(agent.path, problems, id));
 
 		const { name: _name, description, ...rest } = mapped.fields;
