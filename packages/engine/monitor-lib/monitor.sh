@@ -11,15 +11,26 @@
 # A monitor never exits non-zero because of an error inside one poll: the
 # library logs it and the loop keeps going.
 #
+# monitor_notify cannot tell monitor_every that stdout closed when it runs inside
+# $(...) or a pipeline subshell; call it directly from the polled function.
+#
 # PLUGINFINITY_MONITOR_MAX_TICKS=<n> bounds monitor_every to n ticks. It exists
 # for the library's own tests; do not set it in a plugin.
 
 # POSIX sh cannot find a sourced file's own path, so the sourcer sets _pf_lib_dir
-# first. log.sh and host.sh live beside this file.
-_pf_mon_dir="${_pf_lib_dir:-.}"
+# (or _pf_log_dir, the log.sh convention) to this file's directory first. log.sh
+# and host.sh live beside this file. Without a readable log.sh the logging
+# functions are no-ops and the monitor still runs.
+_pf_mon_dir="${_pf_lib_dir:-${_pf_log_dir:-.}}"
 _pf_log_dir="$_pf_mon_dir"
-# shellcheck source=/dev/null
-. "$_pf_mon_dir/log.sh"
+if [ -r "$_pf_mon_dir/log.sh" ]; then
+	# shellcheck source=/dev/null
+	. "$_pf_mon_dir/log.sh"
+else
+	pf_log() { return 0; }
+	pf_debug() { return 0; }
+	pf_debug_on() { return 1; }
+fi
 
 # A closed stdout must surface as a failed write, not as SIGPIPE killing the monitor.
 trap '' PIPE
@@ -74,14 +85,20 @@ monitor_once() {
 	if [ -e "$_pf_m" ]; then
 		return 0
 	fi
+	monitor_notify "$@" || return 1
 	: >"$_pf_m" 2>/dev/null || :
-	monitor_notify "$@"
 }
 
 # monitor_every <seconds> <function>: call <function> now and every <seconds>, forever.
 # A failing call is logged and the loop continues; a closed stdout ends it with exit 0.
 monitor_every() {
-	_pf_iv=${1:-60}
+	_pf_iv=${1:-}
+	case "$_pf_iv" in
+	'' | *[!0-9]*)
+		monitor_log "monitor_every: interval '$_pf_iv' is not a number of seconds; using 60"
+		_pf_iv=60
+		;;
+	esac
 	_pf_fn=${2:-:}
 	_pf_n=0
 	while :; do

@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { assert, describe, it } from "@effect/vitest";
 import { HOOK_LIB_FILES } from "../src/hook-lib.generated.js";
+import { libFiles } from "../src/lib-files.js";
 import { LOG_LIB_FILES } from "../src/log-lib.generated.js";
 import { MONITOR_LIB_FILES } from "../src/monitor-lib.generated.js";
 import { SERVER_LIB_FILES } from "../src/server-lib.generated.js";
@@ -35,5 +36,13 @@ describe("embedded logging library", () => {
 describe("embedded monitor library", () => {
 	it("matches monitor-lib/*.sh byte for byte; run `pnpm --filter @pluginfinity/engine hook-lib:embed` after editing them", () => {
 		assert.deepStrictEqual(MONITOR_LIB_FILES, read("monitor-lib"));
+	});
+});
+
+describe("libFiles", () => {
+	it("ships lib/pluginfinity/monitor.sh only when monitors is true", () => {
+		const paths = (monitors: boolean) => libFiles("claude", "fx", "0.0.0", { monitors }).map((file) => file.path);
+		assert.include(paths(true), "lib/pluginfinity/monitor.sh");
+		assert.notInclude(paths(false), "lib/pluginfinity/monitor.sh");
 	});
 });

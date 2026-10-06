@@ -1808,6 +1808,8 @@ describe("build with monitors", () => {
 				assert.include(claude?.plan.added ?? [], "monitors/monitors.json");
 				assert.include(claude?.plan.added ?? [], "hooks/mail.sh");
 				assert.include(claude?.plan.added ?? [], "monitors/issues.mjs");
+				assert.include(claude?.plan.added ?? [], "lib/pluginfinity/monitor.sh");
+				assert.isFalse(copilot?.plan.added.includes("lib/pluginfinity/monitor.sh"));
 				// A monitor script under hooks/ does not ride the hooks directory to a target without monitors.
 				assert.isFalse(copilot?.plan.added.some((file) => file.startsWith("monitors/") || file === "hooks/mail.sh"));
 				assert.deepStrictEqual(

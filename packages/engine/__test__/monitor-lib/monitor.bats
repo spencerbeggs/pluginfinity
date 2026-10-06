@@ -8,7 +8,7 @@ b"'; run_it; [ "$output" = "a b" ]
 
 @test "monitor_notify ignores empty text" {
 	make_root claude fx; monitor_body 'monitor_notify ""'; run_it PLUGINFINITY_DEBUG=1
-	[ -z "$output" ]; [[ "$(cat "$STATE/pluginfinity/fx/debug.log")" == *"monitor/m.sh:"* ]]
+	[ -z "$output" ]; [[ "$(cat "$STATE/pluginfinity/fx/debug.log")" == *"monitor/m.sh: monitor_notify: empty text ignored" ]]
 }
 
 @test "monitor_once notifies once per key" {
@@ -60,4 +60,25 @@ b"'; run_it; [ "$output" = "a b" ]
 
 @test "sourcing writes nothing" {
 	make_root copilot fx; monitor_body ':'; run_it; [ -z "$output" ]
+}
+
+@test "sourcing works with only _pf_log_dir set" {
+	make_root claude fx
+	printf '#!/bin/sh\n_pf_log_dir="$(dirname "$0")/../lib/pluginfinity"; . "$_pf_log_dir/monitor.sh"\nmonitor_log boom; monitor_notify hi\n' >"$ROOT/monitors/m.sh"
+	run_it
+	[ "$output" = hi ]; [[ "$(cat "$STATE/pluginfinity/fx/error.log")" == *"monitor/m.sh: boom" ]]
+}
+
+@test "sourcing with neither variable set still runs, silently" {
+	make_root claude fx
+	printf '#!/bin/sh\n. "$(dirname "$0")/../lib/pluginfinity/monitor.sh"\nmonitor_log boom; monitor_notify hi\n' >"$ROOT/monitors/m.sh"
+	run_it
+	[ "$status" -eq 0 ]; [ "$output" = hi ]
+}
+
+@test "monitor_every with a bad interval falls back and logs" {
+	make_root claude fx
+	monitor_body 'tick() { monitor_notify x; }; monitor_every abc tick'
+	run_it PLUGINFINITY_MONITOR_MAX_TICKS=1
+	[ "$output" = x ]; [[ "$(cat "$STATE/pluginfinity/fx/error.log")" == *"interval 'abc'"* ]]
 }
