@@ -14,9 +14,23 @@ export class ConfigIssue extends Schema.Class<ConfigIssue>("ConfigIssue")({
 	kind: Schema.optionalKey(Schema.Literal("token")),
 }) {}
 
-/** How to clear a token or link problem: keep the passage from the target, or keep the braces literal. */
-const TOKEN_HINT =
-	"use a host block (<!-- pluginfinity:only claude -->) around the passage, or write `\\{{` to keep it literal";
+/** Every target a host block can name. */
+const KNOWN_TARGETS: ReadonlyArray<string> = ["claude", "copilot"];
+
+/**
+ * The ways to clear a token or link problem besides correcting it: keep the
+ * passage from the failing target, keep the braces literal, or keep a link
+ * literal in inline code. A host block must name a target other than the failing one.
+ */
+const tokenAlternatives = (failing: ReadonlyArray<string | undefined>): string => {
+	const named = new Set(failing.filter((target): target is string => target !== undefined));
+	const others = KNOWN_TARGETS.filter((target) => !named.has(target));
+	const block =
+		others.length > 0
+			? `use a host block (<!-- pluginfinity:only ${others.join(" ")} -->) around a passage only another target can build`
+			: "use a host block (<!-- pluginfinity:only <other target> -->) around a passage only another target can build";
+	return `${block}, \`\\{{\` to keep a token literal, or inline code to keep a pluginfinity:// link literal`;
+};
 
 /**
  * The upward walk reached a `.git` directory or the filesystem root without
@@ -430,14 +444,15 @@ export class ComponentInvalid extends Schema.TaggedError<ComponentInvalid>()("Co
 
 	get remediation(): Remediation {
 		const tokens = this.issues.filter((issue) => issue.kind === "token").length;
+		const lead = `Correct the listed problems in ${this.path}`;
 		if (tokens > 0 && tokens === this.issues.length) {
-			return { hint: `For a token or link ${this.target ?? "a target"} cannot build, ${TOKEN_HINT}.` };
+			return { hint: `${lead}; to keep a passage from this target, ${tokenAlternatives([this.target])}.` };
 		}
 		const field =
 			this.target === undefined
-				? `Correct the listed problems in ${this.path}`
-				: `Correct the listed problems in ${this.path}, or set the field for ${this.target} in its \`targets.${this.target}\` block`;
-		return { hint: tokens > 0 ? `${field}; for a token or link, ${TOKEN_HINT}.` : `${field}.` };
+				? lead
+				: `${lead}, or set the field for ${this.target} in its \`targets.${this.target}\` block`;
+		return { hint: tokens > 0 ? `${field}; for a token or link, ${tokenAlternatives([this.target])}.` : `${field}.` };
 	}
 }
 
@@ -461,10 +476,13 @@ export class ComponentsInvalid extends Schema.TaggedError<ComponentsInvalid>()("
 	}
 
 	get remediation(): Remediation {
+		const failing = this.components.filter((component) => component.issues.some((issue) => issue.kind === "token"));
+		const base = "Correct each listed file; a field one host cannot take can be set in that host's `targets` block";
 		return {
-			hint: this.components.some((component) => component.issues.some((issue) => issue.kind === "token"))
-				? `Correct each listed file; a field one host cannot take can be set in that host's \`targets\` block, and for a token or link one host cannot build, ${TOKEN_HINT}.`
-				: "Correct each listed file; a field one host cannot take can be set in that host's `targets` block.",
+			hint:
+				failing.length > 0
+					? `${base}; to keep a passage from a target, ${tokenAlternatives(failing.map((component) => component.target))}.`
+					: `${base}.`,
 		};
 	}
 }
