@@ -72,6 +72,29 @@ export interface OwnMcp {
 	readonly servers: ReadonlySet<string>;
 }
 
+/**
+ * Split a Claude Code MCP tool name of this plugin's own server,
+ * `mcp__plugin_<plugin>_<server>__<tool>`, into its server and tool; the
+ * prefix is matched literally and the rest is split at the first `__` that
+ * leaves a server `own` declares. `undefined` when the name is not one.
+ *
+ * @internal
+ */
+export const splitOwnMcp = (
+	name: string,
+	own: OwnMcp,
+): { readonly server: string; readonly tool: string } | undefined => {
+	const prefix = `mcp__plugin_${own.plugin}_`;
+	if (!name.startsWith(prefix)) return undefined;
+	const rest = name.slice(prefix.length);
+	for (let at = rest.indexOf("__"); at !== -1; at = rest.indexOf("__", at + 1)) {
+		const server = rest.slice(0, at);
+		const tool = rest.slice(at + 2);
+		if (server.length > 0 && tool.length > 0 && own.servers.has(server)) return { server, tool };
+	}
+	return undefined;
+};
+
 const spell = (target: Target, server: string, tool: string): string =>
 	target.tools.mcp.replace("{server}", server).replace("{tool}", tool);
 
@@ -92,13 +115,8 @@ const spell = (target: Target, server: string, tool: string): string =>
 const mcpToolName = (target: Target, name: string, own: OwnMcp | undefined): string | undefined => {
 	if (own !== undefined && name.startsWith(`mcp__plugin_${own.plugin}_`)) {
 		if (target.tools.unlisted === "keep") return undefined;
-		const rest = name.slice(`mcp__plugin_${own.plugin}_`.length);
-		for (let at = rest.indexOf("__"); at !== -1; at = rest.indexOf("__", at + 1)) {
-			const server = rest.slice(0, at);
-			const tool = rest.slice(at + 2);
-			if (server.length > 0 && tool.length > 0 && own.servers.has(server)) return spell(target, server, tool);
-		}
-		return undefined;
+		const split = splitOwnMcp(name, own);
+		return split === undefined ? undefined : spell(target, split.server, split.tool);
 	}
 	const match = /^mcp__(.+?)__(.+)$/.exec(name);
 	if (match === null || (match[1] ?? "").startsWith("plugin_")) return undefined;

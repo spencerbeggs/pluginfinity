@@ -71,5 +71,7 @@ export type { ServerFiles, ServerRender } from "./servers.js";
 export { renderServers, serverFiles } from "./servers.js";
 export type { RenderedSkill, SourceSkill } from "./skills.js";
 export { SKILL_DESCRIPTION_MAX, readSkills, renderSkill } from "./skills.js";
+export type { TokenContext, TokenProblem } from "./tokens.js";
+export { renderTokens } from "./tokens.js";
 export { ToolDiscoveryLive } from "./tools.js";
 export { ENGINE_VERSION } from "./version.js";

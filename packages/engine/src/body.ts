@@ -7,8 +7,8 @@
 const OPEN = /^\s*<!--\s*pluginfinity:only\s+([^>]*?)\s*-->\s*$/;
 const CLOSE = /^\s*<!--\s*\/pluginfinity:only\s*-->\s*$/;
 const MARKER = /<!--\s*\/?pluginfinity:only/;
-const FENCE = /^ {0,3}(`{3,}|~{3,})/;
-const INLINE_CODE = /(`+)[\s\S]*?\1/g;
+export const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+export const INLINE_CODE = /(`+)[\s\S]*?\1/g;
 
 /**
  * Why a body's host blocks are malformed, with the 1-based line it was found on.
@@ -117,4 +117,24 @@ export const referenceLines = (text: string): ReadonlyArray<number> => {
 		if (REFERENCE.test(line.replace(INLINE_CODE, ""))) found.push(index + 1);
 	}
 	return found;
+};
+
+/**
+ * For each line of `text`, whether it belongs to fenced code: a fence's
+ * opening and closing lines and everything between. A fence closes on the
+ * same character, at least as long; an unclosed fence runs to the end.
+ *
+ * @internal
+ */
+export const fencedLines = (lines: ReadonlyArray<string>): ReadonlyArray<boolean> => {
+	let fence: string | undefined;
+	return lines.map((line) => {
+		const fenceMark = FENCE.exec(line)?.[1];
+		if (fence === undefined && fenceMark === undefined) return false;
+		if (fence === undefined) fence = fenceMark;
+		else if (fenceMark !== undefined && fenceMark[0] === fence[0] && fenceMark.length >= fence.length) {
+			fence = undefined;
+		}
+		return true;
+	});
 };
