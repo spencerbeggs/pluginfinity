@@ -1,4 +1,5 @@
 import type { Remediation } from "@effected/engine";
+import { KNOWN_TARGET_IDS } from "@pluginfinity/targets";
 import { Schema } from "effect";
 
 /**
@@ -10,7 +11,24 @@ export class ConfigIssue extends Schema.Class<ConfigIssue>("ConfigIssue")({
 	/** The dotted key path inside the config, `""` for the config as a whole. */
 	key: Schema.String,
 	message: Schema.String,
+	/** `"token"` for a body token or `pluginfinity://` link that cannot be built. */
+	kind: Schema.optionalKey(Schema.Literal("token")),
 }) {}
+
+/**
+ * The ways to clear a token or link problem besides correcting it: keep the
+ * passage from the failing target, keep the braces literal, or keep a link
+ * literal in inline code. A host block must name a target other than the failing one.
+ */
+const tokenAlternatives = (failing: ReadonlyArray<string | undefined>): string => {
+	const named = new Set(failing.filter((target): target is string => target !== undefined));
+	const others = KNOWN_TARGET_IDS.filter((target) => !named.has(target));
+	const block =
+		others.length > 0
+			? `use a host block (<!-- pluginfinity:only ${others.join(" ")} -->) around a passage only another target can build`
+			: "use a host block (<!-- pluginfinity:only <other target> -->) around a passage only another target can build";
+	return `${block}, \`\\{{\` to keep a token literal, or inline code to keep a pluginfinity:// link literal`;
+};
 
 /**
  * The upward walk reached a `.git` directory or the filesystem root without
@@ -331,6 +349,56 @@ export class HookScriptInvalid extends Schema.TaggedError<HookScriptInvalid>()("
 }
 
 /**
+ * What is wrong with a file a server or the `files` key ships.
+ *
+ * @public
+ */
+export const ShippedFileProblem = Schema.Literals([
+	"missing",
+	"not-executable",
+	"directory",
+	"outside-root",
+	"not-normal",
+]);
+
+/**
+ * A file the build must ship for a server, or because `files` lists it, cannot be shipped.
+ *
+ * @public
+ */
+export class ShippedFileInvalid extends Schema.TaggedError<ShippedFileInvalid>()("ShippedFileInvalid", {
+	/** The config. */
+	path: Schema.String,
+	/** The file, relative to the plugin root. */
+	file: Schema.String,
+	/** What names it: `mcpServers.<name>`, `lspServers.<name>` (prefixed `<target>.` when a target override sets it) or `files`. */
+	referencedBy: Schema.String,
+	problem: ShippedFileProblem,
+}) {
+	override get message(): string {
+		const why = {
+			missing: "does not exist",
+			"not-executable": "is its command but is not executable",
+			directory: "is its command but is a directory",
+			"outside-root": "resolves outside the plugin",
+			"not-normal": "has an empty, . or .. segment",
+		}[this.problem];
+		return `${this.file}, named by ${this.referencedBy} in ${this.path}, ${why}`;
+	}
+
+	get remediation(): Remediation {
+		const hint = {
+			missing: `Create ${this.file} under the plugin root, or fix the path in ${this.referencedBy}.`,
+			"not-executable": `Run \`chmod +x ${this.file}\`, or run it through sh: command "sh" with the path in args.`,
+			directory: `Name the launcher file inside ${this.file} as the command; a directory ships whole only when another server field names it.`,
+			"outside-root": "Keep shipped files inside the plugin directory; a path or symlink that leaves it cannot ship.",
+			"not-normal": `Write the path in ${this.referencedBy} without . or .. segments, as it lies under the plugin root.`,
+		}[this.problem];
+		return { hint };
+	}
+}
+
+/**
  * A copied source file and a generated file would land on the same build path.
  *
  * @public
@@ -373,11 +441,16 @@ export class ComponentInvalid extends Schema.TaggedError<ComponentInvalid>()("Co
 	}
 
 	get remediation(): Remediation {
-		return this.target === undefined
-			? { hint: `Correct the listed problems in ${this.path}.` }
-			: {
-					hint: `Correct the listed problems in ${this.path}, or set the field for ${this.target} in its \`targets.${this.target}\` block.`,
-				};
+		const tokens = this.issues.filter((issue) => issue.kind === "token").length;
+		const lead = `Correct the listed problems in ${this.path}`;
+		if (tokens > 0 && tokens === this.issues.length) {
+			return { hint: `${lead}; to keep a passage from this target, ${tokenAlternatives([this.target])}.` };
+		}
+		const field =
+			this.target === undefined
+				? lead
+				: `${lead}, or set the field for ${this.target} in its \`targets.${this.target}\` block`;
+		return { hint: tokens > 0 ? `${field}; for a token or link, ${tokenAlternatives([this.target])}.` : `${field}.` };
 	}
 }
 
@@ -401,8 +474,13 @@ export class ComponentsInvalid extends Schema.TaggedError<ComponentsInvalid>()("
 	}
 
 	get remediation(): Remediation {
+		const failing = this.components.filter((component) => component.issues.some((issue) => issue.kind === "token"));
+		const base = "Correct each listed file; a field one host cannot take can be set in that host's `targets` block";
 		return {
-			hint: "Correct each listed file; a field one host cannot take can be set in that host's `targets` block.",
+			hint:
+				failing.length > 0
+					? `${base}; to keep a passage from a target, ${tokenAlternatives(failing.map((component) => component.target))}.`
+					: `${base}.`,
 		};
 	}
 }
@@ -418,6 +496,7 @@ export type BuildError =
 	| HostRejected
 	| HookEventUnsupported
 	| HookScriptInvalid
+	| ShippedFileInvalid
 	| PathConflict
 	| ComponentsInvalid;
 
@@ -427,6 +506,7 @@ const BUILD_ERROR_TAGS: ReadonlyArray<string> = [
 	"HostRejected",
 	"HookEventUnsupported",
 	"HookScriptInvalid",
+	"ShippedFileInvalid",
 	"PathConflict",
 	"ComponentsInvalid",
 ];

@@ -22,6 +22,10 @@
 		"build": "turbo run build:dev build:prod --log-order=grouped --log-prefix=none",
 		"ci:build": "CI=\"true\" turbo run build:dev build:prod --log-order=grouped --output-logs=full --log-prefix=none",
 		"ci:test": "CI=\"true\" vitest run --passWithNoTests",
+		"claude": "claude --plugin-dir plugins/pluginfinity/builds/claude",
+		"claude:debug": "PLUGINFINITY_HOOK_DEBUG=1 claude --plugin-dir plugins/pluginfinity/builds/claude --plugin-dir plugins/dogfood/builds/claude",
+		"copilot": "copilot --plugin-dir plugins/pluginfinity/builds/copilot",
+		"copilot:debug": "PLUGINFINITY_HOOK_DEBUG=1 copilot --plugin-dir plugins/pluginfinity/builds/copilot --plugin-dir plugins/dogfood/builds/copilot",
 		"lint": "biome check --max-diagnostics=none",
 		"lint:fix": "biome check --write --max-diagnostics=none",
 		"lint:fix:unsafe": "biome check --write --unsafe --max-diagnostics=none",
@@ -29,15 +33,17 @@
 		"lint:md:fix": "markdownlint-cli2 --config './lib/configs/.markdownlint-cli2.jsonc' --fix",
 		"prepare": "husky",
 		"test": "vitest run --passWithNoTests",
+		"test:bats": "bats --recursive packages/engine/__test__/hook-lib packages/engine/__test__/server-lib plugins/dogfood/__test__",
+		"test:bats:compat": "BASH_UNDER_TEST=/bin/bash bats --recursive packages/engine/__test__/hook-lib && SH_UNDER_TEST=/bin/sh bats --recursive packages/engine/__test__/server-lib",
 		"test:coverage": "vitest run --coverage",
 		"test:watch": "vitest --watch",
 		"typecheck": "turbo run types:check --log-prefix=none --log-order=grouped",
 		"types:check": "tsc --noEmit"
 	},
 	"devDependencies": {
-		"@okfit/plugin": "^0.5.11",
+		"@okfit/plugin": "^0.5.12",
 		"@savvy-web/silk": "^4.3.3",
-		"@vitest-agent/plugin": "^5.2.1"
+		"@vitest-agent/plugin": "^5.3.0"
 	},
 	"engines": {
 		"node": ">=24.11.0"
@@ -45,7 +51,7 @@
 	"devEngines": {
 		"packageManager": {
 			"name": "pnpm",
-			"version": "12.9.0",
+			"version": "12.9.1",
 			"onFail": "download"
 		},
 		"runtime": [

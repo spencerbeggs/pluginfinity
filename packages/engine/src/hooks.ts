@@ -29,8 +29,9 @@ export interface UnsupportedHookEvent {
  * The hooks a target builds, before rendering: the base `hooks` with the
  * target's per-event overrides applied (an override replaces the base entries
  * for its event, and `[]` removes them), each event resolved to the target's
- * name. An event the target lacks drops its `"omit"` entries and reports the
- * event when any entry would fail.
+ * name. An event the target lacks is omitted, and listed in `omitted`, when
+ * every entry sets `fallback: "omit"`; when any entry would fail, the event
+ * is reported in `unsupported`.
  *
  * @public
  */
@@ -38,13 +39,19 @@ export const targetHooks = (
 	target: Target,
 	id: KnownTargetId,
 	config: PluginfinityConfig,
-): { readonly events: ReadonlyArray<TargetHookEvent>; readonly unsupported: ReadonlyArray<UnsupportedHookEvent> } => {
+): {
+	readonly events: ReadonlyArray<TargetHookEvent>;
+	readonly unsupported: ReadonlyArray<UnsupportedHookEvent>;
+	/** Source event names the target lacks whose every entry sets `fallback: "omit"`. */
+	readonly omitted: ReadonlyArray<string>;
+} => {
 	const setting = config[id];
 	const override: Readonly<Record<string, ReadonlyArray<HookEntry> | undefined>> =
 		typeof setting === "object" ? (setting.hooks ?? {}) : {};
 	const merged: Record<string, ReadonlyArray<HookEntry> | undefined> = { ...config.hooks, ...override };
 	const events: Array<TargetHookEvent> = [];
 	const unsupported: Array<UnsupportedHookEvent> = [];
+	const omitted: Array<string> = [];
 	for (const [event, entries] of Object.entries(merged)) {
 		if (entries === undefined || entries.length === 0) continue;
 		const mapped = target.hooks.ownEvents.includes(event) ? event : target.hooks.events[event];
@@ -52,9 +59,11 @@ export const targetHooks = (
 			events.push({ event, name: mapped, entries });
 		} else if (entries.some((entry) => entry.fallback !== "omit")) {
 			unsupported.push({ event });
+		} else {
+			omitted.push(event);
 		}
 	}
-	return { events, unsupported };
+	return { events, unsupported, omitted };
 };
 
 /**
@@ -160,13 +169,15 @@ const FORMATS: Record<Target["hooks"]["format"], HooksRenderer> = {
 	"copilot-hooks-v1": (events, command) => ({
 		version: 1,
 		hooks: Object.fromEntries(
-			events.map(({ name, entries }) => [
+			events.map(({ event, name, entries }) => [
 				name,
 				entries.map((entry) => ({
 					type: "command",
 					bash: command(entry),
 					...(entry.matcher === undefined ? {} : { matcher: entry.matcher }),
 					...(entry.timeout === undefined ? {} : { timeoutSec: entry.timeout }),
+					// The library reads its event from here: camelCase Copilot payloads carry no hook_event_name.
+					env: { PLUGINFINITY_EVENT: event },
 				})),
 			]),
 		),

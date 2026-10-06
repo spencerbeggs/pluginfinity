@@ -9,7 +9,24 @@
 | Agents | `agents/<name>.md` | `com.github.copilot/agents/<name>.agent.md` |
 | Hooks file | `hooks/hooks.json` | `com.github.copilot/hooks/hooks.json` |
 | Hook scripts | `hooks/` | `hooks/` |
-| Plugin root in hooks | `${CLAUDE_PLUGIN_ROOT}` | `${PLUGIN_ROOT}` |
+| MCP servers | `.mcp.json` | `mcp.json`, with `$schema` |
+| LSP servers | `.lsp.json` | `com.github.copilot/lsp.json` |
+| Server library | `lib/pluginfinity/server.sh` | `lib/pluginfinity/server.sh` |
+| Plugin root in hooks and servers | `${CLAUDE_PLUGIN_ROOT}` | `${PLUGIN_ROOT}` |
+
+## Servers
+
+A host with no servers of a kind gets no file for it, and only a host with a local server gets the
+server library.
+
+| | Claude Code | Copilot |
+| :-- | :-- | :-- |
+| MCP `type` | As written | `"stdio"` written on every local server (Copilot skips one without it); `http` becomes `streamable-http`; `sse` kept |
+| MCP `cwd` | Fails the build: Claude ignores it | Kept, root rewritten |
+| LSP `extensionToLanguage` | Kept | Written as `fileExtensions` |
+| LSP `startupTimeout`, `shutdownTimeout`, `restartOnCrash`, `maxRestarts`, `diagnostics` | Kept | Dropped |
+| LSP `workspaceFolder`, `settings` | Kept | Fail the build; override the server under `copilot.lspServers` |
+| Server working directory | The project | MCP: the plugin root. LSP: the git root, in the one layout measured |
 
 ## Skill fields
 
@@ -26,7 +43,8 @@ Claude Code keeps every field. On Copilot:
 ## Agent fields
 
 Claude Code keeps every field except `permissionMode`, `mcpServers`, `hooks` and `initialPrompt`, which
-it ignores in plugin agents, so the build drops them. On Copilot:
+it ignores in plugin agents, so the build drops them and reports each as a `dropped` note for Claude. On
+Copilot:
 
 | Field | Copilot |
 | :-- | :-- |
@@ -44,22 +62,80 @@ Copilot-only agent fields go in `targets.copilot`: `target`, `metadata`, `models
 
 ## Tools
 
-On Copilot each Claude Code tool name becomes its documented alias, with duplicates removed:
+On Copilot each Claude Code tool name becomes the name Copilot grants, with duplicates removed:
 
 | Claude Code | Copilot |
 | :-- | :-- |
 | `Read`, `NotebookRead` | `read` |
 | `Edit`, `MultiEdit`, `Write`, `NotebookEdit` | `edit` |
-| `Grep`, `Glob` | `search` |
+| `Grep` | `grep` |
+| `Glob` | `glob` |
 | `Bash`, `PowerShell` | `execute` |
-| `WebFetch`, `WebSearch` | `web` |
-| `TodoWrite` | `todo` |
+| `WebFetch` | `web_fetch` |
+| `WebSearch` | `web_search` |
+| `TodoWrite` | Dropped; no name grants it |
 | `Agent`, `Task` | `agent` |
 | `Skill` | Dropped; Copilot has no alias |
 | `mcp__<server>__<tool>` | `<server>/<tool>` |
+| `mcp__plugin_<plugin>_<server>__<tool>`, this plugin's own server | `<server>/<tool>` |
+
+Claude Code names a plugin's MCP tools `mcp__plugin_<plugin>_<server>__<tool>`, so that is how a skill or
+agent names a tool of this plugin's own server. `<plugin>` is the plugin's name on Claude Code (the
+`claude.name` override, else `name`), and `<server>` must be an MCP server the Copilot build declares
+(the base `mcpServers` plus `copilot.mcpServers`). Such a name becomes `<server>/<tool>` on Copilot and is
+kept as written on Claude Code. Write it once in the base field; no `targets.copilot` override is needed.
 
 A rule such as `Bash(git log:*)` on a renamed tool is unresolved: Copilot has no per-command rules, and
 dropping the rule would widen the tool, so set the field under `targets.copilot`. Any other name is
-dropped on Copilot: a Claude-only tool such as `ToolSearch`, `SendMessage` or the `Task` tools, and a
-`mcp__plugin_...` name, which belongs to another plugin whose server name on Copilot is unknown. Claude
-Code keeps every name as written.
+dropped on Copilot and reported as a `tool-dropped` note: a Claude-only tool such as `ToolSearch`,
+`SendMessage` or the `Task` tools, a `mcp__plugin_...` name of another plugin, whose server name on
+Copilot is unknown, and one of this plugin's that names a server the Copilot build does not declare.
+Claude Code keeps every name as written.
+
+Measured on Copilot CLI: an agent restricted to the documented aliases `search`, `web` or `todo` executed
+no tool (0 of 6 runs each, two models), while the literal `grep`, `glob`, `web_fetch` and `web_search`
+executed in every run. So those four are written by name, and `TodoWrite` is dropped with a `tool-dropped`
+note. `read`, `edit`, `execute` and `agent` are the documented aliases and are kept.
+
+## Run-time names
+
+A `{{tool …}}`, `{{agent …}}` or `{{skill …}}` token in a body writes the name the model sees at run
+time, which is not the frontmatter alias. Claude Code writes every name as given. On Copilot:
+
+| Claude Code | Copilot run-time name |
+| :-- | :-- |
+| `Read` | `view` |
+| `Bash` | `bash` |
+| `Edit`, `MultiEdit` | `edit` |
+| `Write` | `create` |
+| `Agent`, `Task` | `task` |
+| `Grep`, `Glob` | `grep`, `glob` |
+| `WebFetch`, `WebSearch` | `web_fetch`, `web_search` |
+| `Skill` | `skill` |
+| `TodoWrite`, `NotebookEdit`, `NotebookRead`, `PowerShell` | none measured: the token fails |
+| `mcp__plugin_<plugin>_<server>__<tool>`, this plugin's own server | `<server>-<tool>` |
+| Any other name, another plugin's MCP tools included | none: the token fails |
+| An agent | `<plugin>:<agent>`, also what `copilot --agent` takes |
+| A skill | `/<plugin>:<skill>` |
+
+In the agent and skill rows `<plugin>` is the plugin's Copilot name, the `copilot.name` override, else
+`name`.
+
+These were measured once, under Copilot CLI 1.0.92 in non-interactive runs; the built-in names rest on
+the model's own listing of its tools.
+
+## Notes
+
+Every field a host drops or degrades, every tool it drops and every hook event it omits is reported as an
+info-level note under that host's `✓` line, one line per file, with the hooks and servers under `config`
+last:
+
+```text
+✓ copilot: /work/x/builds/copilot (0 added, 1 changed, 0 removed)
+  · agents/x.md: dropped color, maxTurns
+  · skills/s/SKILL.md: degraded paths; tool-dropped ToolSearch
+  · config: dropped lspServers.md.diagnostics; hook-omitted Setup
+```
+
+A value the host's table drops is not reported, since the host does the same without it: `model: inherit`
+on Copilot is the one today. See [the findings](findings.md) for the kinds and the JSON form.

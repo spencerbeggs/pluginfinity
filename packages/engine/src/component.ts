@@ -3,6 +3,7 @@ import type { Schema as SchemaNs } from "effect";
 import { Effect, Schema, SchemaIssue } from "effect";
 import { ComponentInvalid, ConfigIssue } from "./errors.js";
 import { splitFrontmatter } from "./frontmatter.js";
+import type { TokenProblem } from "./tokens.js";
 
 const formatter = SchemaIssue.makeFormatterStandardSchemaV1();
 
@@ -12,6 +13,27 @@ const formatter = SchemaIssue.makeFormatterStandardSchemaV1();
  * @internal
  */
 export const issue = (key: string, message: string): ConfigIssue => ConfigIssue.make({ key, message });
+
+/**
+ * Token problems as issues keyed by their source file line: `lines` maps each
+ * line of the rendered text to its line in the source text (see
+ * `mapHostBlocks`), and the source text starts `offset` lines into the file.
+ * Each is marked a token issue, so its remediation names the token fixes.
+ *
+ * @internal
+ */
+export const lineIssues = (
+	found: ReadonlyArray<TokenProblem>,
+	lines: ReadonlyArray<number>,
+	offset: number,
+): Array<ConfigIssue> =>
+	found.map((problem) =>
+		ConfigIssue.make({
+			key: `line ${(lines[problem.line - 1] ?? problem.line) + offset}`,
+			message: problem.message,
+			kind: "token",
+		}),
+	);
 
 /**
  * A `ComponentInvalid` for `path`, optionally specific to one target.

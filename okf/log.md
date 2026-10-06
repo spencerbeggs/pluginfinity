@@ -1,5 +1,34 @@
 # Log
 
+## 2026-10-06
+
+* Updated @pluginfinity/cli
+* Updated Build notes report what a target drops, degrades or omits
+* Updated Copilot CLI run-time tool, skill and agent names, 2026-10-06
+* Updated The pluginfinity command line
+* Updated @pluginfinity/targets
+* Updated Plugin source model
+* Updated Target description
+* Updated @pluginfinity/engine
+* Updated Body tokens and pluginfinity links are built per target
+* Updated Hook scripts change mode around every commit with no diff, and build --check ignores it
+* Updated pluginfinity companion plugin
+* Updated pluginfinity first release
+
+## 2026-10-05
+
+* Updated Hook library live run on Claude Code and Copilot CLI, 2026-10-03
+* Updated Plugin MCP and LSP server environment on Claude Code and Copilot, 2026-10-05
+* Updated dogfood plugin fixture
+* Updated pluginfinity companion plugin
+* Updated @pluginfinity/engine
+* Updated Target description
+* Updated The pluginfinity command line
+* Updated pluginfinity.config.ts
+* Updated @pluginfinity/core
+* Updated Plugin source model
+* Updated Server launchers ship by discovery and files, beside an injected server library
+
 ## 2026-10-03
 
 * Updated @pluginfinity/cli
@@ -12,6 +41,12 @@
 * Updated pluginfinity companion plugin
 * Updated A workspace plugin gets no pluginfinity bin unless the carrier is relinked after its build
 * Updated dogfood plugin fixture
+* Updated Claude Code plugin format
+* Added Hooks fail open on both hosts
+* Updated GitHub Copilot CLI plugin format
+* Updated The hook library is injected at build time
+* Added build --check reports BuildStale on .sh files right after a commit, with no diff
+* Updated pluginfinity carrier package
 
 ## 2026-10-02
 

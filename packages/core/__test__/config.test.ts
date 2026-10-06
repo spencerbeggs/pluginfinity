@@ -52,7 +52,35 @@ describe("BaseConfigFields", () => {
 		}),
 	);
 
+	it.effect("accepts lspServers and shipped files", () =>
+		Effect.gen(function* () {
+			const config = {
+				name: "x",
+				description: "y",
+				lspServers: { md: { command: "sh", extensionToLanguage: { ".md": "markdown" } } },
+				files: ["bin/", "share/data.json", ".mcp.json", "buildsx/", "a/b/"],
+			};
+			assert.deepStrictEqual(yield* decodeBase(config), config);
+		}),
+	);
+
 	const rejected: ReadonlyArray<readonly [string, unknown]> = [
+		["an empty shipped path", { name: "x", description: "y", files: [""] }],
+		["an absolute shipped path", { name: "x", description: "y", files: ["/abs"] }],
+		["a shipped path with a .. segment", { name: "x", description: "y", files: ["../x"] }],
+		["a shipped path with an inner .. segment", { name: "x", description: "y", files: ["a/../b"] }],
+		["a shipped path that is ..", { name: "x", description: "y", files: [".."] }],
+		["a shipped path with a leading . segment", { name: "x", description: "y", files: ["./x"] }],
+		["a shipped path with an inner . segment", { name: "x", description: "y", files: ["a/./b"] }],
+		["a shipped path with an empty segment", { name: "x", description: "y", files: ["a//b"] }],
+		["a shipped path ending in an empty segment", { name: "x", description: "y", files: ["a//"] }],
+		["a shipped path that is the bare root .", { name: "x", description: "y", files: ["."] }],
+		["a shipped path that is the bare root ./", { name: "x", description: "y", files: ["./"] }],
+		["a shipped path that is builds/", { name: "x", description: "y", files: ["builds/"] }],
+		["a shipped path that is builds", { name: "x", description: "y", files: ["builds"] }],
+		["a shipped path under builds/", { name: "x", description: "y", files: ["builds/claude/x"] }],
+		["a shipped path that is node_modules/", { name: "x", description: "y", files: ["node_modules/"] }],
+		["a shipped path under node_modules/", { name: "x", description: "y", files: ["node_modules/a/b.js"] }],
 		["a missing description", { name: "x" }],
 		["an empty description", { name: "x", description: "" }],
 		["an unknown scripts.invoke", { name: "x", description: "y", scripts: { invoke: "sh" } }],
@@ -80,6 +108,8 @@ describe("BaseConfigFields", () => {
 			"scripts",
 			"hooks",
 			"mcpServers",
+			"lspServers",
+			"files",
 		]);
 	});
 });
@@ -95,6 +125,13 @@ describe("makeTargetSetting", () => {
 			} as const;
 			assert.deepStrictEqual(yield* decodeSetting(override), override);
 			assert.deepStrictEqual(yield* decodeSetting({}), {});
+		}),
+	);
+
+	it.effect("accepts an lspServers override", () =>
+		Effect.gen(function* () {
+			const override = { lspServers: { md: { command: "sh", extensionToLanguage: { ".md": "markdown" } } } };
+			assert.deepStrictEqual(yield* decodeSetting(override), override);
 		}),
 	);
 

@@ -1,7 +1,7 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it, layer } from "@effect/vitest";
 import { Effect } from "effect";
-import { BOTH_TARGETS, ONLY_COPILOT, PACKAGE_JSON } from "./fixtures/configs.js";
+import { BOTH_TARGETS, NOTED_TREE, ONLY_COPILOT, PACKAGE_JSON } from "./fixtures/configs.js";
 import { runCli } from "./utils/run.js";
 import { writeTree } from "./utils/tree.js";
 
@@ -127,6 +127,68 @@ describe("build and validate", () => {
 				const report = JSON.parse(result.stdout[0] ?? "");
 				assert.strictEqual(report.ok, true);
 				assert.deepStrictEqual(report.builds[0].added, [".claude-plugin/plugin.json"]);
+			}),
+		);
+
+		it.effect("build prints each component's notes on one line under its target", () =>
+			Effect.gen(function* () {
+				const cwd = yield* writeTree(NOTED_TREE);
+				const result = yield* runCli(["build", "--human"], { cwd });
+				assert.strictEqual(result.code, 0);
+				const copilot = result.stdout.findIndex((line) => line.startsWith("✓ copilot:"));
+				assert.deepStrictEqual(result.stdout.slice(0, copilot).length, 1, "claude has no notes");
+				assert.deepStrictEqual(result.stdout.slice(copilot + 1), [
+					"  · agents/x.md: dropped color, maxTurns",
+					"  · skills/s/SKILL.md: degraded paths; tool-dropped ToolSearch",
+					"  · config: dropped lspServers.md.diagnostics; hook-omitted Setup",
+				]);
+			}),
+		);
+
+		it.effect("build --check prints the same notes under its up-to-date line", () =>
+			Effect.gen(function* () {
+				const cwd = yield* writeTree(NOTED_TREE);
+				yield* runCli(["build"], { cwd });
+				const result = yield* runCli(["build", "--check", "--target", "copilot", "--human"], { cwd });
+				assert.strictEqual(result.code, 0);
+				assert.deepStrictEqual(result.stdout, [
+					`✓ copilot: ${cwd}/builds/copilot is up to date`,
+					"  · agents/x.md: dropped color, maxTurns",
+					"  · skills/s/SKILL.md: degraded paths; tool-dropped ToolSearch",
+					"  · config: dropped lspServers.md.diagnostics; hook-omitted Setup",
+				]);
+			}),
+		);
+
+		it.effect("build --agent lists each build's notes, without repeating the target", () =>
+			Effect.gen(function* () {
+				const cwd = yield* writeTree(NOTED_TREE);
+				const result = yield* runCli(["build", "--agent"], { cwd });
+				assert.strictEqual(result.code, 0);
+				assert.strictEqual(result.stdout.length, 1);
+				const report = JSON.parse(result.stdout[0] ?? "");
+				assert.deepStrictEqual(report.builds[0].notes, []);
+				assert.strictEqual(report.builds[1].target, "copilot");
+				assert.deepStrictEqual(report.builds[1].notes[0], { path: "agents/x.md", kind: "dropped", name: "color" });
+				assert.strictEqual(report.builds[1].notes.length, 6);
+			}),
+		);
+
+		it.effect("validate prints the notes for people and lists them for an agent", () =>
+			Effect.gen(function* () {
+				const cwd = yield* writeTree(NOTED_TREE);
+				yield* runCli(["build"], { cwd });
+				const human = yield* runCli(["validate", "--no-host", "--target", "copilot", "--human"], { cwd });
+				assert.strictEqual(human.code, 0);
+				assert.deepStrictEqual(human.stdout.slice(1), [
+					"  · agents/x.md: dropped color, maxTurns",
+					"  · skills/s/SKILL.md: degraded paths; tool-dropped ToolSearch",
+					"  · config: dropped lspServers.md.diagnostics; hook-omitted Setup",
+				]);
+				const agent = yield* runCli(["validate", "--no-host", "--target", "copilot", "--agent"], { cwd });
+				const report = JSON.parse(agent.stdout[0] ?? "");
+				assert.strictEqual(report.validations[0].target, "copilot");
+				assert.deepStrictEqual(report.validations[0].notes[5], { path: "config", kind: "hook-omitted", name: "Setup" });
 			}),
 		);
 

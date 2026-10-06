@@ -10,10 +10,10 @@
  * @packageDocumentation
  */
 
-export type { SourceAgent } from "./agents.js";
+export type { RenderedAgent, SourceAgent } from "./agents.js";
 export { readAgents, renderAgent } from "./agents.js";
 export type { HostBlockProblem } from "./body.js";
-export { applyHostBlocks, referenceLines } from "./body.js";
+export { applyHostBlocks } from "./body.js";
 export { CONFIG_FILE_NAMES, ConfigDiscovery } from "./discovery.js";
 export type { DoctorInput } from "./doctor.js";
 export {
@@ -45,13 +45,15 @@ export {
 	NotImplemented,
 	PackageVersionMissing,
 	PathConflict,
+	ShippedFileInvalid,
+	ShippedFileProblem,
 	TargetDrift,
 	TargetNotEnabled,
 	UnknownTarget,
 	isBuildError,
 	isConfigError,
 } from "./errors.js";
-export type { MappedFrontmatter, SplitMarkdown, UnresolvedField } from "./frontmatter.js";
+export type { FieldDrop, MappedFrontmatter, OwnMcp, SplitMarkdown, UnresolvedField } from "./frontmatter.js";
 export { appendSections, mapFrontmatter, splitFrontmatter } from "./frontmatter.js";
 export type { TargetHookEvent, UnsupportedHookEvent } from "./hooks.js";
 export { hookCommand, hookCommandFiles, hookExec, hookScripts, renderHooks, targetHooks } from "./hooks.js";
@@ -59,11 +61,17 @@ export type { LoadedConfig } from "./loader.js";
 export { ConfigLoader } from "./loader.js";
 export type { Manifest } from "./manifest.js";
 export { renderManifest, serializeManifest } from "./manifest.js";
+export type { BuildNote, BuildNoteKind } from "./notes.js";
+export { BUILD_NOTE_KINDS } from "./notes.js";
 export type { BuildInput, PlanError, TargetBuild, TargetValidation, ValidateInput } from "./operations.js";
 export { build, validate } from "./operations.js";
 export type { ConfigSelection, PreparedPlugin } from "./selection.js";
 export { preparePlugins, selectConfigPaths } from "./selection.js";
-export type { SourceSkill } from "./skills.js";
+export type { ServerFiles, ServerRender } from "./servers.js";
+export { renderServers, serverFiles } from "./servers.js";
+export type { RenderedSkill, SourceSkill } from "./skills.js";
 export { SKILL_DESCRIPTION_MAX, readSkills, renderSkill } from "./skills.js";
+export type { TokenContext, TokenProblem } from "./tokens.js";
+export { renderTokens } from "./tokens.js";
 export { ToolDiscoveryLive } from "./tools.js";
 export { ENGINE_VERSION } from "./version.js";

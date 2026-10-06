@@ -30,15 +30,15 @@ sources:
   - id: cc-hooks
     resource: https://code.claude.com/docs/en/hooks.md
     title: Hooks reference
-    last_modified: 2026-10-02T00:00:00Z
+    last_modified: 2026-10-03T00:00:00Z
   - id: cc-host-marketplace
     resource: https://code.claude.com/docs/en/plugins/host-marketplace.md
     title: Host a marketplace
     last_modified: 2026-10-02T00:00:00Z
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T22:08:02Z
-  body_sha256: 01724e45079f02fce315f0c0299274df63495209fa9f7d164720e9d75f1578c2
+  at: 2026-10-03T19:33:34Z
+  body_sha256: 2c8623a0205f4af1cffd537bb4fcf8e692fe7f78649e8647d36f352fe4ef868a
 ---
 
 # Claude Code plugin format
@@ -184,6 +184,127 @@ Each event maps to an array of matcher groups: `matcher` (string, optional) and 
 - `agent`: `type`, `prompt`; optional `model`, `if`, `timeout`, `statusMessage`, `once`.
 
 Hook events in the hooks reference: `SessionStart`, `Setup`, `UserPromptSubmit`, `UserPromptExpansion`, `PreToolUse`, `PermissionRequest`, `PermissionDenied`, `PostToolUse`, `PostToolUseFailure`, `PostToolBatch`, `Notification`, `MessageDisplay`, `SubagentStart`, `SubagentStop`, `TaskCreated`, `TaskCompleted`, `Stop`, `StopFailure`, `TeammateIdle`, `InstructionsLoaded`, `ConfigChange`, `CwdChanged`, `DirectoryAdded`, `FileChanged`, `WorktreeCreate`, `WorktreeRemove`, `PreCompact`, `PostCompact`, `PreModelSwitch`, `PostModelSwitch`, `Elicitation`, `ElicitationResult`, `SessionEnd`.[^cc-hooks] The schema's event-name enum has 29 of these, without `MessageDisplay`, `DirectoryAdded`, `PreModelSwitch` and `PostModelSwitch`.[^cc-plugin-schema]
+
+### Hook input and output contract
+
+A command hook receives the event's JSON on stdin and answers with an exit code, stdout and stderr. HTTP hooks get the same JSON as the POST body. Command hooks run in their own session with no controlling terminal, so a script cannot write to `/dev/tty`.[^cc-hooks]
+
+**Corrections to the handler list above.** `once` is honoured only for hooks declared in skill frontmatter and is ignored in settings files, agent frontmatter and so in a plugin's `hooks/hooks.json`. A plugin's `hooks/hooks.json` may carry a top-level `description` beside `hooks`. The docs prefer exec form (`args` present, no shell) for any hook that uses a path placeholder, because each `args` element is one argument with no quoting; shell form needs the placeholder wrapped in double quotes.[^cc-hooks]
+
+#### Common stdin fields
+
+Every event receives these, plus its own fields below.[^cc-hooks]
+
+| Field | Meaning |
+| :- | :- |
+| `session_id` | Current session identifier |
+| `transcript_path` | Path to the conversation JSON. Written asynchronously, so it can lag the turn; use `last_assistant_message` on `Stop` and `SubagentStop` instead |
+| `cwd` | Working directory when the hook fires. Follows Claude into a worktree or after a `cd`, while `CLAUDE_PROJECT_DIR` stays at the session's start |
+| `hook_event_name` | The event that fired |
+| `permission_mode` | `default`, `plan`, `acceptEdits`, `auto`, `dontAsk` or `bypassPermissions`. Not every event carries it (`SessionStart`, `SessionEnd`, `Notification`, `SubagentStart` and `PreCompact` examples omit it) |
+| `prompt_id` | UUID of the user prompt being processed. Absent until the first user input |
+| `agent_id`, `agent_type` | Present when the hook fires inside a subagent, or `agent_type` alone under `--agent` |
+
+Also documented and optional: `effort` (an object with `level`, on tool-context events), and `scratchpad_dir`.[^cc-hooks]
+
+#### Per-event stdin fields
+
+Fields beyond the common ones, for the events pluginfinity's hook library supports:[^cc-hooks]
+
+| Event | Fields |
+| :- | :- |
+| `SessionStart` | `source` (`startup`, `resume`, `clear`, `compact`, `fork`); optional `model`, `agent_type`, `session_title`; on `resume` and `fork` also `seconds_since_last_response`, `context_tokens`, `prompt_cache_likely_expired`, `estimated_cache_write_usd` |
+| `SessionEnd` | `reason` (`clear`, `resume`, `logout`, `prompt_input_exit`, `other`) |
+| `UserPromptSubmit` | `prompt`; optional `session_title` |
+| `PreToolUse` | `tool_name`, `tool_input`, `tool_use_id`; for MCP tools also `mcp_server` |
+| `PostToolUse` | `tool_name`, `tool_input`, `tool_response` (the tool's structured output), `tool_use_id`; optional `duration_ms` |
+| `PostToolUseFailure` | `tool_name`, `tool_input`, `tool_use_id`, `error`; optional `is_interrupt`, `duration_ms` |
+| `Stop` | `stop_hook_active`, `last_assistant_message`, `background_tasks`, `session_crons` |
+| `SubagentStart` | `agent_id`, `agent_type` |
+| `SubagentStop` | `stop_hook_active`, `agent_id`, `agent_type`, `agent_transcript_path`, `last_assistant_message`, `background_tasks`, `session_crons` |
+| `PreCompact` | `trigger` (`manual` or `auto`), `custom_instructions` (`null` unless `manual` with text) |
+| `Notification` | `message`, `notification_type`; optional `title` |
+| `PermissionRequest` | `tool_name`, `tool_input`; optional `permission_suggestions`; no `tool_use_id` |
+
+`stop_hook_active` is `true` when Claude is already continuing because of a stop hook. After eight consecutive continuations Claude Code overrides the next block and ends the turn (`CLAUDE_CODE_STOP_HOOK_BLOCK_CAP` raises it).[^cc-hooks]
+
+#### Exit codes
+
+| Code | Effect |
+| :- | :- |
+| `0` | Success. stdout is parsed as JSON when it starts with `{` and ends with `}`; otherwise it is plain text. Plain text becomes context only on `UserPromptSubmit`, `UserPromptExpansion`, `SessionStart` and `PostModelSwitch` |
+| `2` | A blocking error on the events that can block (see the table below). It wins over any JSON, even `permissionDecision: "allow"`. stderr is the reason unless the JSON gives one |
+| other | Non-blocking: the action proceeds and the transcript shows a hook-error notice with the first stderr line. Exit `1` does not block |
+
+Exceptions to the exit-2 rule:[^cc-hooks]
+
+- `PermissionRequest` does not honour exit 2: the permission flow proceeds unchanged and stderr is discarded. Deny through the `decision` object.
+- `WorktreeCreate` and `WorktreeRemove` fail on any non-zero exit. A `WorktreeCreate` command hook prints the worktree path on stdout and cannot return JSON.
+- `PostToolUse` and `PostToolUseFailure` show stderr to Claude on exit 2, but the tool already ran.
+- `SessionStart`, `SubagentStart`, `SessionEnd` and `PostModelSwitch` show stderr to the user only. `Notification` ignores code and stderr.
+- A script that cannot start (path missing, not executable) exits with a code like 127 and so is a non-blocking error: a policy gate silently stays open.
+
+Events where exit 2 blocks: `PreToolUse`, `UserPromptSubmit`, `UserPromptExpansion`, `Stop`, `SubagentStop`, `TeammateIdle`, `TaskCreated`, `TaskCompleted`, `ConfigChange` (not `policy_settings`), `PostToolBatch`, `PreCompact`, `PreModelSwitch`, `Elicitation`, `ElicitationResult`, `WorktreeCreate`, `WorktreeRemove`.[^cc-hooks]
+
+**Timeouts.** A `command`, `http` or `mcp_tool` hook that reaches its timeout is cancelled and its output discarded, so on most events it renders no decision. A timed-out `PreToolUse` command hook does not block the call. A timed-out `PreModelSwitch` hook does block the switch.[^cc-hooks]
+
+#### Universal JSON fields
+
+Every event accepts these on stdout JSON; some events discard them, and each event section says which.[^cc-hooks]
+
+| Field | Effect |
+| :- | :- |
+| `continue` | Default `true`. `false` stops Claude entirely and beats any event-specific decision |
+| `stopReason` | Shown to the user when `continue` is `false` |
+| `systemMessage` | Warning shown to the user. Discarded by `Notification`, `SessionEnd`, `PreCompact` and `ConfigChange` |
+| `terminalSequence` | An escape sequence Claude Code writes for you, restricted to OSC `0`/`1`/`2`/`9`/`99`/`777` and BEL, in interactive sessions only. Anything else is ignored, so the whole field is dropped |
+| `suppressOutput` | Accepted and has no effect |
+
+An invalid object on any exit code but 2 is a non-blocking error; a parse failure on a standard-decision event is too. A hook's `additionalContext`, `systemMessage` and `initialUserMessage` strings, and plain stdout, are each capped at 10,000 characters: over the cap Claude Code saves the text to a file and passes a path and a preview of up to 2,000 characters instead.[^cc-hooks]
+
+#### Decision control by event
+
+| Events | Pattern | Fields |
+| :- | :- | :- |
+| `UserPromptSubmit`, `UserPromptExpansion`, `PostToolUse`, `PostToolUseFailure`, `PostToolBatch`, `Stop`, `SubagentStop`, `ConfigChange`, `PreCompact` | Top-level `decision` | `decision: "block"` (the only value) and `reason`. Omit `decision` to allow |
+| `TaskCreated` | Exit 2 or top-level `decision` | `decision: "block"` deletes the task; `continue: false` is ignored |
+| `PreModelSwitch` | `hookSpecificOutput` or top-level `decision` | `permissionDecision` of `allow`, `deny` or `ask`; `decision: "block"` also cancels. No `updatedInput`, `additionalContext` or `defer` |
+| `PreToolUse` | `hookSpecificOutput` | `permissionDecision` of `allow`, `deny`, `ask` or `defer`; `permissionDecisionReason`; `updatedInput`; `additionalContext` |
+| `PermissionRequest` | `hookSpecificOutput` | `decision.behavior` of `allow` or `deny`; `updatedInput`, `updatedPermissions` (allow); `message`, `interrupt` (deny) |
+| `SessionStart`, `SubagentStart`, `PostModelSwitch` | Context only | `hookSpecificOutput.additionalContext`. No blocking |
+| `Setup`, `Notification`, `SessionEnd`, `PostCompact`, `InstructionsLoaded`, `StopFailure`, `CwdChanged`, `DirectoryAdded`, `FileChanged` | None | Side effects only |
+
+Context via `hookSpecificOutput.additionalContext` (with `hookEventName` set to the event name) is accepted on `SessionStart`, `SubagentStart`, `PostModelSwitch`, `UserPromptSubmit`, `UserPromptExpansion`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PostToolBatch`, `Stop` and `SubagentStop`. On `Stop` and `SubagentStop` it keeps the conversation going as non-error feedback, with the same `stop_hook_active` and eight-continuation protections as `decision: "block"`. `PreCompact` and `Notification` take no context.[^cc-hooks]
+
+Details that matter when writing a script:[^cc-hooks]
+
+- `PreToolUse` top-level `decision` and `reason` are deprecated; `approve` and `block` map to `allow` and `deny`. When several hooks disagree, `deny` beats `defer`, which beats `ask`, which beats `allow`.
+- `defer` works only in non-interactive `-p` runs with a single tool call in the turn; interactive sessions log a warning and ignore it. `updatedInput` replaces the whole input object.
+- `PostToolUse` can also return `updatedToolOutput` (it must match the tool's output shape) and `classifierContext`. Its `decision: "block"` only adds `reason` beside the result.
+- `UserPromptSubmit` cannot replace the prompt. `reason` on a block is shown to the user, not added to context.
+- `PostToolUseFailure` appears in the top-level decision row of the quick-reference table, but its own section documents only `additionalContext`; treat it as context-only.
+- `PreCompact` blocks with exit 2 or `decision: "block"`, and discards `systemMessage` and `continue`.
+
+#### Matchers
+
+A matcher of `*`, `""` or omitted matches all. A matcher of only letters, digits, `_`, `-`, spaces, `,` and `|` is an exact string or a list of them. Anything else is an unanchored JavaScript regular expression, so `Edit.*` also matches `NotebookEdit`; anchor with `^` and `$`. `FileChanged` and `StopFailure` use a narrower exact set and treat `-`, space and `,` as regex characters.[^cc-hooks] Each event matches its own field: tool name for `PreToolUse`, `PostToolUse`, `PostToolUseFailure` and `PermissionRequest`; `source` for `SessionStart`; `reason` for `SessionEnd`; `notification_type` for `Notification`; agent type for `SubagentStart` and `SubagentStop`; `trigger` for `PreCompact`; the target model name for the model-switch events. `UserPromptSubmit`, `PostToolBatch`, `Stop` and `TaskCreated` have no matcher, and one written there is silently ignored. A plugin-scoped agent name such as `my-plugin:reviewer` contains a colon and so takes the regex path.[^cc-hooks]
+
+#### Timeouts and size limits
+
+The default `timeout` for `command`, `http` and `mcp_tool` hooks is 600 seconds, 30 on `UserPromptSubmit`, `PreModelSwitch` and `PostModelSwitch`, and 10 on `MessageDisplay`; `prompt` hooks default to 30 and `agent` hooks to 60. `SessionEnd` hooks share a 1.5-second budget, raised by a longer per-hook `timeout` up to 60 seconds, but not by a plugin-provided hook's `timeout`. `CLAUDE_CODE_SESSIONEND_HOOKS_TIMEOUT_MS` overrides the budget. The 10,000-character cap above has no setting to raise it.[^cc-hooks]
+
+#### Environment variables
+
+| Variable | Where it is set |
+| :- | :- |
+| `CLAUDE_PROJECT_DIR` | Command hooks; the project root where the session started. Also stdio MCP and LSP servers |
+| `CLAUDE_PLUGIN_ROOT` | Command hooks of a plugin; the install directory, which changes across updates |
+| `CLAUDE_PLUGIN_DATA` | Command hooks of a plugin; a persistent directory that survives updates |
+| `CLAUDE_PLUGIN_OPTION_<KEY>` | Plugin hooks, one per user-config option; the way to read an option from a shell-form hook |
+| `CLAUDE_ENV_FILE` | `SessionStart`, `Setup`, `CwdChanged` and `FileChanged` hooks only; append `export` lines to carry variables into later Bash commands |
+| `CLAUDE_EFFORT` | Hook commands and the Bash tool; the effort level |
+
+Both exec and shell form export the first three to the spawned process. A hook inherits the parent environment apart from `OTEL_*` exporter variables. `CLAUDE_CODE_REMOTE` is `"true"` in remote web sessions.[^cc-hooks]
 
 ## Installation behaviour relevant to a build
 

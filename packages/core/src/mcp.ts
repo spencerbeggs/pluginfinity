@@ -1,6 +1,19 @@
 import { Schema } from "effect";
 
 /**
+ * A server's environment. `PLUGINFINITY_` keys are reserved for the
+ * variables the build injects.
+ *
+ * @public
+ */
+export const ServerEnv = Schema.Record(
+	Schema.String.check(
+		Schema.isPattern(/^(?!PLUGINFINITY_)/, { message: "PLUGINFINITY_ env keys are reserved for the build" }),
+	),
+	Schema.String,
+);
+
+/**
  * A local MCP server the host launches. `${PLUGIN_ROOT}` is the one
  * placeholder in `args`, `env` and `cwd`.
  *
@@ -10,7 +23,7 @@ export const StdioMcpServer = Schema.Struct({
 	type: Schema.optionalKey(Schema.Literal("stdio")),
 	command: Schema.String.check(Schema.isMinLength(1)),
 	args: Schema.optionalKey(Schema.Array(Schema.String)),
-	env: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
+	env: Schema.optionalKey(ServerEnv),
 	cwd: Schema.optionalKey(Schema.String),
 });
 

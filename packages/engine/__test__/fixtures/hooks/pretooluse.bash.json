@@ -1,0 +1,1 @@
+{"session_id":"s-1","transcript_path":"/dev/null","cwd":"/tmp","hook_event_name":"PreToolUse","permission_mode":"default","tool_name":"Bash","tool_input":{"command":"rm -rf \"$HOME\"; echo 'quoted' c:\\dir\nnext","description":"wipe"},"tool_use_id":"t-1"}

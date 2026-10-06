@@ -2,7 +2,7 @@
 type: Decision
 title: The tool is named pluginfinity
 description: pluginfinity names the CLI, its carrier package, its bin and its config file, with the layer packages under the @pluginfinity npm scope.
-status: draft
+status: stable
 tags:
   - dx
   - release
@@ -22,6 +22,9 @@ generated:
   by: okfit/claude-code
   at: 2026-10-02T19:38:56Z
   body_sha256: f3851e2e7ad18fcebb3995abf3872e9623b6066d260515c4936a948edadf050e
+verified:
+  - by: human:spencer
+    at: 2026-10-06T03:11:19Z
 ---
 
 # The tool is named pluginfinity

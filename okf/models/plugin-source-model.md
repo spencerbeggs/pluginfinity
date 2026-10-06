@@ -1,7 +1,7 @@
 ---
 type: DataModel
 title: Plugin source model
-description: The host-neutral shape of a plugin's source that pluginfinity reads, decodes and builds from — skills, agents, hooks, MCP servers and the config fields that declare them — as designed for the first release.
+description: The host-neutral shape of a plugin's source that pluginfinity reads, decodes and builds from — skills, agents, hooks, MCP and LSP servers, shipped files and the config fields that declare them — as designed for the first release.
 status: draft
 tags:
   - architecture
@@ -13,10 +13,19 @@ sources:
     author: human:spencer
     last_modified: 2026-10-02T00:00:00Z
     title: The Phase 1 design agreed with the repository owner, section by section
+  - id: core-config
+    resource: ../../packages/core/src/config.ts
+    title: BaseConfigFields, ShippedPath and makeTargetSetting
+  - id: core-lsp
+    resource: ../../packages/core/src/lsp.ts
+    title: LspServer, LspServers and LSP_FIELDS
+  - id: core-mcp
+    resource: ../../packages/core/src/mcp.ts
+    title: ServerEnv and the reserved PLUGINFINITY_ prefix
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T02:18:07Z
-  body_sha256: 85fb666ec6b92707f06fc0f2eb1b792947a3bd676acbf05b9adf3c94eee4e5f6
+  at: 2026-10-06T02:15:19Z
+  body_sha256: 4c6e0a21f10b3de73f43daf597ef66a0830d0c52ff1c93a6939537bd88325663
 ---
 
 # Plugin source model
@@ -27,13 +36,14 @@ This is the agreed design for Phase 1 of [the roadmap](../roadmaps/pluginfinity-
 
 ```text
 plugins/<name>/
-  pluginfinity.config.ts      name, metadata, targets, hooks, mcpServers, scripts
+  pluginfinity.config.ts      name, metadata, targets, hooks, mcpServers, lspServers, files, scripts
   skills/<skill>/SKILL.md      plus any scripts/, references/, assets/
   agents/<agent>.md
   hooks/                      shipped whole; scripts referenced from the config
+  bin/                        server launchers, shipped because a server names them (any path works)
 ```
 
-The first release covers four component kinds: skills, agents, hooks and MCP servers. Commands, LSP servers, output styles, themes and monitors are out of scope. Runtime content is markdown, JSON and bash only ([decision](../decisions/plugins-carry-no-node-dependencies.md)).
+The first release covers five component kinds: skills, agents, hooks, MCP servers and LSP servers. Commands, output styles, themes and monitors are out of scope. Runtime content is markdown, JSON and bash only ([decision](../decisions/plugins-carry-no-node-dependencies.md)).
 
 ## Skills and agents
 
@@ -48,8 +58,11 @@ The first release covers four component kinds: skills, agents, hooks and MCP ser
 ## Body constructs
 
 - **Host blocks.** `<!-- pluginfinity:only <id> [<id>…] -->` … `<!-- /pluginfinity:only -->` keeps the enclosed passage for the listed targets and strips it for the rest. Blocks do not nest; an unclosed block or an unknown id fails.
-- **References.** A markdown link destination `pluginfinity://skill/<skill>[/<path>]` or `pluginfinity://agent/<agent>` must name a component, and a file, that exists. Each target rewrites it ([target description](target-description.md)). Both forms pass the repository's markdownlint config. They are not built yet, so a build refuses any such link outside code rather than ship it as text.
-- **Code is text.** A host-block marker or a reference inside fenced code or an inline code span is shown, not acted on.
+- **Tokens.** `{{tool <name>}}`, `{{agent <name>}}`, `{{skill <name>}}` and `{{plugin_root}}`, on one line, write the target's run-time spelling of a tool, an agent id, a skill invocation or the body root ([target description](target-description.md)). They apply to `SKILL.md`, every other `.md` file in a skill directory and agent bodies, after host blocks, and are replaced everywhere, code included. Only a `{{` followed by one of those kinds is a token, so `${{ … }}`, Jinja and Handlebars pass through; `\{{` before a token writes it literally. A token a target cannot spell fails the build for that target, and a host block is the escape hatch.
+- **References.** An inline link `[text](pluginfinity://skill/<skill>[/<path>][#anchor])` or `[text](pluginfinity://agent/<agent>)` must name a component, and a file, that the target builds. Each target builds it in its reference style. Both forms pass the repository's markdownlint config. A skill link may carry an anchor; an agent link may not. Any other `pluginfinity://` outside code, a reference definition, an autolink or a bare URL in any case, fails the build rather than ship unbuilt.
+- **Code is text.** A host-block marker or a reference inside fenced code or an inline code span is shown, not acted on; tokens are the exception. An indented code block is not treated as code.
+
+Why both are built per target, and why explicitly, is in [the decision](../decisions/body-tokens-and-links-are-built-per-target.md).
 
 Whole-file overrides per target are out of scope until a plugin needs them.[^owner-direction]
 
@@ -81,9 +94,16 @@ export default defineConfig({
 - **The `hooks/` directory** ships whole to every target, so a script can source helpers the config never names, except scripts that only another target's hooks run. Test data belongs outside it. A script outside `hooks/` ships to the targets that run it.
 - **`fallback`** says what a target that lacks the event does: `"fail"` (the default) or `"omit"`.
 - **`scripts.invoke`.** `"bash"`, the default, emits `bash "<root>/<path>"` and ignores the file mode, because this repository keeps scripts in git without the executable bit and restores it locally. `"exec"` emits the bare quoted path and fails a build whose shipped `.sh` files are not executable in the source.
-- **`mcpServers`** uses Claude Code's `.mcp.json` server shape: `command`, `args`, `env`, or `type` with `url` and `headers`. `${PLUGIN_ROOT}` is the one placeholder in `args`, `env` and `cwd`.
-- **Target overrides.** A target key's override object grows from `name` to `name`, `hooks` and `mcpServers`, typed per target. An event under a target's `hooks` replaces the base entries for that event on that target, `[]` removes them, and a Copilot override uses Claude Code event names, plus `userPromptTransformed` and `errorOccurred`, which only Copilot has. A server under a target's `mcpServers` replaces the base server of that name.
+- **`mcpServers`** uses Claude Code's `.mcp.json` server shape: `command`, `args`, `env` and `cwd`, or `type` (`http` or `sse`) with `url` and `headers`. `${PLUGIN_ROOT}` is the one placeholder, in a local server's `command`, `args`, `env` values and `cwd`.[^core-config]
+- **`lspServers`** uses Claude Code's `.lsp.json` server shape: `command` and `extensionToLanguage` (keys start with `.`) are required, and `args`, `env`, `initializationOptions`, `settings`, `workspaceFolder`, `startupTimeout`, `shutdownTimeout`, `restartOnCrash`, `maxRestarts` and `diagnostics` are optional. An unknown key fails, as it stops Claude loading the plugin. `${PLUGIN_ROOT}` is the placeholder in `command`, `args`, `env` values and `workspaceFolder`; `initializationOptions` and `settings` pass through untouched.[^core-lsp]
+- **Server `env`** keys starting with `PLUGINFINITY_` are rejected: the build injects `PLUGINFINITY_HOST`, `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB` into every local server.[^core-mcp]
+- **Server files ship by discovery.** Every `${PLUGIN_ROOT}/<path>` in those placeholder fields ships to the targets whose merged servers name it, so a launcher only a Copilot override names never reaches Claude. A path that is a server's whole `command` must be executable.
+- **`files`** lists plugin-relative files, or directories ending in `/`, that ship to every target, for what discovery cannot see, such as data a launcher reads. An entry must be canonical (no empty, `.` or `..` segment, not the root) and not under `builds/` or `node_modules/`. It is base-only. Why the two routes, and the server library launchers source, is in [the decision](../decisions/server-launchers-ship-by-discovery-and-files.md).[^core-config]
+- **Target overrides.** A target key's override object grows from `name` to `name`, `hooks`, `mcpServers` and `lspServers`, typed per target. An event under a target's `hooks` replaces the base entries for that event on that target, `[]` removes them, and a Copilot override uses Claude Code event names, plus `userPromptTransformed` and `errorOccurred`, which only Copilot has. A server under a target's `mcpServers` or `lspServers` replaces the base server of that name.
 
 The current contract, before these additions, is the [config interface](../interfaces/config.md).
 
 [^owner-direction]: conversation with the repository owner, 2026-10-02
+[^core-config]: `../../packages/core/src/config.ts`
+[^core-lsp]: `../../packages/core/src/lsp.ts`
+[^core-mcp]: `../../packages/core/src/mcp.ts`

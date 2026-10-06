@@ -4,11 +4,77 @@
  * `<!-- /pluginfinity:only -->` closes it. A marker inside fenced code or an
  * inline code span is text, so a body can show one.
  */
-const OPEN = /^\s*<!--\s*pluginfinity:only\s+([^>]*?)\s*-->\s*$/;
+const OPEN_PREFIX = /^\s*<!--\s*pluginfinity:only\s+/;
 const CLOSE = /^\s*<!--\s*\/pluginfinity:only\s*-->\s*$/;
 const MARKER = /<!--\s*\/?pluginfinity:only/;
-const FENCE = /^ {0,3}(`{3,}|~{3,})/;
-const INLINE_CODE = /(`+)[\s\S]*?\1/g;
+
+/**
+ * The target ids of a host block's opening line, or `undefined` when the line
+ * is not an opener. A prefix match, then string operations on the rest, so no
+ * pattern has overlapping quantifiers to backtrack on.
+ */
+const openingIds = (line: string): ReadonlyArray<string> | undefined => {
+	const prefix = OPEN_PREFIX.exec(line);
+	if (prefix === null) return undefined;
+	const rest = line.slice(prefix[0].length).trimEnd();
+	if (!rest.endsWith("-->")) return undefined;
+	const inner = rest.slice(0, -3);
+	if (inner.includes(">")) return undefined;
+	return inner.split(/\s+/).filter((id) => id.length > 0);
+};
+export const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+
+/**
+ * The inline code spans of one line, as sorted, disjoint `[start, end)` ranges
+ * covering the backticks too. A span opens at a run of backticks and closes at
+ * the next run of exactly the same length; a run with no such partner is
+ * literal text. One pass over the line: runs are indexed, then each is paired
+ * with the next run of its length, so no input backtracks.
+ */
+export const inlineCodeSpans = (line: string): ReadonlyArray<{ readonly start: number; readonly end: number }> => {
+	const starts: Array<number> = [];
+	const lengths: Array<number> = [];
+	for (let i = 0; i < line.length; ) {
+		if (line[i] !== "`") {
+			i++;
+			continue;
+		}
+		let j = i;
+		while (line[j] === "`") j++;
+		starts.push(i);
+		lengths.push(j - i);
+		i = j;
+	}
+	const partner: Array<number> = new Array<number>(starts.length).fill(-1);
+	const nextOfLength = new Map<number, number>();
+	for (let k = starts.length - 1; k >= 0; k--) {
+		const len = lengths[k] as number;
+		partner[k] = nextOfLength.get(len) ?? -1;
+		nextOfLength.set(len, k);
+	}
+	const spans: Array<{ start: number; end: number }> = [];
+	for (let k = 0; k < starts.length; ) {
+		const close = partner[k] as number;
+		if (close === -1) {
+			k++;
+			continue;
+		}
+		spans.push({ start: starts[k] as number, end: (starts[close] as number) + (lengths[close] as number) });
+		k = close + 1;
+	}
+	return spans;
+};
+
+/** The line with its inline code spans removed. */
+export const stripInlineCode = (line: string): string => {
+	let out = "";
+	let at = 0;
+	for (const { start, end } of inlineCodeSpans(line)) {
+		out += line.slice(at, start);
+		at = end;
+	}
+	return out + line.slice(at);
+};
 
 /**
  * Why a body's host blocks are malformed, with the 1-based line it was found on.
@@ -21,33 +87,27 @@ export interface HostBlockProblem {
 }
 
 /**
- * Keep the passages of a body's host blocks that list `target`, drop the
- * rest, and remove every marker line. Blocks do not nest; an unclosed block,
- * a stray close, a marker that is not on a line of its own, or an id outside
- * `known` is a problem, and the body is not rewritten. So, until references
- * are built, is a `pluginfinity://` link; see {@link referenceLines}.
+ * {@link applyHostBlocks}, also returning the 1-based source line of each
+ * line of the result, so a problem found in the result can be reported where
+ * the author wrote it.
  *
- * @public
+ * @internal
  */
-export const applyHostBlocks = (
+export const mapHostBlocks = (
 	text: string,
 	target: string,
 	known: ReadonlyArray<string>,
-): { readonly text: string } | { readonly problem: HostBlockProblem } => {
-	const [reference] = referenceLines(text);
-	if (reference !== undefined) {
-		return {
-			problem: {
-				line: reference,
-				message: "pluginfinity:// references are not built yet; link with a relative path instead",
-			},
-		};
-	}
-	if (!MARKER.test(text)) return { text };
+): { readonly text: string; readonly lines: ReadonlyArray<number> } | { readonly problem: HostBlockProblem } => {
+	const lines = text.split("\n");
+	if (!MARKER.test(text)) return { text, lines: lines.map((_, index) => index + 1) };
 	const kept: Array<string> = [];
+	const sources: Array<number> = [];
+	const push = (line: string, number: number): void => {
+		kept.push(line);
+		sources.push(number);
+	};
 	let open: { readonly line: number; readonly keep: boolean } | undefined;
 	let fence: string | undefined;
-	const lines = text.split("\n");
 	for (const [index, line] of lines.entries()) {
 		const number = index + 1;
 		const keep = open === undefined || open.keep;
@@ -58,13 +118,12 @@ export const applyHostBlocks = (
 			else if (fenceMark !== undefined && fenceMark[0] === fence[0] && fenceMark.length >= fence.length) {
 				fence = undefined;
 			}
-			if (keep) kept.push(line);
+			if (keep) push(line, number);
 			continue;
 		}
-		const opening = OPEN.exec(line);
-		if (opening !== null) {
+		const ids = openingIds(line);
+		if (ids !== undefined) {
 			if (open !== undefined) return { problem: { line: number, message: "host blocks do not nest" } };
-			const ids = (opening[1] ?? "").split(/\s+/).filter((id) => id.length > 0);
 			const unknown = ids.filter((id) => !known.includes(id));
 			if (ids.length === 0) return { problem: { line: number, message: "a host block names no target" } };
 			if (unknown.length > 0) {
@@ -83,38 +142,49 @@ export const applyHostBlocks = (
 			open = undefined;
 			continue;
 		}
-		if (MARKER.test(line.replace(INLINE_CODE, ""))) {
+		if (MARKER.test(stripInlineCode(line))) {
 			return { problem: { line: number, message: "a host block marker must be on a line of its own" } };
 		}
-		if (keep) kept.push(line);
+		if (keep) push(line, number);
 	}
 	if (open !== undefined) return { problem: { line: open.line, message: "a host block is never closed" } };
-	return { text: kept.join("\n") };
+	return { text: kept.join("\n"), lines: sources };
 };
 
-const REFERENCE = /\]\(\s*<?pluginfinity:\/\//;
-
 /**
- * The 1-based lines of a body that link to a `pluginfinity://` reference,
- * outside fenced code and inline code spans. References are not built yet,
- * and an unbuilt reference must never ship as text, so each is a problem.
+ * Keep the passages of a body's host blocks that list `target`, drop the
+ * rest, and remove every marker line. Blocks do not nest; an unclosed block,
+ * a stray close, a marker that is not on a line of its own, or an id outside
+ * `known` is a problem, and the body is not rewritten. Tokens and
+ * `pluginfinity://` links are left for {@link renderTokens}, which runs after.
  *
  * @public
  */
-export const referenceLines = (text: string): ReadonlyArray<number> => {
-	if (!text.includes("pluginfinity://")) return [];
-	const found: Array<number> = [];
+export const applyHostBlocks = (
+	text: string,
+	target: string,
+	known: ReadonlyArray<string>,
+): { readonly text: string } | { readonly problem: HostBlockProblem } => {
+	const mapped = mapHostBlocks(text, target, known);
+	return "problem" in mapped ? mapped : { text: mapped.text };
+};
+
+/**
+ * For each line of `text`, whether it belongs to fenced code: a fence's
+ * opening and closing lines and everything between. A fence closes on the
+ * same character, at least as long; an unclosed fence runs to the end.
+ *
+ * @internal
+ */
+export const fencedLines = (lines: ReadonlyArray<string>): ReadonlyArray<boolean> => {
 	let fence: string | undefined;
-	for (const [index, line] of text.split("\n").entries()) {
+	return lines.map((line) => {
 		const fenceMark = FENCE.exec(line)?.[1];
-		if (fence !== undefined || fenceMark !== undefined) {
-			if (fence === undefined) fence = fenceMark;
-			else if (fenceMark !== undefined && fenceMark[0] === fence[0] && fenceMark.length >= fence.length) {
-				fence = undefined;
-			}
-			continue;
+		if (fence === undefined && fenceMark === undefined) return false;
+		if (fence === undefined) fence = fenceMark;
+		else if (fenceMark !== undefined && fenceMark[0] === fence[0] && fenceMark.length >= fence.length) {
+			fence = undefined;
 		}
-		if (REFERENCE.test(line.replace(INLINE_CODE, ""))) found.push(index + 1);
-	}
-	return found;
+		return true;
+	});
 };

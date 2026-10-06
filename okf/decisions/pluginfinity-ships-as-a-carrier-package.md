@@ -2,7 +2,7 @@
 type: Decision
 title: pluginfinity ships as a carrier package over scoped layer packages
 description: The CLI is split into @pluginfinity/core, @pluginfinity/targets, @pluginfinity/engine and @pluginfinity/cli, with the unscoped pluginfinity package as the carrier that owns the bin; only what the carrier exports is supported surface.
-status: draft
+status: stable
 tags:
   - architecture
   - release
@@ -20,6 +20,9 @@ generated:
   by: okfit/claude-code
   at: 2026-10-02T19:38:56Z
   body_sha256: 37989e0b843cc8a38d89908165fdfc14aa12379cbb899b92abe14123f2ab53ec
+verified:
+  - by: human:spencer
+    at: 2026-10-06T03:11:19Z
 ---
 
 # pluginfinity ships as a carrier package over scoped layer packages

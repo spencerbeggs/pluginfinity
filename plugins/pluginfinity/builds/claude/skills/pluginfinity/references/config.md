@@ -5,6 +5,13 @@ from `pluginfinity`. pluginfinity finds it by walking up from the working direct
 `[path]` a command is given; `--config <file>` names it directly, and `--all` builds every config below
 `[path]`.
 
+When the plugin folder is not a workspace package, run pluginfinity from the repository root and give the
+folder as `[path]`: `pluginfinity build plugin`, `pluginfinity build --check plugin`. `pnpm exec` inside a
+folder with no `package.json` of its own fails with `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL`.
+
+Write the config by hand, from the fields below. `pluginfinity plugin add` is a stub today: it checks its
+flags and fails with `NotImplemented`, so a migration writes the config itself too.
+
 ```ts
 import { defineConfig } from "pluginfinity";
 
@@ -34,11 +41,16 @@ export default defineConfig({
 | `keywords` | No | A list of strings |
 | `scripts.invoke` | No | How hook scripts run: `"bash"` (the default) or `"exec"`; see [hooks](hooks.md) |
 | `hooks` | No | Hook entries keyed by Claude Code event name; see [hooks](hooks.md) |
-| `mcpServers` | No | Not built yet: a config that sets it fails with `NotImplemented` |
+| `mcpServers` | No | MCP servers in Claude Code's `.mcp.json` shape; see below |
+| `lspServers` | No | LSP servers in Claude Code's `.lsp.json` shape; see below |
+| `files` | No | Plugin-relative files, or directories ending in `/`, shipped to every target |
 | `claude`, `copilot` | At least one | Enables that target; see below |
 
 The version is not a config field: every manifest copies `version` from the `package.json` beside the
-config. Bump it there, or let changesets bump it.
+config. Bump it there, or let changesets bump it, then run `pluginfinity build` so the manifests in
+`builds/` follow. A changesets `versionFiles` entry is optional; if you keep one, point it at the built
+manifests (`builds/claude/.claude-plugin/plugin.json`, `builds/copilot/plugin.json`), never at a
+hand-written `plugin.json`.
 
 An unknown top-level key fails, listing both the config fields and the known targets, so a misspelt
 field is caught rather than read as a target.
@@ -52,4 +64,26 @@ overrides:
 - `hooks`: per-event replacements. An event listed here replaces the base entries for that event on
   that host only; `[]` removes the event there. Copilot's object also accepts `userPromptTransformed`
   and `errorOccurred`, events only Copilot has.
-- `mcpServers`: not built yet; setting it fails the build.
+- `mcpServers`, `lspServers`: a server here replaces the base server of the same name on that host.
+
+No other key is accepted. In particular the plugin's `description` has no per-target override: every
+manifest gets the same one, so word it for both hosts. A skill's or agent's own `description` can differ
+per host, through `targets.<id>.description` in that component's frontmatter (see
+[skills and agents](components.md)).
+
+## Servers
+
+- **An MCP server** is local, `command` with optional `args`, `env` and `cwd` (and `type: "stdio"`), or
+  remote, `type` `"http"` or `"sse"` with `url` and optional `headers`.
+- **An LSP server** needs `command` and `extensionToLanguage` (keys start with `.`, like `".ts"`). It may
+  set `args`, `env`, `initializationOptions`, `settings`, `workspaceFolder`, `startupTimeout`,
+  `shutdownTimeout`, `restartOnCrash`, `maxRestarts` and `diagnostics`. Any other key fails.
+- **`${PLUGIN_ROOT}`** is rewritten only in a local MCP server's `command`, `args`, `env` values and
+  `cwd`, and an LSP server's `command`, `args`, `env` values and `workspaceFolder`. Every path named
+  after it there ships with that host's build: a file, or every file under a directory. A path ends at
+  whitespace, a quote, a shell metacharacter, `:` or `,`. A host spelling such as `${CLAUDE_PLUGIN_ROOT}`,
+  or a brace-less `$PLUGIN_ROOT`, in those fields fails the build; write `${PLUGIN_ROOT}`.
+- **`env` keys starting with `PLUGINFINITY_` fail.** The build injects `PLUGINFINITY_HOST`,
+  `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB` itself.
+- **A `files` entry** is a canonical relative path: no empty, `.` or `..` segment, not the plugin root,
+  and not under `builds/` or `node_modules/`. Only the base config has `files`.

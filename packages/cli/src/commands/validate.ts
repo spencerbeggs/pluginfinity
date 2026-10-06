@@ -3,7 +3,7 @@ import { Audience } from "@effected/env";
 import { ENGINE_VERSION, validate } from "@pluginfinity/engine";
 import { Console, Effect, Option } from "effect";
 import { Command, Flag } from "effect/cli";
-import { validateLines } from "../render/build.js";
+import { validateJson, validateLines } from "../render/build.js";
 import { reportFindings } from "../render/config-error.js";
 import type { LaunchFacts } from "./shared.js";
 import { allFlag, configFlag, pathArgument, targetFlag, toSelection } from "./shared.js";
@@ -33,7 +33,7 @@ export const validateCommand = (launch: LaunchFacts) =>
 							engine_version: ENGINE_VERSION,
 							distribution: Option.getOrNull(distribution),
 							ok: true,
-							validations,
+							validations: validations.map(validateJson),
 						}),
 					);
 				}

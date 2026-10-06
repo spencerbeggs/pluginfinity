@@ -29,6 +29,16 @@ const bytesOf = (file: EmittedFile): Uint8Array =>
 const modeOf = (file: EmittedFile): number => file.mode ?? GENERATED_MODE;
 
 /**
+ * Whether a file's mode on disk matches what the build would write. A
+ * generated file's mode is never compared, and a copied file's only by its
+ * executable bit: git tracks nothing finer, and tools that flip permission
+ * bits behind a commit (a hook running `chmod +x` with `core.fileMode=false`,
+ * a umask of 002) would otherwise make a fresh build look stale.
+ */
+const sameMode = (file: EmittedFile, onDisk: number): boolean =>
+	file.mode === undefined || ((file.mode & 0o111) !== 0) === ((onDisk & 0o111) !== 0);
+
+/**
  * How an output directory differs from what a build produces. Every list is
  * sorted and holds `/`-separated paths relative to the output directory.
  *
@@ -37,11 +47,14 @@ const modeOf = (file: EmittedFile): number => file.mode ?? GENERATED_MODE;
 export class EmitPlan extends Schema.Class<EmitPlan>("EmitPlan")({
 	/** Produced, not on disk. */
 	added: Schema.Array(Schema.String),
-	/** On disk with other bytes or another mode. */
+	/** On disk with other bytes, or a copied file whose executable bit differs. */
 	changed: Schema.Array(Schema.String),
 	/** On disk, no longer produced; an empty directory ends in `/`. */
 	removed: Schema.Array(Schema.String),
-	/** On disk with the same bytes and mode; never touched, so its mtime stays. */
+	/**
+	 * On disk with the same bytes and, for a copied file, the same executable
+	 * bit; never touched, so its mtime and mode stay.
+	 */
 	unchanged: Schema.Array(Schema.String),
 }) {
 	/** Whether the output directory already matches the build. */
@@ -78,6 +91,10 @@ const inventory = (
 /**
  * Compare `files` with what `dir` holds, reading only.
  *
+ * @remarks
+ * A file is compared by its bytes and, when it carries a source mode, by its
+ * executable bit alone; other permission bits never make a file changed.
+ *
  * @public
  */
 export const planEmit = (
@@ -99,9 +116,7 @@ export const planEmit = (
 			const target = path.join(dir, file.path);
 			const info = yield* fs.stat(target);
 			const same =
-				info.type === "File" &&
-				(info.mode & 0o777) === modeOf(file) &&
-				sameBytes(yield* fs.readFile(target), bytesOf(file));
+				info.type === "File" && sameMode(file, info.mode) && sameBytes(yield* fs.readFile(target), bytesOf(file));
 			(same ? unchanged : changed).push(file.path);
 		}
 		const produced = new Set(files.map((file) => file.path));

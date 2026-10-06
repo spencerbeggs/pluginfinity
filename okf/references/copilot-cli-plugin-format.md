@@ -11,7 +11,7 @@ sources:
   - id: copilot-cli-plugin-reference
     resource: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference
     title: GitHub Copilot CLI plugin reference
-    last_modified: 2026-10-02T00:00:00Z
+    last_modified: 2026-10-03T00:00:00Z
   - id: copilot-cli-plugins-creating
     resource: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/plugins-creating
     title: Creating a plugin for GitHub Copilot CLI
@@ -27,7 +27,11 @@ sources:
   - id: copilot-hooks-reference
     resource: https://docs.github.com/en/copilot/reference/hooks-configuration
     title: GitHub Copilot hooks reference
-    last_modified: 2026-10-02T00:00:00Z
+    last_modified: 2026-10-03T00:00:00Z
+  - id: copilot-use-hooks
+    resource: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/use-hooks
+    title: Using hooks with GitHub Copilot CLI
+    last_modified: 2026-10-03T00:00:00Z
   - id: copilot-cli-command-reference
     resource: https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference
     title: GitHub Copilot CLI command reference
@@ -38,8 +42,8 @@ sources:
     last_modified: 2026-10-02T00:00:00Z
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T22:13:15Z
-  body_sha256: 19c5ee1d3e1baf9d089f2e60fa52b0ee177a46ab41bc0ce967e1d082b12707a0
+  at: 2026-10-03T20:49:08Z
+  body_sha256: 4145560d966104e89c2ecbcd68656b6d1663b943fe6834a6e617b31b65fe85d9
 ---
 
 # GitHub Copilot CLI plugin format
@@ -229,7 +233,15 @@ For hooks, the hooks reference documents that when the session sandbox is enable
 
 ## Hooks
 
-Plugin hooks are declared in the plugin's `hooks.json` (or `hooks/hooks.json`; `com.github.copilot/hooks/hooks.json` for Agent Plugins 1.0), or inline via the legacy `hooks` manifest field. Hooks load in order policy, user, project, plugins and are combined; when the same event appears in several sources, every entry runs.[^copilot-hooks-reference] Cloud agent does not ship installed plugins, so plugin hooks are a CLI concern.[^copilot-hooks-reference]
+Plugin hooks are declared in the plugin's `hooks.json` (or `hooks/hooks.json`; `com.github.copilot/hooks/hooks.json` for Agent Plugins 1.0), or inline via the legacy `hooks` manifest field. Hooks load in the order policy, user, project, plugins and are combined; when the same event appears in several sources, every entry runs.[^copilot-hooks-reference] The sources are:[^copilot-hooks-reference]
+
+- **Policy hooks** (CLI only): `*.json` files in `/etc/github-copilot/policy.d/` on Linux and macOS or `C:\ProgramData\GitHub\Copilot\policy.d\` on Windows, loaded alphabetically, plus Windows Registry values under `HKLM\Software\Policies\GitHub\Copilot`. On POSIX they must be root-owned and not group- or world-writable. They load first, cannot be disabled by `disableAllHooks`, and always run on the host outside the session sandbox.
+- **Repository hook files**: `.github/hooks/*.json`. This is the only hook source a cloud agent job has.
+- **User hook files**: `~/.copilot/hooks/*.json`, or `$COPILOT_HOME/hooks/` when set.
+- **Inline `hooks` blocks**: in `.github/copilot/settings.json` and `settings.local.json`, the cross-tool `.claude/settings.json` and `settings.local.json`, and `~/.copilot/settings.json`. Inline blocks are strict: one invalid item rejects the whole field, where a malformed item in a hook file is dropped alone.
+- **Plugin hooks**: each plugin's own `hooks.json`.
+
+**Cloud agent restrictions.** A cloud agent job runs in an ephemeral, non-interactive Linux sandbox that does not ship installed plugins, user hook files or `settings.json`, so plugin hooks are a CLI concern. There only `bash` (or the `command` fallback) entries are honoured, `exec` and `powershell` are not, the filesystem is discarded at job end, and the firewall blocks hosts other than GitHub and Copilot unless an admin allows them. `notification` and `permissionRequest` do not fire; `preCompact` fires only with `trigger: "auto"`; `preToolUse` treats `ask` as `deny`; `userPromptSubmitted` fires at most once.[^copilot-hooks-reference]
 
 File format: JSON with `version: 1`, optional `disableAllHooks`, and a `hooks` object mapping event name → array of entries.[^copilot-hooks-reference]
 
@@ -251,9 +263,11 @@ File format: JSON with `version: 1`, optional `disableAllHooks`, and a `hooks` o
 }
 ```
 
+Entries are flat: each is one handler object directly in the event's array, and the `matcher` (where the event takes one) sits on that entry. There are no Claude-style matcher groups wrapping a nested `hooks` array.[^copilot-hooks-reference]
+
 Entry types:[^copilot-hooks-reference]
 
-- `command` (default when `type` is omitted): one of `bash`, `powershell`, `command` (cross-platform fallback copied to both), or `exec` + `args` (no shell, CLI only). Optional `cwd`, `env`, `timeoutSec` (default 30; `timeout` is an alias), `matcher`.
+- `command` (default when `type` is omitted): one of `bash`, `powershell`, `command` (cross-platform fallback copied to both), or `exec` + `args` (no shell, CLI only; do not combine `exec` with the others). Optional `cwd` (relative to the repository root, or absolute), `env` (a map; supports variable expansion; a live run confirmed the hook process receives it as set, [measurement](../measurements/hook-library-live-2026-10-03.md)), `timeoutSec` (default 30; `timeout` is an alias used only when `timeoutSec` is absent), `matcher`. In a sandboxed session `cwd` and `env` widen no access.
 - `http`: `url` (HTTPS required by default; must be `https://` for `preToolUse` and `permissionRequest`), optional `headers`, `allowedEnvVars`, `timeoutSec`. Payload is POSTed as JSON.
 - `prompt`: `prompt` text auto-submitted; `sessionStart` only, new interactive sessions only.
 
@@ -263,26 +277,65 @@ Event names (camelCase form; a PascalCase form selects the VS Code compatible pa
 | --- | --- | --- |
 | `sessionStart` | `SessionStart` | `additionalContext` |
 | `sessionEnd` | `SessionEnd` | none |
-| `userPromptSubmitted` | `UserPromptSubmit` | `modifiedPrompt`, SDK hooks only |
-| `userPromptTransformed` | — | `modifiedTransformedPrompt` |
+| `userPromptSubmitted` | `UserPromptSubmit` | `modifiedPrompt`, SDK programmatic hooks only; command output is dropped |
+| `userPromptTransformed` | none | `modifiedTransformedPrompt` |
 | `preToolUse` | `PreToolUse` | `permissionDecision` (`allow`/`deny`/`ask`), `permissionDecisionReason`, `modifiedArgs` |
 | `postToolUse` | `PostToolUse` | `modifiedResult`, `additionalContext` |
-| `postToolUseFailure` | `PostToolUseFailure` | `additionalContext` (exit `2`) |
+| `postToolUseFailure` | `PostToolUseFailure` | `additionalContext`, by exit code `2` for a command hook |
 | `permissionRequest` | `PermissionRequest` | `behavior` (`allow`/`deny`), `message`, `interrupt` |
 | `agentStop` | `Stop` | `decision` (`block`/`allow`), `reason` |
-| `subagentStart` | — | `additionalContext` (prepended to subagent prompt) |
-| `subagentStop` | `SubagentStop` | `decision`, `reason`, `modifiedResponse` |
+| `subagentStart` | none | `additionalContext`, prepended to the subagent's first user message |
+| `subagentStop` | `SubagentStop` | `decision` (`block`/`allow`), `reason`, `modifiedResponse` |
 | `preCompact` | `PreCompact` | none |
 | `errorOccurred` | `ErrorOccurred` | none |
-| `notification` | — (payload carries `hook_event_name: "Notification"`) | `additionalContext` |
+| `notification` | none (payload carries `hook_event_name: "Notification"`) | `additionalContext`, injected as a prepended user message |
 
-Payload shape: every camelCase payload carries `sessionId`, `timestamp` (epoch ms), `cwd`, plus event fields (for tool events `toolName`, `toolArgs`, and `toolResult` or `error`; for stop events `transcriptPath`, `stopReason`). The VS Code compatible form carries `hook_event_name`, `session_id`, ISO 8601 `timestamp`, `cwd`, and snake_case equivalents (`tool_name`, `tool_input`, `transcript_path`).[^copilot-hooks-reference]
+`subagentStart` and `notification` have no PascalCase form, so they always arrive in the camelCase field style. The built-in `general-purpose` agent emits neither `subagentStart` nor `subagentStop`.[^copilot-hooks-reference]
 
-I/O: the payload arrives as JSON on stdin (command) or as the POST body (http). Output is one JSON object on stdout; lines that are single-line `{"type": "progress", "message": ...}` objects are stripped as progress events, and the remainder is parsed with a single `JSON.parse`. Output is capped at 10 MiB per invocation.[^copilot-hooks-reference]
+### Payloads
 
-Exit codes: `0` success; `2` is a warning by default, a deny for `preToolUse` and `permissionRequest`, and `additionalContext` for `postToolUseFailure`; other non-zero exits are logged and skipped except `preToolUse`, which is fail-closed. Timeouts are always fail-open. HTTP `preToolUse` hooks are fail-open.[^copilot-hooks-reference]
+The payload form follows the case of the event name in the configuration. A PascalCase name selects the VS Code compatible form: `hook_event_name`, snake_case fields, an ISO 8601 string `timestamp`, and Claude tool names (the table under Compatibility). A camelCase name selects camelCase fields, an epoch-millisecond `timestamp`, and the runtime's lowercase tool names. Every payload carries `cwd`.[^copilot-hooks-reference]
 
-Matchers: a `matcher` regex, anchored as `^(?:PATTERN)$`, filters `preToolUse`, `postToolUse`, `permissionRequest` (on `toolName`), `subagentStart` (on `agentName`), `preCompact` (on `trigger`) and `notification` (on `notification_type`). Native tool names are lowercase (`bash`, `view`, `create`, `edit`, `glob`, `grep`, `task`, `web_fetch`, `ask_user`, `powershell`).[^copilot-hooks-reference]
+| Event | Fields beyond `sessionId`, `timestamp`, `cwd` (camelCase) |
+| --- | --- |
+| `sessionStart` | `source` (`startup`, `resume`, `new`); optional `initialPrompt` |
+| `sessionEnd` | `reason` (`complete`, `error`, `abort`, `timeout`, `user_exit`) |
+| `userPromptSubmitted` | `prompt` |
+| `userPromptTransformed` | `prompt`, `transformedPrompt` |
+| `preToolUse` | `toolName`, `toolArgs` |
+| `postToolUse` | `toolName`, `toolArgs`, `toolResult` (`resultType: "success"`, `textResultForLlm`) |
+| `postToolUseFailure` | `toolName`, `toolArgs`, `error` (a string) |
+| `agentStop` | `transcriptPath`, `stopReason` (`end_turn`), `stop_hook_active` |
+| `subagentStart` | `transcriptPath`, `agentName`; optional `agentDisplayName`, `agentDescription` |
+| `subagentStop` | `transcriptPath`, `agentId`, `agentType`, `agentName`, `response`, `stopReason`; optional `agentDisplayName` |
+| `errorOccurred` | `error` (`message`, `name`, optional `stack`), `errorContext` (`model_call`, `tool_execution`, `system`, `user_input`), `recoverable` |
+| `preCompact` | `transcriptPath`, `trigger` (`manual`, `auto`), `customInstructions` |
+| `notification` | `hook_event_name: "Notification"`, `message`, `notification_type`; optional `title` |
+
+In the snake_case form the names become `session_id`, `tool_name`, `tool_input`, `tool_result` (`result_type`, `text_result_for_llm`), `transcript_path`, `stop_reason`, `initial_prompt`, `error_context`, `custom_instructions`, `agent_id`, `agent_type`, `agent_name`, and `last_assistant_message` in place of `response` on `SubagentStop`. `stop_hook_active` keeps its name in both forms. `toolArgs` and `tool_input` are typed `unknown`: the how-to's own example payload shows `toolArgs` as a JSON string (`"{\"command\":\"ls\"}"`), while the VS Code compatible form says the arguments are parsed from a JSON string when possible. A script must accept an object or a string.[^copilot-hooks-reference][^copilot-use-hooks] Observed on 1.0.91 under a PascalCase event, `tool_input` arrives as a JSON object, `hook_event_name` is present, and `tool_name` carries the Claude name (`Read`, `Write`, `Edit`, `Bash`, `Agent`, `AskUserQuestion`), but the keys inside `tool_input` keep Copilot's own spelling: Read sends `path`, Write `path` and `file_text`, Edit `path`, `old_str` and `new_str`, and Bash `command` and `description` as Claude does. A camelCase entry with no `env` gets a payload without `hook_event_name`. UserPromptSubmit fires for each typed prompt and for a subagent's prompt under the subagent's own session id, but not for a reply submitted through a form or question tool ([measurement](../measurements/hook-library-live-2026-10-03.md)). `notification_type` values are `shell_completed`, `shell_detached_completed`, `agent_completed`, `agent_idle`, `permission_prompt` and `elicitation_dialog`.[^copilot-hooks-reference]
+
+### Outputs
+
+A command hook prints one JSON object on stdout. Lines that are single-line `{"type": "progress", "message": ...}` objects are stripped first, then what remains is parsed with one `JSON.parse`; two final objects concatenate into invalid JSON and are ignored. Output is bounded at 10 MiB.[^copilot-hooks-reference]
+
+- `preToolUse`: `permissionDecision` (`allow`, `deny`, `ask`; empty output uses default behaviour), `permissionDecisionReason` (required for `deny`), and `modifiedArgs`, an object that replaces the arguments. When any hook returns `deny` the tool is blocked.
+- `postToolUse`: `modifiedResult` (must carry `resultType: "success"`; a `failure` routes to `postToolUseFailure`) and `additionalContext`, appended to `textResultForLlm`. Several hooks' context is joined with a double newline and capped at 10 KB. `modifiedResult` is honoured for command and HTTP hooks.
+- `agentStop` and `subagentStop`: `decision` of `block` or `allow` and `reason`, which becomes the next turn's prompt. `subagentStop` also takes `modifiedResponse`, discarded when the same hook blocks; the last hook to return it wins. After eight consecutive blocks the CLI ends the turn regardless; `stop_hook_active` on `agentStop` lets a hook self-limit.
+- `sessionStart` and `subagentStart`: `additionalContext`. Several hooks' strings join with a blank line; an empty string does not erase earlier context.
+- `notification`: `additionalContext`, injected as a user message. It can start further agent work if the session is idle. The hook is fire-and-forget and never blocks.
+- `permissionRequest`: `behavior`, `message`, `interrupt`. An `allow` does not pre-approve a sandbox-bypass request (`requestSandboxBypass: true`); only `deny` propagates.
+- `userPromptSubmitted`: command and HTTP hook output is dropped, including `modifiedPrompt`. Only SDK programmatic hooks can change the prompt.
+- Ignored: output from `sessionEnd`, `preCompact` and `errorOccurred`.
+
+### Exit codes
+
+`0` is success and stdout is parsed. `2` is a warning with stderr shown to the user by default, a deny for `preToolUse` and `permissionRequest` (any stdout JSON is merged with the deny, even `allow`), and `additionalContext` for `postToolUseFailure`. Any other non-zero exit is logged and skipped, except `preToolUse`, which fails closed: it denies the call with "Denied by preToolUse hook (hook errored)". Timeouts are fail-open on every event, including `preToolUse` and policy hooks, and HTTP `preToolUse` hooks are fail-open too. A crash, or exit `2`, on a command `preToolUse` hook denies the tool even when its JSON said `allow`.[^copilot-hooks-reference]
+
+Claude Code differs on each of these: an exit `1` from a `PreToolUse` hook proceeds there, and exit `2` on `Stop` blocks there where Copilot only warns ([hooks-fail-open](../decisions/hooks-fail-open.md)).
+
+### Matchers
+
+A `matcher` regex, anchored as `^(?:PATTERN)$`, filters `preToolUse`, `postToolUse` and `permissionRequest` (on `toolName`), `subagentStart` (on `agentName`), `preCompact` (on `trigger`) and `notification` (on `notification_type`). An invalid regex skips the entry. Native tool names are lowercase (`bash`, `view`, `create`, `edit`, `glob`, `grep`, `task`, `web_fetch`, `ask_user`, `powershell`).[^copilot-hooks-reference]
 
 ## Marketplace
 
@@ -333,7 +386,7 @@ Install specs for `copilot plugin install`: `plugin@marketplace`, `OWNER/REPO`, 
 
 - Legacy manifest discovery includes `.claude-plugin/plugin.json` (checked last), and marketplace discovery includes `.claude-plugin/marketplace.json` (checked last).[^copilot-cli-plugin-reference]
 - GitHub lists `claude-code-plugins` (`anthropics/claude-code`) and `claudeforge-marketplace` as example marketplaces, and documents `copilot plugin marketplace add anthropics/claude-code`.[^copilot-about-plugins]
-- `${CLAUDE_PLUGIN_DATA}` is accepted as an alias of `${PLUGIN_DATA}` in Agent Plugins `stdio` MCP config, and `${CLAUDE_PLUGIN_ROOT}` as an alias of `${PLUGIN_ROOT}` only inside a plugin agent's `mcp-servers` block. No alias of either is documented for hook commands.[^copilot-cli-plugin-reference] A probe, loaded in place and installed, found hook commands run from the plugin root with `${PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}` substituted ([measurement](../measurements/copilot-plugin-hook-environment.md)).
+- `${CLAUDE_PLUGIN_DATA}` is accepted as an alias of `${PLUGIN_DATA}` in Agent Plugins `stdio` MCP config, and `${CLAUDE_PLUGIN_ROOT}` as an alias of `${PLUGIN_ROOT}` only inside a plugin agent's `mcp-servers` block. No alias of either is documented for hook commands.[^copilot-cli-plugin-reference] A probe, loaded in place and installed, found hook commands run from the plugin root with `${PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}` substituted, while `${COPILOT_PLUGIN_ROOT}` stayed literal in a hook command: the documented `${COPILOT_PLUGIN_ROOT}` alias covers MCP configuration and a plugin agent's `mcp-servers` block only ([measurement](../measurements/copilot-plugin-hook-environment.md)).
 - Hooks configured with PascalCase event names (`PreToolUse`, `PermissionRequest`), "as used in Claude Code plugins and the Open Plugins format", apply Claude matcher semantics (`*`/`**`/empty match all; literal or `|` alternation; otherwise anchored regex) against Claude tool names, and the payload reports Claude tool names. Mapping: `bash`/`powershell` → `Bash`, `view` → `Read`, `create` → `Write`, `edit`/`str_replace_editor`/`apply_patch` → `Edit`, `grep`/`rg` → `Grep`, `glob` → `Glob`, `web_fetch` → `WebFetch`, `web_search` → `WebSearch`, `ask_user` → `AskUserQuestion`, `update_todo` → `TodoWrite`, `task` → `Agent` (literal `Task` also accepted).[^copilot-hooks-reference]
 - The CLI reads `.claude/agents/`, `.claude/skills/`, `.claude/commands/`, `.claude/rules/**/*.md`, and the cross-tool subset of `.claude/settings.json` / `.claude/settings.local.json` (`enabledPlugins`, `extraKnownMarketplaces`, `hooks`, `disableAllHooks`, `companyAnnouncements`) at project level.[^copilot-cli-command-reference][^copilot-cli-config-dir-reference]
 
@@ -342,5 +395,6 @@ Install specs for `copilot plugin install`: `plugin@marketplace`, `OWNER/REPO`, 
 [^copilot-cli-plugins-marketplace]: <https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/plugins-marketplace>
 [^copilot-about-plugins]: <https://docs.github.com/en/copilot/concepts/agents/about-plugins>
 [^copilot-hooks-reference]: <https://docs.github.com/en/copilot/reference/hooks-configuration>
+[^copilot-use-hooks]: <https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/use-hooks>
 [^copilot-cli-command-reference]: <https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference>
 [^copilot-cli-config-dir-reference]: <https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference>

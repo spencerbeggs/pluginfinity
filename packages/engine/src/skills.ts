@@ -1,21 +1,27 @@
 import type { Target } from "@pluginfinity/core";
 import { ComponentName, SKILL_FIELDS, SkillFrontmatter } from "@pluginfinity/core";
+import type { KnownTargetId } from "@pluginfinity/targets";
 import type { PlatformError } from "effect";
 import { Effect, FileSystem, Path, Schema } from "effect";
-import { applyHostBlocks } from "./body.js";
+import { mapHostBlocks } from "./body.js";
 import {
 	decodeComponent,
 	frontmatterText,
 	invalid,
 	isJunk,
 	issue,
+	lineIssues,
 	overlayIssues,
 	toLf,
 	unknownTargets,
 } from "./component.js";
 import type { EmittedFile } from "./emit.js";
 import type { ComponentInvalid, ConfigIssue } from "./errors.js";
+import { ComponentsInvalid } from "./errors.js";
 import { appendSections, mapFrontmatter } from "./frontmatter.js";
+import type { BuildNote } from "./notes.js";
+import type { TokenContext } from "./tokens.js";
+import { renderTokens } from "./tokens.js";
 
 /**
  * The most characters a built skill's `description` may hold: the Agent
@@ -129,21 +135,39 @@ export const readSkills = (
 	});
 
 /**
+ * A skill rendered for a target: its files, and what the target dropped or
+ * degraded from its frontmatter.
+ *
+ * @public
+ */
+export interface RenderedSkill {
+	readonly files: ReadonlyArray<EmittedFile>;
+	/** Each about `skills/<name>/SKILL.md`, in the order met. */
+	readonly notes: ReadonlyArray<BuildNote>;
+}
+
+/**
  * Render one skill for a target, or `undefined` when its `targets` block
- * excludes it: `SKILL.md` with the target's frontmatter and host blocks
- * applied, `.md` support files with host blocks applied, and every other
- * file copied. Every file keeps its source mode.
+ * excludes it: `SKILL.md` with the target's frontmatter, then host blocks
+ * and body tokens applied, `.md` support files with host blocks and tokens
+ * applied, and every other file copied. Every file keeps its source mode.
+ *
+ * @remarks
+ * Fails with one `ComponentInvalid` when one file has problems, and with a
+ * `ComponentsInvalid` holding one per file when several do. A token problem
+ * is keyed by its file line and names the target.
  *
  * @public
  */
 export const renderSkill = (
 	target: Target,
-	id: string,
+	id: KnownTargetId,
 	skill: SourceSkill,
 	known: ReadonlyArray<string>,
+	tokens: TokenContext,
 ): Effect.Effect<
-	ReadonlyArray<EmittedFile> | undefined,
-	ComponentInvalid | PlatformError.PlatformError,
+	RenderedSkill | undefined,
+	ComponentInvalid | ComponentsInvalid | PlatformError.PlatformError,
 	FileSystem.FileSystem | Path.Path
 > =>
 	Effect.gen(function* () {
@@ -158,6 +182,7 @@ export const renderSkill = (
 			target.skills.hostFields,
 			skill.frontmatter,
 			block ?? {},
+			tokens.own,
 		);
 		const problems: Array<ConfigIssue> = [
 			...(yield* overlayIssues(SkillFrontmatter, SKILL_FIELDS, skill.frontmatter, block ?? {}, id)),
@@ -174,13 +199,15 @@ export const renderSkill = (
 			);
 		}
 		// A malformed host block is wrong for every target, so it names none.
-		const body = applyHostBlocks(skill.body, id, known);
+		const body = mapHostBlocks(skill.body, id, known);
 		if ("problem" in body) {
 			return yield* Effect.fail(
 				invalid(skill.path, [issue(`line ${body.problem.line + skill.bodyOffset}`, body.problem.message)]),
 			);
 		}
-		if (problems.length > 0) return yield* Effect.fail(invalid(skill.path, problems, id));
+		const rendered = renderTokens(body.text, tokens);
+		if ("problems" in rendered) problems.push(...lineIssues(rendered.problems, body.lines, skill.bodyOffset));
+		const failures: Array<ComponentInvalid> = problems.length > 0 ? [invalid(skill.path, problems, id)] : [];
 
 		const yaml = yield* frontmatterText({ name: skill.name, description, ...rest }, skill);
 		const dir = path.dirname(skill.path);
@@ -188,7 +215,7 @@ export const renderSkill = (
 		const files: Array<EmittedFile> = [
 			{
 				path: `${out}/SKILL.md`,
-				content: `---\n${yaml}---\n${appendSections("text" in body ? body.text : "", mapped.sections)}`,
+				content: `---\n${yaml}---\n${appendSections("text" in rendered ? rendered.text : "", mapped.sections)}`,
 				mode: (yield* fs.stat(skill.path)).mode & 0o777,
 			},
 		];
@@ -199,13 +226,23 @@ export const renderSkill = (
 				files.push({ path: `${out}/${file}`, content: yield* fs.readFile(absolute), mode });
 				continue;
 			}
-			const processed = applyHostBlocks(toLf(yield* fs.readFileString(absolute)), id, known);
+			const processed = mapHostBlocks(toLf(yield* fs.readFileString(absolute)), id, known);
 			if ("problem" in processed) {
-				return yield* Effect.fail(
-					invalid(absolute, [issue(`line ${processed.problem.line}`, processed.problem.message)]),
-				);
+				failures.push(invalid(absolute, [issue(`line ${processed.problem.line}`, processed.problem.message)]));
+				continue;
 			}
-			files.push({ path: `${out}/${file}`, content: processed.text, mode });
+			const tokened = renderTokens(processed.text, tokens);
+			if ("problems" in tokened) {
+				failures.push(invalid(absolute, lineIssues(tokened.problems, processed.lines, 0), id));
+				continue;
+			}
+			files.push({ path: `${out}/${file}`, content: tokened.text, mode });
 		}
-		return files;
+		const [only, ...more] = failures;
+		if (only !== undefined) {
+			return yield* Effect.fail(more.length === 0 ? only : new ComponentsInvalid({ path: dir, components: failures }));
+		}
+		const source = `skills/${skill.name}/SKILL.md`;
+		const notes = mapped.drops.map(({ field, kind }) => ({ target: id, path: source, kind, name: field }));
+		return { files, notes };
 	});

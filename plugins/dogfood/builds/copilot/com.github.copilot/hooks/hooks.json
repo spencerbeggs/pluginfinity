@@ -1,0 +1,85 @@
+{
+	"version": 1,
+	"hooks": {
+		"SessionStart": [
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/session-start.sh\"",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "SessionStart"
+				}
+			}
+		],
+		"UserPromptSubmit": [
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/user-prompt-submit.sh\"",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "UserPromptSubmit"
+				}
+			}
+		],
+		"PreToolUse": [
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/pre-tool-use.sh\"",
+				"matcher": "Bash",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "PreToolUse"
+				}
+			},
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/crash.sh\"",
+				"matcher": "Read",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "PreToolUse"
+				}
+			}
+		],
+		"PostToolUse": [
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/post-tool-use.sh\"",
+				"matcher": "Bash",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "PostToolUse"
+				}
+			},
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/post-edit.sh\"",
+				"matcher": "Edit|Write",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "PostToolUse"
+				}
+			}
+		],
+		"subagentStart": [
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/subagent-start.sh\"",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "SubagentStart"
+				}
+			}
+		],
+		"Stop": [
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/stop.sh\"",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "Stop"
+				}
+			}
+		]
+	}
+}

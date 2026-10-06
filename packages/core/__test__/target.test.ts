@@ -25,9 +25,20 @@ const minimalTarget = {
 		schema: "https://example.com/s.json",
 		keys: ["name"],
 	},
-	pluginRoot: { hooks: `\${PLUGIN_ROOT}`, mcp: `\${PLUGIN_ROOT}`, body: unresolved("no expansion in bodies") },
-	skills: { dir: "skills", fields: { description: keep }, hostFields: [] },
-	agents: { dir: "agents", suffix: ".agent.md", fields: { name: keep }, hostFields: ["handoffs"] },
+	pluginRoot: {
+		hooks: `\${PLUGIN_ROOT}`,
+		mcp: `\${PLUGIN_ROOT}`,
+		lsp: `\${PLUGIN_ROOT}`,
+		body: unresolved("no expansion in bodies"),
+	},
+	skills: { dir: "skills", fields: { description: keep }, hostFields: [], invoke: "/{plugin}:{skill}" },
+	agents: {
+		dir: "agents",
+		suffix: ".agent.md",
+		fields: { name: keep },
+		hostFields: ["handoffs"],
+		id: "{plugin}:{agent}",
+	},
 	hooks: {
 		path: "hooks.json",
 		format: "copilot-hooks-v1" as const,
@@ -35,11 +46,17 @@ const minimalTarget = {
 		ownEvents: [],
 	},
 	mcp: { path: "mcp.json", format: "agent-plugins-mcp-1.0" as const },
+	lsp: { path: "lsp.json", format: "copilot-lsp-json" as const, fields: { command: keep } },
 	references: { style: "prose" as const },
 	tools: {
 		names: { Agent: "agent", Skill: drop, Task: unresolved("no alias") },
 		mcp: "{server}/{tool}",
 		unlisted: "drop" as const,
+		runtime: {
+			names: { Read: "view", TodoWrite: unresolved("not measured") },
+			mcp: "{server}-{tool}",
+			unlisted: "unresolved" as const,
+		},
 	},
 	models: { inherit: drop, sonnet: "claude-sonnet", opus: unresolved("no alias") },
 	efforts: { max: unresolved("no max") },
@@ -97,6 +114,32 @@ describe("Target", () => {
 	it.effect("rejects a model mapped to anything but a name, drop or unresolved", () =>
 		Effect.gen(function* () {
 			const error = yield* Effect.flip(decodeTarget({ ...minimalTarget, models: { inherit: keep } }));
+			assert.strictEqual(error._tag, "SchemaError");
+		}),
+	);
+
+	it.effect("accepts an unresolved skill invocation", () =>
+		Effect.gen(function* () {
+			const input = { ...minimalTarget, skills: { ...minimalTarget.skills, invoke: unresolved("none") } };
+			assert.deepStrictEqual(yield* decodeTarget(input), Target.make(input));
+		}),
+	);
+
+	it.effect("rejects a run-time table with an unknown unlisted rule", () =>
+		Effect.gen(function* () {
+			const bad = {
+				...minimalTarget,
+				tools: { ...minimalTarget.tools, runtime: { ...minimalTarget.tools.runtime, unlisted: "drop" } },
+			};
+			const error = yield* Effect.flip(decodeTarget(bad));
+			assert.strictEqual(error._tag, "SchemaError");
+		}),
+	);
+
+	it.effect("rejects a description without run-time tool names", () =>
+		Effect.gen(function* () {
+			const { runtime: _runtime, ...tools } = minimalTarget.tools;
+			const error = yield* Effect.flip(decodeTarget({ ...minimalTarget, tools }));
 			assert.strictEqual(error._tag, "SchemaError");
 		}),
 	);

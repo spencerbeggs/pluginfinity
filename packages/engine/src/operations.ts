@@ -1,33 +1,44 @@
 import { Run } from "@effected/commands";
-import type { KnownTargetId } from "@pluginfinity/targets";
+import type { Target } from "@pluginfinity/core";
+import type { KnownTargetId, PluginfinityConfig } from "@pluginfinity/targets";
 import { KNOWN_TARGET_IDS, TARGETS } from "@pluginfinity/targets";
 import type { PlatformError } from "effect";
 import { Effect, FileSystem, Path, Schema } from "effect";
 import type { ChildProcessSpawner } from "effect/process";
 import { ChildProcess } from "effect/process";
+import type { SourceAgent } from "./agents.js";
 import { readAgents, renderAgent } from "./agents.js";
 import { isJunk } from "./component.js";
 import type { EmitPlan, EmittedFile } from "./emit.js";
 import { applyEmit, planEmit } from "./emit.js";
-import type { ComponentInvalid, ConfigError } from "./errors.js";
+import type { ConfigError } from "./errors.js";
 import {
 	BuildStale,
+	ComponentInvalid,
 	ComponentsInvalid,
 	HookEventUnsupported,
 	HookScriptInvalid,
 	HostRejected,
-	NotImplemented,
 	PackageVersionMissing,
 	PathConflict,
+	ShippedFileInvalid,
 	TargetDrift,
 } from "./errors.js";
+import { HOOK_LIB_DIR, hookLibFiles } from "./hook-lib.js";
 import type { TargetHookEvent } from "./hooks.js";
 import { hookCommandFiles, hookScripts, renderHooks, targetHooks } from "./hooks.js";
 import type { LoadedConfig } from "./loader.js";
-import { renderManifest, serializeManifest } from "./manifest.js";
+import { pluginName, renderManifest, serializeManifest } from "./manifest.js";
+import type { BuildNote } from "./notes.js";
+import { CONFIG_NOTE_PATH, sortNotes } from "./notes.js";
 import type { ConfigSelection, PreparedPlugin } from "./selection.js";
 import { preparePlugins } from "./selection.js";
+import { SERVER_LIB_DIR, serverLibFiles } from "./server-lib.js";
+import { mcpServerNames, renderServers, serverFiles } from "./servers.js";
+import type { SourceSkill } from "./skills.js";
 import { readSkills, renderSkill } from "./skills.js";
+import type { TokenContext } from "./tokens.js";
+import { ENGINE_VERSION } from "./version.js";
 
 /**
  * The input to `build`.
@@ -66,6 +77,8 @@ export interface TargetBuild {
 	readonly out: string;
 	/** How the build directory differed before this run; empty after a write. */
 	readonly plan: EmitPlan;
+	/** What the target dropped, degraded or omitted, sorted by path (the config last), then kind, then name. */
+	readonly notes: ReadonlyArray<BuildNote>;
 }
 
 /**
@@ -79,6 +92,8 @@ export interface TargetValidation {
 	readonly out: string;
 	/** Whether the host CLI checked the build, or `--no-host` skipped it. */
 	readonly host: "passed" | "skipped";
+	/** The same notes `build` reports for the target. */
+	readonly notes: ReadonlyArray<BuildNote>;
 }
 
 const PackageVersion = Schema.fromJsonString(Schema.Struct({ version: Schema.String }));
@@ -118,9 +133,9 @@ export type PlanError =
 	| PackageVersionMissing
 	| HookEventUnsupported
 	| HookScriptInvalid
+	| ShippedFileInvalid
 	| PathConflict
 	| ComponentsInvalid
-	| NotImplemented
 	| PlatformError.PlatformError;
 
 /** Every file under `dir`, as `/`-separated paths relative to `root`; none when `dir` is absent. */
@@ -174,6 +189,156 @@ const checkScript = (
 		}
 	});
 
+/** Whether `real` is `root` or under it; both are real paths. */
+const isInside = (root: string, real: string): boolean => real === root || real.startsWith(`${root}/`);
+
+/** Whether a plugin-relative path has no empty, `.` or `..` segment. */
+const isNormal = (file: string): boolean =>
+	file.split("/").every((segment) => segment !== "" && segment !== "." && segment !== "..");
+
+/**
+ * A plugin-relative path with its empty, `.` and `..` segments resolved, or
+ * `undefined` when it climbs out of the plugin root.
+ */
+const canonical = (file: string): string | undefined => {
+	const segments: Array<string> = [];
+	for (const segment of file.split("/")) {
+		if (segment === "" || segment === ".") continue;
+		if (segment !== "..") segments.push(segment);
+		else if (segments.pop() === undefined) return undefined;
+	}
+	return segments.join("/");
+};
+
+/**
+ * The files one canonical, plugin-relative path ships: the file, or every
+ * file under the directory. `spelled` is the path as written, which is what
+ * is checked for existence, so a trailing `/` after a file fails as missing.
+ * Every shipped file must resolve inside the plugin, through any symlink.
+ */
+const expandShipped = (
+	config: LoadedConfig,
+	file: string,
+	spelled: string,
+	referencedBy: string,
+): Effect.Effect<
+	ReadonlyArray<string>,
+	ShippedFileInvalid | PlatformError.PlatformError,
+	FileSystem.FileSystem | Path.Path
+> =>
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+		const fail = (named: string, problem: ShippedFileInvalid["problem"]) =>
+			Effect.fail(new ShippedFileInvalid({ path: config.path, file: named, referencedBy, problem }));
+		const info = yield* fs.stat(path.join(config.root, spelled)).pipe(Effect.option);
+		if (info._tag === "None" || (info.value.type !== "File" && info.value.type !== "Directory")) {
+			return yield* fail(spelled, "missing");
+		}
+		const files = info.value.type === "Directory" ? yield* sourceFiles(config.root, file) : [file];
+		const root = yield* fs.realPath(config.root);
+		for (const listed of files) {
+			// A symlink anywhere under a directory must not reach out of the plugin.
+			if (!isInside(root, yield* fs.realPath(path.join(config.root, listed)))) {
+				return yield* fail(listed, "outside-root");
+			}
+		}
+		return files;
+	});
+
+/**
+ * The files `entries` name, each canonical: each file, or every file under
+ * each directory. Every one must exist and resolve inside the plugin.
+ */
+const listedFiles = (
+	config: LoadedConfig,
+	entries: ReadonlyArray<string>,
+): Effect.Effect<
+	ReadonlyArray<string>,
+	ShippedFileInvalid | PlatformError.PlatformError,
+	FileSystem.FileSystem | Path.Path
+> =>
+	Effect.gen(function* () {
+		const fail = (file: string, problem: ShippedFileInvalid["problem"]) =>
+			Effect.fail(new ShippedFileInvalid({ path: config.path, file, referencedBy: "files", problem }));
+		const out: Array<string> = [];
+		// The config schema admits only canonical entries; canonicalise anyway so the
+		// reserved-path and collision checks never see a path spelled two ways.
+		for (const entry of entries) {
+			const file = canonical(entry);
+			if (file === undefined) return yield* fail(entry, "outside-root");
+			if (file === "") return yield* fail(entry, "not-normal");
+			out.push(...(yield* expandShipped(config, file, file, "files")));
+		}
+		return out;
+	});
+
+/**
+ * The files a server reference ships, failing with `ShippedFileInvalid`
+ * unless it is written without `.`, `..` or empty segments (a directory may
+ * end in one `/`) and exists inside the plugin. A file ships alone and a
+ * directory ships every file under it, like a `files` entry. A whole
+ * `command` must be a file, and executable.
+ */
+const serverShipped = (
+	config: LoadedConfig,
+	spelled: string,
+	referencedBy: string,
+	command: boolean,
+): Effect.Effect<
+	ReadonlyArray<string>,
+	ShippedFileInvalid | PlatformError.PlatformError,
+	FileSystem.FileSystem | Path.Path
+> =>
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+		const fail = (problem: ShippedFileInvalid["problem"]) =>
+			Effect.fail(new ShippedFileInvalid({ path: config.path, file: spelled, referencedBy, problem }));
+		// The host resolves the path as written, so a `..` through a directory the build
+		// does not ship would fail at runtime; only the canonical spelling is accepted.
+		const file = spelled.endsWith("/") ? spelled.slice(0, -1) : spelled;
+		if (!isNormal(file)) return yield* fail("not-normal");
+		if (command) {
+			const info = yield* fs.stat(path.join(config.root, file)).pipe(Effect.option);
+			if (info._tag === "Some" && info.value.type === "Directory") return yield* fail("directory");
+		}
+		const files = yield* expandShipped(config, file, spelled, referencedBy);
+		if (command) {
+			const info = yield* fs.stat(path.join(config.root, file));
+			if ((info.mode & 0o111) === 0) return yield* fail("not-executable");
+		}
+		return files;
+	});
+
+/**
+ * What a target's skill and agent bodies may name: the skills and agents it
+ * builds, every file of those skills, and the plugin's own MCP servers. Agent
+ * ids and skill commands use the plugin's name on this target; own MCP tools
+ * are named, and their run-time `{plugin}` filled, by its Claude name, which
+ * Claude Code namespaces MCP tools with.
+ */
+const tokenContext = (
+	target: Target,
+	id: KnownTargetId,
+	config: PluginfinityConfig,
+	skills: ReadonlyArray<SourceSkill>,
+	agents: ReadonlyArray<SourceAgent>,
+): TokenContext => {
+	const plugin = pluginName(config, id);
+	const built = skills.filter((skill) => skill.frontmatter.targets?.[id] !== false);
+	return {
+		target,
+		plugin,
+		skills: new Set(built.map((skill) => skill.name)),
+		agents: new Set(agents.filter((agent) => agent.frontmatter.targets?.[id] !== false).map((agent) => agent.name)),
+		skillFiles: new Set(
+			built.flatMap((skill) => [`${skill.name}/SKILL.md`, ...skill.files.map((file) => `${skill.name}/${file}`)]),
+		),
+		own: { plugin: pluginName(config, "claude"), servers: mcpServerNames(id, config) },
+	};
+};
+
 /**
  * Render every requested target of one plugin and compare each with its build
  * directory.
@@ -181,7 +346,17 @@ const checkScript = (
  * @remarks
  * Each target ships the source `hooks/` directory whole, so a script can
  * source its own helpers, except scripts only another target's hooks run; a
- * script outside `hooks/` ships to the targets that run it.
+ * script outside `hooks/` ships to the targets that run it. A target with
+ * hooks also gets the hook library under `hooks/lib/pluginfinity/`. That path
+ * is always reserved, whether or not the target has hooks: no source file may
+ * be at it or under it.
+ *
+ * Each target also ships the files its local MCP and LSP servers name after
+ * `${PLUGIN_ROOT}/` (written without `.` or `..` segments, inside the plugin,
+ * and an executable file when a whole `command`; a named directory ships every
+ * file under it), and every file the `files` key lists, each once. A target
+ * with a local server gets the server library under `lib/pluginfinity/`,
+ * which is reserved the same way.
  */
 const planPlugin = (
 	prepared: PreparedPlugin,
@@ -190,15 +365,6 @@ const planPlugin = (
 		const path = yield* Path.Path;
 		const config = prepared.config;
 		const version = yield* readVersion(config.root);
-		// MCP servers are not built yet; a config that sets them must not build
-		// as if they were not there.
-		const settings = prepared.targets.map((id) => config.config[id]);
-		if (
-			config.config.mcpServers !== undefined ||
-			settings.some((setting) => typeof setting === "object" && setting.mcpServers !== undefined)
-		) {
-			return yield* Effect.fail(new NotImplemented({ operation: "build of mcpServers" }));
-		}
 		const invoke = config.config.scripts?.invoke ?? "bash";
 
 		const hooks = prepared.targets.map((id) => {
@@ -216,32 +382,61 @@ const planPlugin = (
 		// entries name after ${PLUGIN_ROOT}. A command file is only checked for
 		// existence, since the command says how it runs.
 		const filesOf = (events: ReadonlyArray<TargetHookEvent>) => [...hookScripts(events), ...hookCommandFiles(events)];
-		const everyScript = new Set(hooks.flatMap(({ events }) => filesOf(events)));
+		// Over every enabled target, not just the selected ones, so what a target
+		// ships never depends on which targets this run builds.
+		const everyScript = new Set(
+			config.targets.flatMap((id) => filesOf(targetHooks(targetOf(id), id, config.config).events)),
+		);
 		for (const { events } of hooks) {
 			for (const script of hookScripts(events)) yield* checkScript(config, script, invoke);
 			for (const file of hookCommandFiles(events)) yield* checkScript(config, file, "bash");
 		}
 		const hooksDir = yield* sourceFiles(config.root, "hooks");
+		const listed = yield* listedFiles(config, config.config.files ?? []);
 		const { skills, failures: skillFailures } = yield* readSkills(config.root, KNOWN_TARGET_IDS);
 		const { agents, failures: agentFailures } = yield* readAgents(config.root, KNOWN_TARGET_IDS);
 		// Every component problem in the plugin, so one build reports them all.
 		const failures: Array<ComponentInvalid> = [...skillFailures, ...agentFailures];
-		const collect = <A, R>(effect: Effect.Effect<A | undefined, ComponentInvalid | PlatformError.PlatformError, R>) =>
+		// A problem that names no target recurs for every target; keep one.
+		const keep = (error: ComponentInvalid) => {
+			if (!failures.some((seen) => seen.message === error.message)) failures.push(error);
+		};
+		const collect = <A, R>(
+			effect: Effect.Effect<A | undefined, ComponentInvalid | ComponentsInvalid | PlatformError.PlatformError, R>,
+		) =>
 			effect.pipe(
-				Effect.catchTag("ComponentInvalid", (error) =>
-					// A problem that names no target recurs for every target; keep one.
-					Effect.sync(() => {
-						if (!failures.some((seen) => seen.message === error.message)) failures.push(error);
-					}),
-				),
+				Effect.catchTag("ComponentInvalid", (error) => Effect.sync(() => keep(error))),
+				Effect.catchTag("ComponentsInvalid", (error) => Effect.sync(() => error.components.forEach(keep))),
 			);
 
 		const planned: Array<PlannedTarget> = [];
-		for (const { id, target, events } of hooks) {
+		for (const { id, target, events, omitted } of hooks) {
+			const notes: Array<BuildNote> = omitted.map((event) => ({
+				target: id,
+				path: CONFIG_NOTE_PATH,
+				kind: "hook-omitted",
+				name: event,
+			}));
 			const own = new Set(filesOf(events));
+			const servers = serverFiles(target, id, config.config);
+			const serverFilesShipped: Array<string> = [];
+			for (const file of servers.commands) {
+				serverFilesShipped.push(
+					...(yield* serverShipped(config, file, servers.owners.get(file) ?? "mcpServers", true)),
+				);
+			}
+			for (const file of servers.others) {
+				serverFilesShipped.push(
+					...(yield* serverShipped(config, file, servers.owners.get(file) ?? "mcpServers", false)),
+				);
+			}
 			const shipped = [
-				...hooksDir.filter((file) => own.has(file) || !everyScript.has(file)),
-				...[...own].filter((script) => !script.startsWith("hooks/")),
+				...new Set([
+					...hooksDir.filter((file) => own.has(file) || !everyScript.has(file)),
+					...[...own].filter((script) => !script.startsWith("hooks/")),
+					...serverFilesShipped,
+					...listed,
+				]),
 			];
 			const copied: Array<EmittedFile> = [];
 			for (const file of shipped) copied.push(yield* copyFile(config.root, file));
@@ -249,12 +444,38 @@ const planPlugin = (
 			const manifest = renderManifest(target, id, config.config, version);
 			const generated: Array<EmittedFile> = [{ path: target.manifest.path, content: serializeManifest(manifest) }];
 			const hooksFile = renderHooks(target, events, invoke);
-			if (hooksFile !== undefined) generated.push({ path: target.hooks.path, content: hooksFile });
-			for (const skill of skills)
-				generated.push(...((yield* collect(renderSkill(target, id, skill, KNOWN_TARGET_IDS))) ?? []));
+			if (hooksFile !== undefined) {
+				generated.push({ path: target.hooks.path, content: hooksFile });
+				generated.push(...hookLibFiles(id, String(manifest.name), ENGINE_VERSION));
+			}
+			const rendered = renderServers(target, id, config.config, String(manifest.name), SERVER_LIB_DIR);
+			if (rendered.issues.length > 0) {
+				const issue = new ComponentInvalid({ path: config.path, target: id, issues: rendered.issues });
+				if (!failures.some((seen) => seen.message === issue.message)) failures.push(issue);
+			}
+			generated.push(...rendered.files);
+			notes.push(...rendered.notes);
+			if (rendered.stdio) generated.push(...serverLibFiles());
+			const tokens = tokenContext(target, id, config.config, skills, agents);
+			for (const skill of skills) {
+				const skillRender = yield* collect(renderSkill(target, id, skill, KNOWN_TARGET_IDS, tokens));
+				if (skillRender === undefined) continue;
+				generated.push(...skillRender.files);
+				notes.push(...skillRender.notes);
+			}
 			for (const agent of agents) {
-				const file = yield* collect(renderAgent(target, id, agent, KNOWN_TARGET_IDS));
-				if (file !== undefined) generated.push(file);
+				const agentRender = yield* collect(renderAgent(target, id, agent, KNOWN_TARGET_IDS, tokens));
+				if (agentRender === undefined) continue;
+				generated.push(agentRender.file);
+				notes.push(...agentRender.notes);
+			}
+
+			// The libraries' directories belong to pluginfinity; a source file there would shadow or join them.
+			const reserved = copied.find((file) =>
+				[HOOK_LIB_DIR, SERVER_LIB_DIR].some((dir) => file.path === dir || file.path.startsWith(`${dir}/`)),
+			);
+			if (reserved !== undefined) {
+				return yield* Effect.fail(new PathConflict({ path: config.path, target: id, file: reserved.path }));
 			}
 
 			const copiedPaths = new Set(copied.map((file) => file.path));
@@ -266,7 +487,16 @@ const planPlugin = (
 			const files = [...generated, ...copied];
 			const out = path.join(config.root, "builds", id);
 			const plan = yield* planEmit(out, files);
-			planned.push({ config: config.path, target: id, out, plan, files, name: String(manifest.name), version });
+			planned.push({
+				config: config.path,
+				target: id,
+				out,
+				plan,
+				notes: sortNotes(notes),
+				files,
+				name: String(manifest.name),
+				version,
+			});
 		}
 		if (failures.length > 0) {
 			return yield* Effect.fail(new ComponentsInvalid({ path: config.path, components: failures }));
@@ -300,7 +530,7 @@ export const build = (
 			const planned = yield* planPlugin(prepared);
 			if (input.check) yield* requireClean(prepared.config.path, planned);
 			else for (const target of planned) yield* applyEmit(target.out, target.files, target.plan);
-			for (const { config, target, out, plan } of planned) builds.push({ config, target, out, plan });
+			for (const { config, target, out, plan, notes } of planned) builds.push({ config, target, out, plan, notes });
 		}
 		return builds;
 	});
@@ -393,6 +623,7 @@ export const validate = (
 					target: target.target,
 					out: target.out,
 					host: input.skipHosts ? "skipped" : "passed",
+					notes: target.notes,
 				});
 			}
 		}

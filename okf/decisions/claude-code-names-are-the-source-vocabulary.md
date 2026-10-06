@@ -2,7 +2,7 @@
 type: Decision
 title: Claude Code's names are the source vocabulary
 description: Plugin source writes hook events, tool names and skill and agent frontmatter fields with Claude Code's names, and each target maps them; per-host additions go in a targets block.
-status: draft
+status: stable
 tags:
   - portability
   - dx
@@ -16,6 +16,9 @@ generated:
   by: okfit/claude-code
   at: 2026-10-02T22:36:46Z
   body_sha256: 68a36198fdd1df8e86bb6a20c8742b1fab97b2186151a715c254f7d5f5c92c14
+verified:
+  - by: human:spencer
+    at: 2026-10-06T03:11:19Z
 ---
 
 # Claude Code's names are the source vocabulary

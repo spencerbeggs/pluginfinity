@@ -28,6 +28,7 @@
 	"scripts": {
 		"build:dev": "node savvy.build.ts --target dev",
 		"build:prod": "node savvy.build.ts --target prod",
+		"hook-lib:embed": "node scripts/embed-hook-lib.ts",
 		"prepare": "node savvy.build.ts --target dev",
 		"types:check": "tsc --noEmit"
 	},

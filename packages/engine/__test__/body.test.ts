@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { applyHostBlocks } from "../src/body.js";
+import { applyHostBlocks, inlineCodeSpans, mapHostBlocks } from "../src/body.js";
 
 const KNOWN = ["claude", "copilot"];
 
@@ -66,11 +66,21 @@ describe("applyHostBlocks", () => {
 		assert.deepStrictEqual(applyHostBlocks(text, "copilot", KNOWN), { text: "End." });
 	});
 
-	it("a pluginfinity:// link is a problem until references are built; one in code is text", () => {
-		const result = applyHostBlocks("Intro.\nSee [the guide](pluginfinity://skill/alpha/guide.md).", "claude", KNOWN);
-		assert.deepStrictEqual("problem" in result ? result.problem.line : undefined, 2);
-		const shown = "Write `[x](pluginfinity://skill/a)`.\n```\n[x](pluginfinity://skill/a)\n```";
-		assert.deepStrictEqual(applyHostBlocks(shown, "claude", KNOWN), { text: shown });
+	it("maps each kept line back to its source line", () => {
+		assert.deepStrictEqual(mapHostBlocks(BODY, "claude", KNOWN), {
+			text: ["Shared.", "Claude only.", "Both, listed.", "End."].join("\n"),
+			lines: [1, 3, 6, 8],
+		});
+		assert.deepStrictEqual(mapHostBlocks(BODY, "copilot", KNOWN), {
+			text: ["Shared.", "Both, listed.", "End."].join("\n"),
+			lines: [1, 6, 8],
+		});
+		assert.deepStrictEqual(mapHostBlocks("a\nb", "claude", KNOWN), { text: "a\nb", lines: [1, 2] });
+	});
+
+	it("leaves a pluginfinity:// link for the token renderer to build", () => {
+		const text = "Intro.\nSee [the guide](pluginfinity://skill/alpha/guide.md).";
+		assert.deepStrictEqual(applyHostBlocks(text, "claude", KNOWN), { text });
 	});
 
 	const problems: ReadonlyArray<readonly [string, string, number, string]> = [
@@ -100,4 +110,86 @@ describe("applyHostBlocks", () => {
 			assert.include(result.problem.message, message);
 		});
 	}
+});
+
+describe("inlineCodeSpans", () => {
+	it("finds single and double backtick spans", () => {
+		assert.deepStrictEqual(inlineCodeSpans("a `b` c ``d`` e"), [
+			{ start: 2, end: 5 },
+			{ start: 8, end: 13 },
+		]);
+	});
+	it("treats runs of another length inside a span as content", () => {
+		assert.deepStrictEqual(inlineCodeSpans("``a ` b``"), [{ start: 0, end: 9 }]);
+		assert.deepStrictEqual(inlineCodeSpans("`a `` b`"), [{ start: 0, end: 8 }]);
+	});
+	it("leaves an unclosed run literal and keeps scanning", () => {
+		assert.deepStrictEqual(inlineCodeSpans("`` a `b`"), [{ start: 5, end: 8 }]);
+		assert.deepStrictEqual(inlineCodeSpans("`a"), []);
+	});
+	it("finds adjacent spans", () => {
+		assert.deepStrictEqual(inlineCodeSpans("`a`x`b`"), [
+			{ start: 0, end: 3 },
+			{ start: 4, end: 7 },
+		]);
+	});
+	it("finds nothing in an empty string", () => {
+		assert.deepStrictEqual(inlineCodeSpans(""), []);
+	});
+	it("scans a line of 100k backticks in linear time", () => {
+		const line = "`".repeat(100_000);
+		const t = performance.now();
+		inlineCodeSpans(line);
+		assert.isBelow(performance.now() - t, 200);
+	});
+	it("scans one backtick then runs of every length 1..k, which the old regex rescanned per run", () => {
+		const k = 1000;
+		let line = "`";
+		for (let n = 2; n <= k; n++) line += `${"`".repeat(n)} `;
+		const t = performance.now();
+		inlineCodeSpans(line);
+		assert.isBelow(performance.now() - t, 500);
+	});
+});
+
+describe("host block scanning stays linear on pathological lines", () => {
+	const within = (run: () => unknown): void => {
+		const t = performance.now();
+		run();
+		assert.isBelow(performance.now() - t, 500);
+	};
+	it("rejects an opener with a very long whitespace run and no close", () => {
+		const line = `<!-- pluginfinity:only${" ".repeat(200_000)}x`;
+		within(() => {
+			const result = applyHostBlocks(line, "claude", KNOWN);
+			assert.deepStrictEqual(result, {
+				problem: { line: 1, message: "a host block marker must be on a line of its own" },
+			});
+		});
+	});
+	it("rejects a marker line followed by runs of every backtick length", () => {
+		let line = "see <!-- pluginfinity:only claude `";
+		for (let n = 2; n <= 1000; n++) line += `${"`".repeat(n)} `;
+		within(() => {
+			assert.deepStrictEqual(mapHostBlocks(line, "claude", KNOWN), {
+				problem: { line: 1, message: "a host block marker must be on a line of its own" },
+			});
+		});
+	});
+	it("still opens on a long id list with generous whitespace", () => {
+		const open = `  <!--   pluginfinity:only${" ".repeat(50_000)}claude${"\t".repeat(50_000)}-->  `;
+		const body = [open, "kept", "<!-- /pluginfinity:only -->"].join("\n");
+		within(() => assert.deepStrictEqual(applyHostBlocks(body, "claude", KNOWN), { text: "kept" }));
+	});
+	it("treats an opener with no ids or a stray angle bracket as before", () => {
+		assert.deepStrictEqual(
+			applyHostBlocks("<!-- pluginfinity:only -->\nx\n<!-- /pluginfinity:only -->", "claude", KNOWN),
+			{
+				problem: { line: 1, message: "a host block names no target" },
+			},
+		);
+		assert.deepStrictEqual(applyHostBlocks("<!-- pluginfinity:only a>b -->", "claude", KNOWN), {
+			problem: { line: 1, message: "a host block marker must be on a line of its own" },
+		});
+	});
 });

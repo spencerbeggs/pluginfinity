@@ -60,6 +60,18 @@ describe("targetHooks", () => {
 		assert.deepStrictEqual([result.events, result.unsupported], [[], []]);
 	});
 
+	it("an event the target lacks whose every entry sets fallback omit is reported as omitted", () => {
+		const omitted = config({
+			name: "x",
+			description: "Fixture plugin.",
+			hooks: { Setup: [{ script: "hooks/a.sh", fallback: "omit" }], SessionStart: [{ script: "hooks/b.sh" }] },
+			claude: true,
+			copilot: true,
+		});
+		assert.deepStrictEqual(targetHooks(COPILOT, "copilot", omitted).omitted, ["Setup"]);
+		assert.deepStrictEqual(targetHooks(CLAUDE, "claude", omitted).omitted, []);
+	});
+
 	it("a Copilot-only event builds under its own name", () => {
 		const own = config({
 			name: "x",
@@ -148,8 +160,22 @@ describe("renderHooks", () => {
 		assert.deepStrictEqual(JSON.parse(text), {
 			version: 1,
 			hooks: {
-				SessionStart: [{ type: "command", bash: `bash "\${PLUGIN_ROOT}/hooks/start.sh"`, timeoutSec: 5 }],
-				PreToolUse: [{ type: "command", bash: `bash "\${PLUGIN_ROOT}/hooks/guard.sh" --quiet`, matcher: "Bash" }],
+				SessionStart: [
+					{
+						type: "command",
+						bash: `bash "\${PLUGIN_ROOT}/hooks/start.sh"`,
+						timeoutSec: 5,
+						env: { PLUGINFINITY_EVENT: "SessionStart" },
+					},
+				],
+				PreToolUse: [
+					{
+						type: "command",
+						bash: `bash "\${PLUGIN_ROOT}/hooks/guard.sh" --quiet`,
+						matcher: "Bash",
+						env: { PLUGINFINITY_EVENT: "PreToolUse" },
+					},
+				],
 			},
 		});
 	});

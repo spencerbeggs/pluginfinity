@@ -1,0 +1,1 @@
+{"session_id":"s-1","cwd":"/tmp","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"path":"/tmp/x","file_text":"hello"}}

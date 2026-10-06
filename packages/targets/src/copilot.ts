@@ -1,5 +1,15 @@
-import type { AgentField, ClaudeHookEvent, FieldMapEntry, SkillField } from "@pluginfinity/core";
-import { CLAUDE_HOOK_EVENTS, Target, absent, degrade, drop, keep, translate, unresolved } from "@pluginfinity/core";
+import type { AgentField, ClaudeHookEvent, FieldMapEntry, LspField, SkillField } from "@pluginfinity/core";
+import {
+	CLAUDE_HOOK_EVENTS,
+	Target,
+	absent,
+	degrade,
+	drop,
+	keep,
+	rename,
+	translate,
+	unresolved,
+} from "@pluginfinity/core";
 
 const ROOT = `\${PLUGIN_ROOT}`;
 const MODEL_ALIAS = "Copilot names models differently; set a full model ID as model under targets.copilot";
@@ -60,6 +70,25 @@ const agentFields = {
 	experimental: drop,
 } as const satisfies Record<AgentField, FieldMapEntry>;
 
+// Copilot's lsp.json documents command, args, env, cwd, fileExtensions, rootUri
+// and initializationOptions. Claude's lifecycle tuning has no counterpart.
+const lspFields = {
+	command: keep,
+	args: keep,
+	env: keep,
+	extensionToLanguage: rename("fileExtensions"),
+	initializationOptions: keep,
+	settings: unresolved("Copilot has no LSP settings channel; set the server under copilot.lspServers without settings"),
+	workspaceFolder: unresolved(
+		"Copilot's rootUri is relative to the git root, not a path; set the server under copilot.lspServers without workspaceFolder",
+	),
+	startupTimeout: drop,
+	shutdownTimeout: drop,
+	restartOnCrash: drop,
+	maxRestarts: drop,
+	diagnostics: drop,
+} as const satisfies Record<LspField, FieldMapEntry>;
+
 // Events with a PascalCase form on Copilot keep their Claude name, so a hook
 // script reads a Claude-shaped payload. SubagentStart and Notification exist
 // only in camelCase; everything else is absent.
@@ -95,10 +124,12 @@ export const COPILOT: Target = Target.make({
 	pluginRoot: {
 		hooks: ROOT,
 		mcp: ROOT,
+		lsp: ROOT,
 		body: unresolved("Copilot documents no plugin-root expansion inside skill or agent bodies"),
 	},
-	skills: { dir: "skills", fields: skillFields, hostFields: [] },
+	skills: { dir: "skills", fields: skillFields, hostFields: [], invoke: "/{plugin}:{skill}" },
 	agents: {
+		id: "{plugin}:{agent}",
 		dir: "com.github.copilot/agents",
 		suffix: ".agent.md",
 		fields: agentFields,
@@ -129,12 +160,18 @@ export const COPILOT: Target = Target.make({
 		format: "agent-plugins-mcp-1.0",
 		schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
 	},
+	lsp: { path: "com.github.copilot/lsp.json", format: "copilot-lsp-json", fields: lspFields },
 	references: { style: "prose" },
 	tools: {
-		// Copilot's primary aliases for the Claude Code tools it documents a
-		// compatible alias for. Skill has no alias and is dropped, as is any
-		// other Claude-only name (ToolSearch, SendMessage, the Task tools) and
-		// another plugin's MCP tool, whose server name on Copilot is unknown.
+		// Copilot's frontmatter names, measured: an agent restricted to the
+		// documented aliases `search`, `web` or `todo` executed no tool (0/6 each,
+		// two models), while the literal `grep`, `glob`, `web_fetch` and
+		// `web_search` executed 6/6 each (okf/measurements/copilot-runtime-names.md,
+		// "Alias follow-up"). The aliases that are documented and not contradicted
+		// (agent, execute, read, edit) stay. Skill and TodoWrite have no working
+		// name and are dropped, as is any other Claude-only name (ToolSearch,
+		// SendMessage, the Task tools) and another plugin's MCP tool, whose server
+		// name on Copilot is unknown.
 		names: {
 			Agent: "agent",
 			Task: "agent",
@@ -146,15 +183,38 @@ export const COPILOT: Target = Target.make({
 			MultiEdit: "edit",
 			Write: "edit",
 			NotebookEdit: "edit",
-			Grep: "search",
-			Glob: "search",
-			WebFetch: "web",
-			WebSearch: "web",
-			TodoWrite: "todo",
+			Grep: "grep",
+			Glob: "glob",
+			WebFetch: "web_fetch",
+			WebSearch: "web_search",
+			TodoWrite: drop,
 			Skill: drop,
 		},
 		mcp: "{server}/{tool}",
 		unlisted: "drop",
+		// The names the model sees at run time, from the same measurement.
+		runtime: {
+			names: {
+				Read: "view",
+				Bash: "bash",
+				Edit: "edit",
+				MultiEdit: "edit",
+				Write: "create",
+				Agent: "task",
+				Task: "task",
+				Grep: "grep",
+				Glob: "glob",
+				WebFetch: "web_fetch",
+				WebSearch: "web_search",
+				Skill: "skill",
+				TodoWrite: unresolved("No todo tool appeared in any measured Copilot session"),
+				NotebookEdit: unresolved("Copilot has no notebook tool; the run-time name was not measured"),
+				NotebookRead: unresolved("Copilot has no notebook tool; the run-time name was not measured"),
+				PowerShell: unresolved("The run-time PowerShell tool name was not measured; Copilot showed bash"),
+			},
+			mcp: "{server}-{tool}",
+			unlisted: "unresolved",
+		},
 	},
 	// Copilot inherits the session's model when an agent sets none. Claude Code's
 	// model aliases have no Copilot spelling; a full model ID passes through.

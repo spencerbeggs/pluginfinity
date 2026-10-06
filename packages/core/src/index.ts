@@ -2,14 +2,21 @@
  * The platform-free pluginfinity domain model.
  *
  * @remarks
- * Holds the config schemas (plugin-wide fields, hooks, MCP servers and the
+ * Holds the config schemas (plugin-wide fields, hooks, MCP and LSP servers and the
  * per-target override factory), skill and agent frontmatter in Claude Code's
  * field names, and the `Target` schema that describes a host by what it can do.
  *
  * @packageDocumentation
  */
 
-export { BASE_CONFIG_KEYS, BaseConfigFields, PluginName, ScriptInvoke, makeTargetSetting } from "./config.js";
+export {
+	BASE_CONFIG_KEYS,
+	BaseConfigFields,
+	PluginName,
+	ScriptInvoke,
+	ShippedPath,
+	makeTargetSetting,
+} from "./config.js";
 export type { AgentField, SkillField } from "./frontmatter.js";
 export {
 	AGENT_FIELDS,
@@ -31,7 +38,9 @@ export {
 	ScriptHook,
 	makeHooks,
 } from "./hooks.js";
-export { McpServer, McpServers, RemoteMcpServer, StdioMcpServer } from "./mcp.js";
+export type { LspField } from "./lsp.js";
+export { LSP_FIELDS, LspServer, LspServers } from "./lsp.js";
+export { McpServer, McpServers, RemoteMcpServer, ServerEnv, StdioMcpServer } from "./mcp.js";
 export type { DegradeForm } from "./target.js";
 export {
 	Absent,
@@ -43,6 +52,8 @@ export {
 	HOOKS_FORMATS,
 	HooksFormat,
 	Keep,
+	LSP_FORMATS,
+	LspFormat,
 	MANIFEST_FORMATS,
 	MCP_FORMATS,
 	ManifestFormat,

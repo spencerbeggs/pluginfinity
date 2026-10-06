@@ -1,0 +1,19 @@
+{
+	"lspServers": {
+		"dogfood": {
+			"command": "sh",
+			"args": [
+				"${PLUGIN_ROOT}/bin/start-lsp.sh",
+				"--stdio"
+			],
+			"fileExtensions": {
+				".dogfood": "plaintext"
+			},
+			"env": {
+				"PLUGINFINITY_HOST": "copilot",
+				"PLUGINFINITY_PLUGIN": "pluginfinity-dogfood",
+				"PLUGINFINITY_LIB": "${PLUGIN_ROOT}/lib/pluginfinity"
+			}
+		}
+	}
+}

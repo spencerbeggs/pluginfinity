@@ -2,17 +2,45 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, layer } from "@effect/vitest";
 import { ScriptedSpawner } from "@effected/commands";
 import { Effect, FileSystem, Path } from "effect";
-import { build, preparePlugins, validate } from "../src/index.js";
+import { hookLibFiles } from "../src/hook-lib.js";
+import type { BuildNote } from "../src/index.js";
+import { ENGINE_VERSION, build, isBuildError, preparePlugins, validate } from "../src/index.js";
 import {
+	FILES_BUILDS,
+	FILES_COLLIDE,
+	FILES_MISSING,
+	FILES_OVERLAP,
+	FILES_RESERVED,
+	FILES_SHARE,
 	HOOKED,
 	HOOKED_COMMAND,
 	HOOKED_EXEC,
 	HOOKED_UNSUPPORTED,
+	LSP_UNRESOLVED,
+	NOTED,
+	NOTED_AGENT,
+	NOTED_SKILL,
 	ONLY_COPILOT,
+	OWN_MCP,
+	OWN_MCP_AGENT,
 	PACKAGE_JSON,
+	PLAIN_SKILL,
+	SERVER_CLIMB_INSIDE,
+	SERVER_DIR_COMMAND,
+	SERVER_DIR_ENV,
+	SERVER_DIR_SLASH,
+	SERVER_DOTTED,
+	SERVER_ESCAPE,
+	SERVER_EXEC_COMMAND,
+	SERVER_FILE_SLASH,
+	SERVER_HOST_SPELLING,
+	SERVER_PATH_ENV,
+	SERVER_PLAIN,
+	SERVER_SHARED_LAUNCHER,
 	SYNTAX_ERROR,
 	VALID,
 	WITH_MCP,
+	WITH_SERVERS,
 } from "./fixtures/configs.js";
 import { writeTree } from "./utils/tree.js";
 
@@ -164,11 +192,347 @@ describe("build", () => {
 			}),
 		);
 
-		it.effect("a config that sets mcpServers is NotImplemented, not a build without them", () =>
+		it.effect("builds servers, ships their launchers, files entries and the server library", () =>
 			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": WITH_SERVERS,
+					"package.json": PACKAGE_JSON,
+					"bin/start-mcp.sh": "#!/bin/sh\n",
+					"bin/start-lsp.sh": "#!/bin/sh\n",
+					"bin/unused.sh": "#!/bin/sh\n",
+					"share/data.json": "{}\n",
+				});
+				yield* fs.chmod(path.join(root, "bin/start-mcp.sh"), 0o755);
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				for (const file of [
+					"builds/claude/.mcp.json",
+					"builds/claude/.lsp.json",
+					"builds/claude/bin/start-mcp.sh",
+					"builds/claude/bin/start-lsp.sh",
+					"builds/claude/share/data.json",
+					"builds/claude/lib/pluginfinity/server.sh",
+					"builds/copilot/mcp.json",
+					"builds/copilot/com.github.copilot/lsp.json",
+					"builds/copilot/lib/pluginfinity/server.sh",
+				])
+					assert.isTrue(yield* fs.exists(path.join(root, file)), file);
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/bin/unused.sh")));
+				const mode = (yield* fs.stat(path.join(root, "builds/claude/bin/start-mcp.sh"))).mode & 0o777;
+				assert.strictEqual(mode, 0o755);
+				const check = yield* build({ selection: nearest(root), targets: [], check: true });
+				assert.isTrue(check.every((target) => target.plan.clean));
+			}),
+		);
+
+		it.effect("a remote-only plugin gets no server library", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
 				const root = yield* writeTree({ "pluginfinity.config.ts": WITH_MCP, "package.json": PACKAGE_JSON });
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const mcp = JSON.parse(yield* fs.readFileString(path.join(root, "builds/claude/.mcp.json")));
+				assert.isUndefined(mcp.mcpServers.docs.env);
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/lib/pluginfinity")));
+			}),
+		);
+
+		it.effect("a missing launcher is ShippedFileInvalid naming the server", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": WITH_SERVERS,
+					"package.json": PACKAGE_JSON,
+					"share/x": "",
+				});
 				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
-				assert.strictEqual(error._tag, "NotImplemented");
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") {
+					assert.strictEqual(error.problem, "missing");
+					assert.strictEqual(error.referencedBy, "mcpServers.mcp");
+				}
+			}),
+		);
+
+		it.effect("a whole-command launcher without the exec bit is ShippedFileInvalid not-executable", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_EXEC_COMMAND,
+					"package.json": PACKAGE_JSON,
+					"bin/serve": "#!/bin/sh\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") assert.strictEqual(error.problem, "not-executable");
+			}),
+		);
+
+		it.effect("a launcher named by both an MCP and an LSP server ships once with its mode", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_SHARED_LAUNCHER,
+					"package.json": PACKAGE_JSON,
+					"bin/serve": "#!/bin/sh\n",
+				});
+				yield* fs.chmod(path.join(root, "bin/serve"), 0o755);
+				const [claude] = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.deepStrictEqual(
+					claude?.plan.added.filter((file) => file === "bin/serve"),
+					["bin/serve"],
+				);
+				const mode = (yield* fs.stat(path.join(root, "builds/claude/bin/serve"))).mode & 0o777;
+				assert.strictEqual(mode, 0o755);
+			}),
+		);
+
+		for (const [label, fixture, file] of [
+			["a . segment", SERVER_DOTTED, "bin/../bin/./start.sh"],
+			["a .. segment that stays inside the plugin", SERVER_CLIMB_INSIDE, "a/../bin/start.sh"],
+			["a .. segment that climbs out of the plugin", SERVER_ESCAPE, "a/../../escape.sh"],
+		] as const) {
+			it.effect(`a server path with ${label} is ShippedFileInvalid not-normal`, () =>
+				Effect.gen(function* () {
+					const root = yield* writeTree({
+						"pluginfinity.config.ts": fixture,
+						"package.json": PACKAGE_JSON,
+						"bin/start.sh": "#!/bin/sh\n",
+					});
+					const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+					assert.strictEqual(error._tag, "ShippedFileInvalid");
+					if (error._tag === "ShippedFileInvalid") {
+						assert.strictEqual(error.problem, "not-normal");
+						assert.strictEqual(error.file, file);
+						assert.strictEqual(error.referencedBy, "mcpServers.mcp");
+					}
+				}),
+			);
+		}
+
+		it.effect("a server launcher symlinked out of the plugin is ShippedFileInvalid outside-root", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const outside = yield* writeTree({ "start.sh": "#!/bin/sh\n" });
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_PLAIN,
+					"package.json": PACKAGE_JSON,
+				});
+				yield* fs.makeDirectory(path.join(root, "bin"));
+				yield* fs.symlink(path.join(outside, "start.sh"), path.join(root, "bin/start.sh"));
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") {
+					assert.strictEqual(error.problem, "outside-root");
+					assert.strictEqual(error.file, "bin/start.sh");
+				}
+			}),
+		);
+
+		it.effect("a file under a listed directory symlinked out of the plugin is ShippedFileInvalid outside-root", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const outside = yield* writeTree({ secret: "secret\n" });
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_SHARE,
+					"package.json": PACKAGE_JSON,
+					"share/data.json": "{}\n",
+				});
+				yield* fs.symlink(path.join(outside, "secret"), path.join(root, "share/k"));
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") {
+					assert.strictEqual(error.problem, "outside-root");
+					assert.strictEqual(error.file, "share/k");
+					assert.strictEqual(error.referencedBy, "files");
+				}
+			}),
+		);
+
+		for (const [label, fixture, tree, shipped] of [
+			[
+				"a directory in an env value",
+				SERVER_DIR_ENV,
+				{ "share/data.json": "{}\n", "share/n/x.txt": "x\n" },
+				["share/data.json", "share/n/x.txt"],
+			],
+			["a directory written with a trailing /", SERVER_DIR_SLASH, { "share/data.json": "{}\n" }, ["share/data.json"]],
+			["a PATH-style list", SERVER_PATH_ENV, { "bin/tool": "#!/bin/sh\n" }, ["bin/tool"]],
+		] as const) {
+			it.effect(`a server naming ${label} ships the directory's files on both targets`, () =>
+				Effect.gen(function* () {
+					const fs = yield* FileSystem.FileSystem;
+					const path = yield* Path.Path;
+					const root = yield* writeTree({ "pluginfinity.config.ts": fixture, "package.json": PACKAGE_JSON, ...tree });
+					yield* build({ selection: nearest(root), targets: [], check: false });
+					for (const id of ["claude", "copilot"])
+						for (const file of shipped)
+							assert.isTrue(yield* fs.exists(path.join(root, "builds", id, file)), `${id} ${file}`);
+					const check = yield* build({ selection: nearest(root), targets: [], check: true });
+					assert.isTrue(check.every((target) => target.plan.clean));
+				}),
+			);
+		}
+
+		it.effect("a directory as a whole command is ShippedFileInvalid directory", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_DIR_COMMAND,
+					"package.json": PACKAGE_JSON,
+					"bin/serve": "#!/bin/sh\n",
+				});
+				yield* fs.chmod(path.join(root, "bin"), 0o755);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") {
+					assert.strictEqual(error.problem, "directory");
+					assert.strictEqual(error.file, "bin");
+					assert.strictEqual(error.referencedBy, "mcpServers.mcp");
+					assert.include(error.message, "is a directory");
+				}
+			}),
+		);
+
+		it.effect("a file reference with a trailing / is ShippedFileInvalid missing", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_FILE_SLASH,
+					"package.json": PACKAGE_JSON,
+					"bin/start.sh": "#!/bin/sh\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") assert.strictEqual(error.problem, "missing");
+			}),
+		);
+
+		it.effect("a file under a server-referenced directory symlinked out of the plugin is outside-root", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const outside = yield* writeTree({ secret: "secret\n" });
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_DIR_ENV,
+					"package.json": PACKAGE_JSON,
+					"share/data.json": "{}\n",
+				});
+				yield* fs.symlink(path.join(outside, "secret"), path.join(root, "share/k"));
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") {
+					assert.strictEqual(error.problem, "outside-root");
+					assert.strictEqual(error.file, "share/k");
+					assert.strictEqual(error.referencedBy, "mcpServers.mcp");
+				}
+			}),
+		);
+
+		it.effect("a host root spelling in a server is ComponentsInvalid on both targets", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": SERVER_HOST_SPELLING,
+					"package.json": PACKAGE_JSON,
+					"bin/start.sh": "#!/bin/sh\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ComponentsInvalid");
+				if (error._tag !== "ComponentsInvalid") return;
+				assert.deepStrictEqual(
+					error.components.map((c) => (c._tag === "ComponentInvalid" ? [c.target, c.issues.map((i) => i.key)] : [])),
+					[
+						["claude", ["mcpServers.mcp.args"]],
+						["copilot", ["mcpServers.mcp.args"]],
+					],
+				);
+			}),
+		);
+
+		it.effect("a files entry naming builds/ is ConfigInvalid", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({ "pluginfinity.config.ts": FILES_BUILDS, "package.json": PACKAGE_JSON });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ConfigInvalid");
+			}),
+		);
+
+		it.effect("a listed directory builds and then checks clean", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_SHARE,
+					"package.json": PACKAGE_JSON,
+					"share/data.json": "{}\n",
+				});
+				const [claude] = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.include(claude?.plan.added ?? [], "share/data.json");
+				const check = yield* build({ selection: nearest(root), targets: [], check: true });
+				assert.isTrue(check.every((target) => target.plan.clean));
+			}),
+		);
+
+		it.effect("a missing files entry is ShippedFileInvalid naming files", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({ "pluginfinity.config.ts": FILES_MISSING, "package.json": PACKAGE_JSON });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				// The CLI reports a finding (exit 1) only for what isBuildError recognises.
+				assert.isTrue(isBuildError(error));
+				if (error._tag === "ShippedFileInvalid") assert.strictEqual(error.referencedBy, "files");
+			}),
+		);
+
+		it.effect("a files entry reaching into lib/pluginfinity/ is PathConflict", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_RESERVED,
+					"package.json": PACKAGE_JSON,
+					"lib/pluginfinity/server.sh": "",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag === "PathConflict") assert.strictEqual(error.file, "lib/pluginfinity/server.sh");
+			}),
+		);
+
+		it.effect("a files entry landing on a generated server file is PathConflict", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_COLLIDE,
+					"package.json": PACKAGE_JSON,
+					".mcp.json": "{}\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag === "PathConflict") assert.strictEqual(error.file, ".mcp.json");
+			}),
+		);
+
+		it.effect("a launcher both server-referenced and under a files directory ships once", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_OVERLAP,
+					"package.json": PACKAGE_JSON,
+					"bin/start-mcp.sh": "#!/bin/sh\n",
+				});
+				const [claude] = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.deepStrictEqual(
+					claude?.plan.added.filter((file) => file === "bin/start-mcp.sh"),
+					["bin/start-mcp.sh"],
+				);
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/claude/bin/start-mcp.sh")));
+			}),
+		);
+
+		it.effect("an unresolved LSP field on Copilot is collected in ComponentsInvalid", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({ "pluginfinity.config.ts": LSP_UNRESOLVED, "package.json": PACKAGE_JSON });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ComponentsInvalid");
 			}),
 		);
 
@@ -199,16 +563,47 @@ describe("build with hooks", () => {
 			Effect.gen(function* () {
 				const root = yield* hookedPlugin();
 				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				const lib = (target: string) =>
+					hookLibFiles(target as "claude" | "copilot", "hooked", ENGINE_VERSION).map((file) => file.path);
 				assert.deepStrictEqual(
 					builds.map((entry) => [entry.target, entry.plan.added]),
 					[
-						["claude", [".claude-plugin/plugin.json", "hooks/hooks.json", "hooks/lib/output.sh", "hooks/start.sh"]],
+						[
+							"claude",
+							[
+								".claude-plugin/plugin.json",
+								"hooks/hooks.json",
+								...lib("claude"),
+								"hooks/lib/output.sh",
+								"hooks/start.sh",
+							].sort(),
+						],
 						[
 							"copilot",
-							["com.github.copilot/hooks/hooks.json", "hooks/lib/output.sh", "hooks/start.copilot.sh", "plugin.json"],
+							[
+								"com.github.copilot/hooks/hooks.json",
+								...lib("copilot"),
+								"hooks/lib/output.sh",
+								"hooks/start.copilot.sh",
+								"plugin.json",
+							].sort(),
 						],
 					],
 				);
+			}),
+		);
+
+		it.effect("build --check stays clean when a generated hook library file turns executable on disk", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* hookedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				for (const file of hookLibFiles("claude", "hooked", ENGINE_VERSION)) {
+					yield* fs.chmod(path.join(root, "builds/claude", file.path), 0o755);
+				}
+				const check = yield* build({ selection: nearest(root), targets: [], check: true });
+				assert.isTrue(check.every((entry) => entry.plan.clean));
 			}),
 		);
 
@@ -293,6 +688,81 @@ describe("build with hooks", () => {
 				assert.deepStrictEqual([error.target, error.file], ["claude", "hooks/hooks.json"]);
 			}),
 		);
+
+		it.effect("host.sh in each build names its host and the plugin", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* hookedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const claude = yield* fs.readFileString(path.join(root, "builds/claude/hooks/lib/pluginfinity/host.sh"));
+				const copilot = yield* fs.readFileString(path.join(root, "builds/copilot/hooks/lib/pluginfinity/host.sh"));
+				assert.include(claude, "PLUGINFINITY_HOST=claude\nPLUGINFINITY_PLUGIN='hooked'\n");
+				assert.include(copilot, "PLUGINFINITY_HOST=copilot\n");
+			}),
+		);
+
+		it.effect("a plugin without hooks gets no library", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* plugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/hooks")));
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/hooks")));
+			}),
+		);
+
+		it.effect("a source file under hooks/lib/pluginfinity/ is a PathConflict", () =>
+			Effect.gen(function* () {
+				const root = yield* hookedPlugin(HOOKED, { "hooks/lib/pluginfinity/mine.sh": "echo mine\n" });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.strictEqual(error.file, "hooks/lib/pluginfinity/mine.sh");
+				assert.strictEqual(error.target, "claude");
+			}),
+		);
+
+		it.effect("a source file at exactly hooks/lib/pluginfinity is a PathConflict", () =>
+			Effect.gen(function* () {
+				const root = yield* hookedPlugin(HOOKED, { "hooks/lib/pluginfinity": "not a directory\n" });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.deepStrictEqual([error.target, error.file], ["claude", "hooks/lib/pluginfinity"]);
+			}),
+		);
+
+		it.effect("a plugin whose every hook is fallback omit gets no library", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* hookedPlugin(
+					`export default {
+	name: "hooked",
+	description: "Fixture plugin.",
+	hooks: { Setup: [{ script: "hooks/start.sh", fallback: "omit" }] },
+	copilot: true,
+};\n`,
+				);
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/hooks/lib/pluginfinity")));
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/hooks/hooks.json")));
+			}),
+		);
+
+		it.effect("--check reports a stale injected library as drift", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* hookedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				yield* fs.writeFileString(path.join(root, "builds/claude/hooks/lib/pluginfinity/hook.sh"), "# old\n");
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: true }));
+				assert.strictEqual(error._tag, "BuildStale");
+			}),
+		);
 	});
 });
 
@@ -359,6 +829,136 @@ describe("build with skills", () => {
 					"Guide.\nCopilot only.\n",
 				);
 				assert.strictEqual(yield* read(root, "builds/copilot/skills/alpha/assets/data.json"), "{}\n");
+			}),
+		);
+
+		it.effect("a skill's references/*.md gets its tokens and pluginfinity links rendered per target", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/references/guide.md":
+						"Use {{tool Read}}. See [x](pluginfinity://skill/beta/references/x.md) and {{skill beta}}.\n",
+					"skills/beta/SKILL.md": "---\ndescription: Does beta.\n---\nBeta.\n",
+					"skills/beta/references/x.md": "X.\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.strictEqual(
+					yield* read(root, "builds/claude/skills/alpha/references/guide.md"),
+					`Use Read. See [x](\${CLAUDE_PLUGIN_ROOT}/skills/beta/references/x.md) and /valid-claude:beta.\n`,
+				);
+				assert.strictEqual(
+					yield* read(root, "builds/copilot/skills/alpha/references/guide.md"),
+					"Use view. See x (the `beta` skill's `references/x.md`) and /valid-plugin:beta.\n",
+				);
+			}),
+		);
+
+		it.effect("{{plugin_root}} in a Copilot body fails the build naming the file, the target and the line", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": "---\ndescription: Does alpha.\n---\n\nRun {{plugin_root}}/bin/x.\n",
+				});
+				yield* build({ selection: nearest(root), targets: ["claude"], check: false });
+				assert.include(yield* read(root, "builds/claude/skills/alpha/SKILL.md"), `Run \${CLAUDE_PLUGIN_ROOT}/bin/x.`);
+				const error = yield* failure(root);
+				assert.match(error.path, /skills\/alpha\/SKILL\.md$/);
+				assert.strictEqual(error.target, "copilot");
+				assert.strictEqual(error.issues[0]?.key, "line 5");
+				assert.include(error.issues[0]?.message, "{{plugin_root}}");
+			}),
+		);
+
+		it.effect("a token inside a claude-only host block builds clean on both targets", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": [
+						"---",
+						"description: Does alpha.",
+						"---",
+						"<!-- pluginfinity:only claude -->",
+						"Run {{plugin_root}}/bin/x.",
+						"<!-- /pluginfinity:only -->",
+						"Always.",
+						"",
+					].join("\n"),
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.include(yield* read(root, "builds/claude/skills/alpha/SKILL.md"), `Run \${CLAUDE_PLUGIN_ROOT}/bin/x.`);
+				assert.notInclude(yield* read(root, "builds/copilot/skills/alpha/SKILL.md"), "plugin_root");
+			}),
+		);
+
+		it.effect("a token problem below or inside a host block reports its source line", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": [
+						"---",
+						"description: Does alpha.",
+						"---",
+						"<!-- pluginfinity:only claude -->",
+						"Claude only.",
+						"<!-- /pluginfinity:only -->",
+						"{{plugin_root}}",
+						"<!-- pluginfinity:only copilot -->",
+						"Copilot only.",
+						"{{tool TodoWrite}}",
+						"<!-- /pluginfinity:only -->",
+						"",
+					].join("\n"),
+					"skills/alpha/references/guide.md": [
+						"<!-- pluginfinity:only claude -->",
+						"Claude only.",
+						"<!-- /pluginfinity:only -->",
+						"{{tool TodoWrite}}",
+						"",
+					].join("\n"),
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: ["copilot"], check: false }));
+				if (error._tag !== "ComponentsInvalid") throw new Error(`expected ComponentsInvalid, got ${error._tag}`);
+				assert.deepStrictEqual(
+					error.components.map((component) => [
+						component.path.split("/skills/")[1],
+						component.issues.map((found) => found.key),
+					]),
+					[
+						["alpha/SKILL.md", ["line 7", "line 10"]],
+						["alpha/references/guide.md", ["line 4"]],
+					],
+				);
+			}),
+		);
+
+		it.effect("a link to a skill a target leaves out fails on that target only", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/references/guide.md": "See [beta](pluginfinity://skill/beta).\n",
+					"skills/beta/SKILL.md": "---\ndescription: Does beta.\ntargets:\n  copilot: false\n---\nBeta.\n",
+				});
+				yield* build({ selection: nearest(root), targets: ["claude"], check: false });
+				const error = yield* failure(root);
+				assert.strictEqual(error.target, "copilot");
+				assert.include(error.issues[0]?.message, 'no skill "beta"');
+			}),
+		);
+
+		it.effect("token problems in SKILL.md and a reference file are each reported on their own file", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": "---\ndescription: Does alpha.\n---\n{{plugin_root}}\n",
+					"skills/alpha/references/guide.md": "ok\n\n{{tool TodoWrite}} [g](pluginfinity://skill/ghost)\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: ["copilot"], check: false }));
+				if (error._tag !== "ComponentsInvalid") throw new Error(`expected ComponentsInvalid, got ${error._tag}`);
+				assert.deepStrictEqual(
+					error.components.map((component) => [
+						component.path.split("/skills/")[1],
+						component.target,
+						component.issues.map((found) => found.key),
+					]),
+					[
+						["alpha/SKILL.md", "copilot", ["line 4"]],
+						["alpha/references/guide.md", "copilot", ["line 3", "line 3"]],
+					],
+				);
 			}),
 		);
 
@@ -671,6 +1271,80 @@ describe("build with agents", () => {
 				}),
 		);
 
+		it.effect("an agent body renders an {{agent}} token as the agent id under each target's plugin name", () =>
+			Effect.gen(function* () {
+				const root = yield* agentPlugin({
+					"agents/helper.md": "---\nname: helper\ndescription: Helps.\n---\nHand off to {{agent other}}.\n",
+					"agents/other.md": "---\nname: other\ndescription: Other.\n---\nOther.\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.include(yield* read(root, "builds/claude/agents/helper.md"), "Hand off to valid-claude:other.");
+				assert.include(
+					yield* read(root, "builds/copilot/com.github.copilot/agents/helper.agent.md"),
+					"Hand off to valid-plugin:other.",
+				);
+			}),
+		);
+
+		it.effect("an agent body token problem names the agent file, the target and the file line", () =>
+			Effect.gen(function* () {
+				const root = yield* agentPlugin({
+					"agents/helper.md": "---\nname: helper\ndescription: Helps.\n---\n\nUse {{tool TodoWrite}}.\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				if (error._tag !== "ComponentsInvalid") throw new Error(`expected ComponentsInvalid, got ${error._tag}`);
+				assert.deepStrictEqual(
+					error.components.map((component) => [component.target, component.issues.map((found) => found.key)]),
+					[["copilot", ["line 6"]]],
+				);
+				assert.match(error.components[0]?.path ?? "", /agents\/helper\.md$/);
+			}),
+		);
+
+		it.effect("a token problem's remediation points at host blocks and the escape, not a targets block", () =>
+			Effect.gen(function* () {
+				const root = yield* agentPlugin({
+					"agents/helper.md": "---\nname: helper\ndescription: Helps.\n---\n\nUse {{tool TodoWrite}}.\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				if (error._tag !== "ComponentsInvalid") throw new Error(`expected ComponentsInvalid, got ${error._tag}`);
+				const [component] = error.components;
+				assert.deepStrictEqual(
+					component?.issues.map((found) => found.kind),
+					["token"],
+				);
+				const hint = component?.remediation.hint ?? "";
+				assert.include(hint, "<!-- pluginfinity:only claude -->");
+				assert.include(hint, "\\{{");
+				assert.notInclude(hint, "targets.copilot");
+				assert.include(error.remediation.hint, "<!-- pluginfinity:only claude -->");
+			}),
+		);
+
+		it.effect("an agent token problem below a host block reports its source line", () =>
+			Effect.gen(function* () {
+				const root = yield* agentPlugin({
+					"agents/helper.md": [
+						"---",
+						"name: helper",
+						"description: Helps.",
+						"---",
+						"<!-- pluginfinity:only claude -->",
+						"Claude only.",
+						"<!-- /pluginfinity:only -->",
+						"Use {{tool TodoWrite}}.",
+						"",
+					].join("\n"),
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: ["copilot"], check: false }));
+				if (error._tag !== "ComponentsInvalid") throw new Error(`expected ComponentsInvalid, got ${error._tag}`);
+				assert.deepStrictEqual(
+					error.components.map((component) => component.issues.map((found) => found.key)),
+					[["line 8"]],
+				);
+			}),
+		);
+
 		it.effect("an agent whose name differs from its file is reported", () =>
 			Effect.gen(function* () {
 				const root = yield* agentPlugin({ "agents/helper.md": "---\nname: other\ndescription: x\n---\n" });
@@ -807,6 +1481,127 @@ describe("validate", () => {
 					),
 				);
 				assert.strictEqual(error._tag, "HostRejected");
+			}),
+		);
+	});
+});
+
+describe("build notes", () => {
+	/** A plugin whose agent, skill, hooks and LSP server each lose something on Copilot. */
+	const notedPlugin = () =>
+		writeTree({
+			"pluginfinity.config.ts": NOTED,
+			"package.json": PACKAGE_JSON,
+			"hooks/setup.sh": "#!/bin/bash\n",
+			"agents/x.md": NOTED_AGENT,
+			"skills/s/SKILL.md": NOTED_SKILL,
+			"skills/plain/SKILL.md": PLAIN_SKILL,
+		});
+
+	const EXPECTED: ReadonlyArray<BuildNote> = [
+		{ target: "copilot", path: "agents/x.md", kind: "dropped", name: "color" },
+		{ target: "copilot", path: "agents/x.md", kind: "dropped", name: "maxTurns" },
+		{ target: "copilot", path: "skills/s/SKILL.md", kind: "degraded", name: "paths" },
+		{ target: "copilot", path: "skills/s/SKILL.md", kind: "tool-dropped", name: "ToolSearch" },
+		{ target: "copilot", path: "config", kind: "dropped", name: "lspServers.md.diagnostics" },
+		{ target: "copilot", path: "config", kind: "hook-omitted", name: "Setup" },
+	];
+
+	layer(NodeServices.layer)((it) => {
+		it.effect("each target's build carries its notes, sorted by component, then kind, then name", () =>
+			Effect.gen(function* () {
+				const root = yield* notedPlugin();
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.deepStrictEqual(
+					builds.map((one) => [one.target, one.notes]),
+					[
+						["claude", []],
+						["copilot", EXPECTED],
+					],
+				);
+			}),
+		);
+
+		it.effect("build --check returns the same notes as a write", () =>
+			Effect.gen(function* () {
+				const root = yield* notedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const builds = yield* build({ selection: nearest(root), targets: ["copilot"], check: true });
+				assert.deepStrictEqual(builds[0]?.notes, EXPECTED);
+			}),
+		);
+
+		it.effect("the hook scripts a target ships do not depend on which targets are selected", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* notedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/hooks/setup.sh")));
+				yield* build({ selection: nearest(root), targets: ["copilot"], check: true });
+				yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/hooks/setup.sh")));
+			}),
+		);
+
+		it.effect("validate reports the same notes", () =>
+			Effect.gen(function* () {
+				const root = yield* notedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const validations = yield* validate({ selection: nearest(root), targets: ["copilot"], skipHosts: true });
+				assert.deepStrictEqual(validations[0]?.notes, EXPECTED);
+			}),
+		);
+	});
+});
+
+describe("build with a plugin's own MCP tools", () => {
+	layer(NodeServices.layer)((it) => {
+		it.effect(
+			"copilot translates tools of servers it declares under the Claude name, and drops one declared only on Claude",
+			() =>
+				Effect.gen(function* () {
+					const fs = yield* FileSystem.FileSystem;
+					const path = yield* Path.Path;
+					const root = yield* writeTree({
+						"pluginfinity.config.ts": OWN_MCP,
+						"package.json": PACKAGE_JSON,
+						"agents/x.md": OWN_MCP_AGENT,
+					});
+					const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+					const copilot = yield* fs.readFileString(
+						path.join(root, "builds/copilot/com.github.copilot/agents/x.agent.md"),
+					);
+					assert.include(copilot, "tools:\n  - mcp/describe\n");
+					assert.notInclude(copilot, "only");
+					assert.deepStrictEqual(builds.find((one) => one.target === "copilot")?.notes, [
+						{ target: "copilot", path: "agents/x.md", kind: "tool-dropped", name: "mcp__plugin_okfit_cl__only" },
+					]);
+					const claude = yield* fs.readFileString(path.join(root, "builds/claude/agents/x.md"));
+					assert.include(claude, "mcp__plugin_okfit_mcp__describe");
+					assert.include(claude, "mcp__plugin_okfit_cl__only");
+					assert.deepStrictEqual(builds.find((one) => one.target === "claude")?.notes, []);
+				}),
+		);
+
+		it.effect("names agent ids and skill commands by each target's own plugin name, own MCP tools by Claude's", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": OWN_MCP.replace("copilot: true", 'copilot: { name: "x" }'),
+					"package.json": PACKAGE_JSON,
+					"agents/a.md":
+						"---\nname: a\ndescription: Does a.\n---\n\n{{agent a}} {{skill k}} {{tool mcp__plugin_okfit_mcp__describe}}\n",
+					"skills/k/SKILL.md": "---\nname: k\ndescription: Does k.\n---\n\nBody.\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const copilot = yield* fs.readFileString(
+					path.join(root, "builds/copilot/com.github.copilot/agents/a.agent.md"),
+				);
+				assert.include(copilot, "x:a /x:k mcp-describe");
+				const claude = yield* fs.readFileString(path.join(root, "builds/claude/agents/a.md"));
+				assert.include(claude, "okfit:a /okfit:k mcp__plugin_okfit_mcp__describe");
 			}),
 		);
 	});
