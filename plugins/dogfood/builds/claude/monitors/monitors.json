@@ -1,0 +1,13 @@
+[
+	{
+		"name": "heartbeat",
+		"command": "PLUGINFINITY_MONITOR='heartbeat' bash \"${CLAUDE_PLUGIN_ROOT}/monitors/heartbeat.sh\"",
+		"description": "Notifies once per session that the dogfood heartbeat is alive"
+	},
+	{
+		"name": "skill-watch",
+		"command": "PLUGINFINITY_MONITOR='skill-watch' bash \"${CLAUDE_PLUGIN_ROOT}/monitors/skill-watch.sh\"",
+		"description": "Notifies once when the hook-eval skill is invoked",
+		"when": "on-skill-invoke:hook-eval"
+	}
+]

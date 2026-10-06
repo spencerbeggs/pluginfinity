@@ -7,7 +7,8 @@
 				"bash": "bash \"${PLUGIN_ROOT}/hooks/session-start.sh\"",
 				"timeoutSec": 5,
 				"env": {
-					"PLUGINFINITY_EVENT": "SessionStart"
+					"PLUGINFINITY_EVENT": "SessionStart",
+					"PLUGINFINITY_MATCHER": "startup"
 				}
 			}
 		],
@@ -28,7 +29,8 @@
 				"matcher": "Bash",
 				"timeoutSec": 5,
 				"env": {
-					"PLUGINFINITY_EVENT": "PreToolUse"
+					"PLUGINFINITY_EVENT": "PreToolUse",
+					"PLUGINFINITY_FAIL_CLOSED": "1"
 				}
 			},
 			{
@@ -55,6 +57,15 @@
 				"type": "command",
 				"bash": "bash \"${PLUGIN_ROOT}/hooks/post-edit.sh\"",
 				"matcher": "Edit|Write",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "PostToolUse"
+				}
+			},
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/post-read.sh\"",
+				"matcher": "Read",
 				"timeoutSec": 5,
 				"env": {
 					"PLUGINFINITY_EVENT": "PostToolUse"

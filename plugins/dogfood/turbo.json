@@ -3,12 +3,28 @@
 	"tasks": {
 		"build:dev": {
 			"cache": false,
-			"inputs": ["package.json", "pluginfinity.config.ts", "skills/**", "agents/**", "hooks/**"],
+			"inputs": [
+				"package.json",
+				"pluginfinity.config.ts",
+				"skills/**",
+				"agents/**",
+				"hooks/**",
+				"monitors/**",
+				"copilot-only/**"
+			],
 			"outputs": ["builds/**"]
 		},
 		"build:prod": {
 			"cache": false,
-			"inputs": ["package.json", "pluginfinity.config.ts", "skills/**", "agents/**", "hooks/**"],
+			"inputs": [
+				"package.json",
+				"pluginfinity.config.ts",
+				"skills/**",
+				"agents/**",
+				"hooks/**",
+				"monitors/**",
+				"copilot-only/**"
+			],
 			"outputs": ["builds/**"]
 		}
 	}

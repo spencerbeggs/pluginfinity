@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 . "$(dirname "$0")/lib/pluginfinity/hook.sh"
+hook_require_input
 
 cmd=$(hook_input tool_input.command)
 case "$cmd" in

@@ -53,3 +53,8 @@ setup() {
 		run ! grep -rqE '\{\{(tool|agent|skill|plugin_root)' "$BUILDS/$host" --include='*.md'
 	done
 }
+
+@test "the fallback token renders the tool on claude and the prose on copilot" {
+	grep -qF 'To ask a question, AskUserQuestion directly.' "$BUILDS/claude/$SKILL"
+	grep -qF 'To ask a question, ask the user directly.' "$BUILDS/copilot/$SKILL"
+}

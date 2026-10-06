@@ -78,3 +78,64 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 	run_hook copilot hooks/post-edit.sh posttooluse.edit.copilot.json
 	assert_hook_json .additionalContext "pluginfinity-dogfood saw an edit to /tmp/pf-dogfood-edit.txt"
 }
+
+@test "PreToolUse approves the allow marker with a reason on both targets" {
+	run_hook claude hooks/pre-tool-use.sh "$(hook_fixture PreToolUse '{"tool_name":"Bash","tool_input":{"command":"echo pf-dogfood-allow"}}')"
+	assert_hook_json .hookSpecificOutput.permissionDecision allow
+	assert_hook_json .hookSpecificOutput.permissionDecisionReason "pluginfinity-dogfood approves commands holding pf-dogfood-allow"
+	run_hook copilot hooks/pre-tool-use.sh "$(hook_fixture PreToolUse '{"tool_name":"Bash","tool_input":{"command":"echo pf-dogfood-allow"}}')"
+	assert_hook_json .permissionDecision allow
+}
+
+@test "the PreToolUse entry is failClosed in both generated hook files" {
+	jq -e '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[0] | .args | index("PLUGINFINITY_FAIL_CLOSED=1")' "$BATS_TEST_DIRNAME/../builds/claude/hooks/hooks.json"
+	grep -q "PLUGINFINITY_FAIL_CLOSED" "$BATS_TEST_DIRNAME/../builds/copilot/com.github.copilot/hooks/hooks.json"
+}
+
+@test "a crash in the failClosed hook denies when the build's variable is set, on both targets" {
+	local fx
+	fx=$(hook_fixture PreToolUse '{"tool_name":"Bash","tool_input":{"command":"echo pf-dogfood-closed-crash"}}')
+	run_hook claude hooks/pre-tool-use.sh "$fx" PLUGINFINITY_FAIL_CLOSED=1
+	assert_hook_json .hookSpecificOutput.permissionDecision deny
+	run_hook copilot hooks/pre-tool-use.sh "$fx" PLUGINFINITY_FAIL_CLOSED=1
+	assert_hook_json .permissionDecision deny
+	run_hook claude hooks/pre-tool-use.sh "$fx"
+	assert_hook_exit 0
+	[ -z "$output" ]
+}
+
+@test "every hook is a no-op on an empty payload" {
+	local f
+	for f in session-start user-prompt-submit pre-tool-use post-tool-use post-edit post-read stop subagent-start; do
+		for t in claude copilot; do
+			run_hook "$t" "hooks/$f.sh" /dev/null
+			assert_hook_exit 0
+			assert_hook_noop
+		done
+	done
+	grep -q "malformed or empty JSON" "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/error.log"
+}
+
+@test "SessionStart runs on a startup source and is skipped for another where Copilot ignores the matcher" {
+	jq -e '.hooks.SessionStart[0].matcher == "startup"' "$BATS_TEST_DIRNAME/../builds/claude/hooks/hooks.json"
+	local fx
+	fx=$(hook_fixture SessionStart '{"source":"resume"}')
+	run_hook copilot hooks/session-start.sh "$fx" PLUGINFINITY_MATCHER=startup
+	assert_hook_exit 0
+	[ -z "$output" ]
+	run_hook copilot hooks/session-start.sh sessionstart.startup.json PLUGINFINITY_MATCHER=startup
+	assert_hook_json .additionalContext "pluginfinity-dogfood is loaded on copilot (startup)"
+}
+
+@test "the Copilot hook file sets the matcher for the runtime to enforce" {
+	grep -q "PLUGINFINITY_MATCHER" "$BATS_TEST_DIRNAME/../builds/copilot/com.github.copilot/hooks/hooks.json"
+}
+
+@test "hook_tool_name gives each host's name for Read" {
+	local fx
+	fx=$(hook_fixture PostToolUse '{"tool_name":"Read","tool_input":{"file_path":"/tmp/x"}}')
+	run_hook claude hooks/post-read.sh "$fx"
+	assert_hook_json .hookSpecificOutput.additionalContext "pluginfinity-dogfood: the Read tool is called Read on claude"
+	run_hook copilot hooks/post-read.sh "$fx"
+	assert_hook_json .additionalContext "pluginfinity-dogfood: the Read tool is called view on copilot"
+}

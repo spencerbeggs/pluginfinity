@@ -2,6 +2,7 @@
 	"hooks": {
 		"SessionStart": [
 			{
+				"matcher": "startup",
 				"hooks": [
 					{
 						"type": "command",
@@ -41,6 +42,7 @@
 						"command": "env",
 						"args": [
 							"PLUGINFINITY_EVENT=PreToolUse",
+							"PLUGINFINITY_FAIL_CLOSED=1",
 							"bash",
 							"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use.sh"
 						],
@@ -90,6 +92,21 @@
 							"PLUGINFINITY_EVENT=PostToolUse",
 							"bash",
 							"${CLAUDE_PLUGIN_ROOT}/hooks/post-edit.sh"
+						],
+						"timeout": 5
+					}
+				]
+			},
+			{
+				"matcher": "Read",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PostToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/post-read.sh"
 						],
 						"timeout": 5
 					}
