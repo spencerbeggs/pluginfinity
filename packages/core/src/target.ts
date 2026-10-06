@@ -65,8 +65,15 @@ const NonEmpty = Schema.String.check(Schema.isMinLength(1));
 /** Write a target's servers to a file of their own, at a plugin-relative path. @public */
 export class InFile extends Schema.TaggedClass<InFile>()("file", { path: NonEmpty }) {}
 
-/** Write a target's servers inline in its manifest, under a key the manifest's allowlist admits. @public */
-export class InManifest extends Schema.TaggedClass<InManifest>()("manifest", { key: NonEmpty }) {}
+/**
+ * Write a target's servers inline in its manifest, under a key the manifest's
+ * allowlist admits. `reserves` is the plugin-relative file the host also loads
+ * servers from by default, such as Claude Code's `.mcp.json`; no file may ship
+ * there, since the host would load it beside the inline servers.
+ *
+ * @public
+ */
+export class InManifest extends Schema.TaggedClass<InManifest>()("manifest", { key: NonEmpty, reserves: NonEmpty }) {}
 
 /**
  * Where a target writes its MCP or LSP servers: a file of their own, or inline
@@ -240,7 +247,7 @@ export class Target extends Schema.Class<Target>("Target")({
 export const inFile = (path: string): InFile => InFile.make({ path });
 
 /** @public */
-export const inManifest = (key: string): InManifest => InManifest.make({ key });
+export const inManifest = (key: string, reserves: string): InManifest => InManifest.make({ key, reserves });
 
 /** @public */
 export const keep: Keep = Keep.make({});

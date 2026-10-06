@@ -159,11 +159,18 @@ describe("server placement", () => {
 		Effect.gen(function* () {
 			const decoded = yield* decodeTarget({
 				...minimalTarget,
-				mcp: { placement: { _tag: "manifest", key: "mcpServers" }, format: "claude-mcp-servers" },
-				lsp: { placement: { _tag: "manifest", key: "lspServers" }, format: "claude-lsp-servers", fields: {} },
+				mcp: {
+					placement: { _tag: "manifest", key: "mcpServers", reserves: ".mcp.json" },
+					format: "claude-mcp-servers",
+				},
+				lsp: {
+					placement: { _tag: "manifest", key: "lspServers", reserves: ".lsp.json" },
+					format: "claude-lsp-servers",
+					fields: {},
+				},
 			});
-			assert.deepStrictEqual(decoded.mcp.placement, inManifest("mcpServers"));
-			assert.deepStrictEqual(decoded.lsp.placement, inManifest("lspServers"));
+			assert.deepStrictEqual(decoded.mcp.placement, inManifest("mcpServers", ".mcp.json"));
+			assert.deepStrictEqual(decoded.lsp.placement, inManifest("lspServers", ".lsp.json"));
 		}),
 	);
 
@@ -176,7 +183,9 @@ describe("server placement", () => {
 
 	for (const [label, placement] of [
 		["an empty path", { _tag: "file", path: "" }],
-		["an empty manifest key", { _tag: "manifest", key: "" }],
+		["an empty manifest key", { _tag: "manifest", key: "", reserves: ".mcp.json" }],
+		["a manifest placement with no reserved file", { _tag: "manifest", key: "mcpServers" }],
+		["an empty reserved file", { _tag: "manifest", key: "mcpServers", reserves: "" }],
 		["an unknown placement", { _tag: "inline", key: "mcpServers" }],
 		["a bare path string", "mcp.json"],
 	] as const) {

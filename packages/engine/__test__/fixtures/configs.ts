@@ -138,6 +138,20 @@ export const FILES_COLLIDE = `export default {
 	copilot: true,
 };\n`;
 
+export const FILES_SHADOW = (file: string, targets: string) => `export default {
+	name: "files-shadow",
+	description: "Fixture plugin.",
+	files: ["${file}"],
+	${targets}
+};\n`;
+
+export const FILES_SHADOW_SERVER = `export default {
+	name: "files-shadow-server",
+	description: "Fixture plugin.",
+	mcpServers: { mcp: { command: "sh", args: ["\${PLUGIN_ROOT}/bin/start-mcp.sh", "--config=\${PLUGIN_ROOT}/.mcp.json"] } },
+	claude: true,
+};\n`;
+
 export const FILES_OVERLAP = `export default {
 	name: "files-overlap",
 	description: "Fixture plugin.",

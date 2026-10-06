@@ -33,8 +33,8 @@ sources:
     title: The Target class and its entries
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T05:04:26Z
-  body_sha256: 126fad8ce1b14adc201c4d12ca73a70d95523a98081b56dd3793211906c8b31e
+  at: 2026-10-06T05:08:28Z
+  body_sha256: bc8cc3970a52d8a164685a05a7a90017bf71cf32cb224920fd9f92f63d58fa6c
 ---
 
 # @pluginfinity/core
@@ -54,7 +54,7 @@ The plugin-wide half of the [config](../interfaces/config.md):[^config]
 - `McpServers`: MCP servers in Claude Code's `.mcp.json` server shape. `ServerEnv`, the `env` record of MCP and LSP servers, rejects keys starting with `PLUGINFINITY_`, which the build reserves for the variables it injects.[^mcp]
 - `LspServer` and `LspServers`: LSP servers in Claude Code's `.lsp.json` server shape, and `LSP_FIELDS`, the list every target's LSP field map must cover.[^lsp]
 - `SkillFrontmatter` and `AgentFrontmatter` in Claude Code's field names, with `SKILL_FIELDS` and `AGENT_FIELDS`, the lists every target's field maps must cover.[^frontmatter]
-- `Target`, a `Schema.Class` for the [target description](../models/target-description.md), validated at construction by `Target.make`, with an `lsp` part (a `placement`, a format from `LSP_FORMATS`, and a field map) beside `mcp` and a `pluginRoot.lsp` spelling. A placement is a `ServerPlacement`: `InFile` (a plugin-relative `path`) or `InManifest` (a manifest `key`), built with `inFile` and `inManifest`; its field-map entries (`Keep`, `Rename`, `Translate`, `Degrade`, `Drop`, `Unresolved`) and `Absent` are `Schema.TaggedClass`es, built with the `keep`, `rename`, `translate`, `degrade`, `drop`, `unresolved` and `absent` constructors.[^target]
+- `Target`, a `Schema.Class` for the [target description](../models/target-description.md), validated at construction by `Target.make`, with an `lsp` part (a `placement`, a format from `LSP_FORMATS`, and a field map) beside `mcp` and a `pluginRoot.lsp` spelling. A placement is a `ServerPlacement`: `InFile` (a plugin-relative `path`) or `InManifest` (a manifest `key` and the file it `reserves`), built with `inFile` and `inManifest`; its field-map entries (`Keep`, `Rename`, `Translate`, `Degrade`, `Drop`, `Unresolved`) and `Absent` are `Schema.TaggedClass`es, built with the `keep`, `rename`, `translate`, `degrade`, `drop`, `unresolved` and `absent` constructors.[^target]
 - `makeTargetSetting`, which builds a target key's value from that target's hooks schema.
 
 Core does not know which targets exist. [`@pluginfinity/targets`](targets.md) joins these base fields with one key per known target into `PluginfinityConfig`, which the [carrier](pluginfinity.md) exposes through `defineConfig`.

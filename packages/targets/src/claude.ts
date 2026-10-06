@@ -83,9 +83,10 @@ export const CLAUDE: Target = Target.make({
 		ownEvents: [],
 	},
 	// Servers go inline in plugin.json, not in a root .mcp.json or .lsp.json: repos conventionally gitignore
-	// .mcp.json as local dev config, so a committed build would silently ship no MCP server.
-	mcp: { placement: inManifest("mcpServers"), format: "claude-mcp-servers" },
-	lsp: { placement: inManifest("lspServers"), format: "claude-lsp-servers", fields: lspFields },
+	// .mcp.json as local dev config, so a committed build would silently ship no MCP server. Claude Code still
+	// loads those files by default, so they are reserved: nothing may ship there.
+	mcp: { placement: inManifest("mcpServers", ".mcp.json"), format: "claude-mcp-servers" },
+	lsp: { placement: inManifest("lspServers", ".lsp.json"), format: "claude-lsp-servers", fields: lspFields },
 	references: { style: "path" },
 	tools: {
 		names: {},

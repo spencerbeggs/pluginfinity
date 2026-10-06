@@ -356,7 +356,9 @@ const tokenContext = (
  * and an executable file when a whole `command`; a named directory ships every
  * file under it), and every file the `files` key lists, each once. A target
  * with a local server gets the server library under `lib/pluginfinity/`,
- * which is reserved the same way.
+ * which is reserved the same way. A target that writes its servers inline
+ * in its manifest also reserves the server file its host loads by default
+ * (Claude Code's `.mcp.json` and `.lsp.json`).
  */
 const planPlugin = (
 	prepared: PreparedPlugin,
@@ -472,8 +474,17 @@ const planPlugin = (
 			}
 
 			// The libraries' directories belong to pluginfinity; a source file there would shadow or join them.
-			const reserved = copied.find((file) =>
-				[HOOK_LIB_DIR, SERVER_LIB_DIR].some((dir) => file.path === dir || file.path.startsWith(`${dir}/`)),
+			// A server file the host loads by default is reserved when the target writes those servers inline,
+			// since the host would load a shipped one beside them.
+			const reservedFiles = new Set(
+				[target.mcp.placement, target.lsp.placement].flatMap((placement) =>
+					placement._tag === "manifest" ? [placement.reserves] : [],
+				),
+			);
+			const reserved = copied.find(
+				(file) =>
+					reservedFiles.has(file.path) ||
+					[HOOK_LIB_DIR, SERVER_LIB_DIR].some((dir) => file.path === dir || file.path.startsWith(`${dir}/`)),
 			);
 			if (reserved !== undefined) {
 				return yield* Effect.fail(new PathConflict({ path: config.path, target: id, file: reserved.path }));

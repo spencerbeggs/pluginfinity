@@ -31,8 +31,8 @@ sources:
     title: renderServers and its placement
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T05:04:26Z
-  body_sha256: 890fdc8798cb4580cf9a4d47db4f52871d442673d5075dce71348e5b2d085169
+  at: 2026-10-06T05:08:28Z
+  body_sha256: 2259d6ff05c645c38b117b6db95f36f75dd00944878c3409c1bc6e2956f66217
 ---
 
 # Claude Code's MCP and LSP servers go inline in plugin.json
@@ -44,8 +44,9 @@ The [target description](../models/target-description.md) had neither manifest n
 ## Decision
 
 - **Claude Code's servers are inline.** The claude target writes its MCP servers under `mcpServers` and its LSP servers under `lspServers` in `.claude-plugin/plugin.json`, each as the bare name-to-server map, and writes no `.mcp.json` or `.lsp.json`. The server content is unchanged: the root rewritten to `${CLAUDE_PLUGIN_ROOT}`, the injected `PLUGINFINITY_*` env, the `cwd` rule and the LSP field map. Claude Code accepts an inline map keyed by server name in both fields.[^claude-format][^owner-direction]
-- **Placement is target data.** `Target.mcp` and `Target.lsp` carry a `placement`: `InFile` with a plugin-relative `path`, or `InManifest` with the manifest `key`, built with `inFile` and `inManifest`. The format literals `claude-mcp-servers` and `claude-lsp-servers` encode the bare map. `renderServers` returns the manifest-placed maps by key, and `renderManifest` writes them through the manifest's key allowlist, after the metadata, `mcpServers` before `lspServers`. A test pins that every manifest-placed key is in that target's allowlist.[^target][^servers]
+- **Placement is target data.** `Target.mcp` and `Target.lsp` carry a `placement`: `InFile` with a plugin-relative `path`, or `InManifest` with the manifest `key` and the file it `reserves`, built with `inFile` and `inManifest`. The format literals `claude-mcp-servers` and `claude-lsp-servers` encode the bare map. `renderServers` returns the manifest-placed maps by key, and `renderManifest` writes them through the manifest's key allowlist, after the metadata, `mcpServers` before `lspServers`. A test pins that every manifest-placed key is in that target's allowlist.[^target][^servers]
 - **Copilot is unchanged.** Agent Plugins 1.0 forbids those manifest fields, so the copilot target keeps root `mcp.json` and `com.github.copilot/lsp.json` as `InFile` placements.[^copilot-format]
+- **The default files are reserved.** Claude Code still loads a root `.mcp.json` and `.lsp.json` beside the manifest's servers, so the claude target's placements reserve them: a source file that would ship there, whether from `files` or a path a server names, fails the build with `PathConflict`, as a file under `lib/pluginfinity/` does. Copilot's placements are files and reserve nothing beyond their own generated paths.[^target]
 - **A build removes the old files.** A `.mcp.json` or `.lsp.json` an earlier build wrote is not in the plan, so the next build deletes it and `build --check` reports it as removed.
 
 ## Alternatives rejected
@@ -58,7 +59,7 @@ The [target description](../models/target-description.md) had neither manifest n
 
 - A committed Claude build is complete whatever the repository ignores, and the `!plugins/*/builds/**/.mcp.json` negation in this repository's `.gitignore` is gone.
 - A plugin's `plugin.json` changes whenever a server does, so a server edit shows up as a manifest change in `build --check`.
-- A source `.mcp.json` listed in `files` no longer collides with a generated file on Claude Code; it would ship and Claude Code would load it before the inline servers.
+- A plugin that shipped its own `.mcp.json` through `files` builds for Copilot but fails for Claude Code with `PathConflict`; move those servers into the config.
 
 [^okfit-request]: okfit round-5 dogfood request mail, 2026-10-06
 [^owner-direction]: conversation with the repository owner

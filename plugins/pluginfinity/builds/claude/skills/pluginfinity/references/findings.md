@@ -41,7 +41,7 @@ entry of `builds` or `validations` carries a `notes` array of `{ "path", "kind",
 | `HookEventUnsupported` | A host lacks a hook event the config uses | Set `fallback: "omit"`, or give that host its own hooks for the event |
 | `HookScriptInvalid` | A hook script is missing, or not executable under `scripts.invoke: "exec"` | Create it or fix the path; `chmod +x` it or drop `exec` |
 | `ShippedFileInvalid` | A file a server names, or a `files` entry, cannot ship: `missing`, `not-executable` (a whole `command` without the exec bit), `directory` (a whole `command` that is a directory), `outside-root` (it or a symlink under it leaves the plugin) or `not-normal` (a `.`, `..` or empty segment) | Create the file or fix the path; `chmod +x` it or use `command: "sh"` with the path in `args`; name the launcher file, not its directory, as `command`; keep files inside the plugin |
-| `PathConflict` | A source file sits where the build writes a generated file, such as `hooks/hooks.json` or Copilot's `mcp.json`, or under the reserved `lib/pluginfinity/` or `hooks/lib/pluginfinity/` | Delete or move the source file |
+| `PathConflict` | A source file sits where the build writes a generated file, such as `hooks/hooks.json` or Copilot's `mcp.json`, on `.mcp.json` or `.lsp.json` in a Claude Code build (its servers are inline in `plugin.json`, and Claude would load the file too), or under the reserved `lib/pluginfinity/` or `hooks/lib/pluginfinity/` | Delete or move the source file; move servers from a `.mcp.json` or `.lsp.json` into `mcpServers` or `lspServers` |
 | `BuildStale` | `build --check` or `validate` found `builds/` out of date; the message names every file | Run `pluginfinity build` and commit the result |
 
 Common problems inside `ComponentsInvalid`:

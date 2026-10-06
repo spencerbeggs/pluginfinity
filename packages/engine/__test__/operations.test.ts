@@ -11,6 +11,8 @@ import {
 	FILES_MISSING,
 	FILES_OVERLAP,
 	FILES_RESERVED,
+	FILES_SHADOW,
+	FILES_SHADOW_SERVER,
 	FILES_SHARE,
 	HOOKED,
 	HOOKED_COMMAND,
@@ -550,6 +552,54 @@ describe("build", () => {
 				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
 				assert.strictEqual(error._tag, "PathConflict");
 				if (error._tag === "PathConflict") assert.strictEqual(error.file, "mcp.json");
+			}),
+		);
+
+		for (const file of [".mcp.json", ".lsp.json"]) {
+			it.effect(`a ${file} that would ship to Claude, beside its inline servers, is PathConflict`, () =>
+				Effect.gen(function* () {
+					const root = yield* writeTree({
+						"pluginfinity.config.ts": FILES_SHADOW(file, "claude: true,"),
+						"package.json": PACKAGE_JSON,
+						[file]: "{}\n",
+					});
+					const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+					assert.strictEqual(error._tag, "PathConflict");
+					if (error._tag !== "PathConflict") return;
+					assert.strictEqual(error.target, "claude");
+					assert.strictEqual(error.file, file);
+				}),
+			);
+		}
+
+		it.effect("a .mcp.json a server names is PathConflict on Claude", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_SHADOW_SERVER,
+					"package.json": PACKAGE_JSON,
+					"bin/start-mcp.sh": "#!/bin/sh\n",
+					".mcp.json": "{}\n",
+				});
+				yield* fs.chmod(path.join(root, "bin/start-mcp.sh"), 0o755);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag === "PathConflict") assert.strictEqual(error.file, ".mcp.json");
+			}),
+		);
+
+		it.effect("a .mcp.json listed in files ships to Copilot, whose servers are in files", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_SHADOW(".mcp.json", "copilot: true,"),
+					"package.json": PACKAGE_JSON,
+					".mcp.json": "{}\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/copilot/.mcp.json")));
 			}),
 		);
 

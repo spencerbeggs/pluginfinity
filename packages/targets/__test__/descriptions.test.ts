@@ -90,8 +90,8 @@ it("Claude keeps every LSP field and Copilot renames extensionToLanguage", () =>
 // those keys, so its servers stay in files.
 it("Claude places MCP and LSP servers inline in plugin.json; Copilot places them in files", () => {
 	const [claude, copilot] = [TARGETS.find((t) => t.id === "claude"), TARGETS.find((t) => t.id === "copilot")];
-	assert.deepStrictEqual(claude?.target.mcp.placement, inManifest("mcpServers"));
-	assert.deepStrictEqual(claude?.target.lsp.placement, inManifest("lspServers"));
+	assert.deepStrictEqual(claude?.target.mcp.placement, inManifest("mcpServers", ".mcp.json"));
+	assert.deepStrictEqual(claude?.target.lsp.placement, inManifest("lspServers", ".lsp.json"));
 	assert.deepStrictEqual(claude?.target.manifest.keys.slice(-2), ["mcpServers", "lspServers"]);
 	assert.deepStrictEqual(copilot?.target.mcp.placement, inFile("mcp.json"));
 	assert.deepStrictEqual(copilot?.target.lsp.placement, inFile("com.github.copilot/lsp.json"));
