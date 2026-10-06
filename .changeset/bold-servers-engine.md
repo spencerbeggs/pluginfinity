@@ -33,6 +33,5 @@ An agent `tools` or skill `allowed-tools` name `mcp__plugin_<plugin>_<server>__<
 ## Breaking Changes
 
 * `renderSkill` now returns a `RenderedSkill` (`files`, `notes`) and `renderAgent` a `RenderedAgent` (`file`, `notes`); `MappedFrontmatter` gains `drops`, and `targetHooks` returns `omitted`
-
 * `PlanError` no longer includes `NotImplemented`, and `BuildError` now includes `ShippedFileInvalid`
 * `lib/pluginfinity/` is reserved in every target: a shipped source file there fails with `PathConflict`

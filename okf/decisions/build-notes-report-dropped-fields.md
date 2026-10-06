@@ -22,8 +22,8 @@ sources:
     title: The note lines and the notes JSON
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T00:41:19Z
-  body_sha256: 0430aa30ead2297b71c53832c1fcb13278dd76567929de3e3a106f44b706de4e
+  at: 2026-10-06T00:46:30Z
+  body_sha256: e356919d868e86a88e176b7afa276cb5323eea201e8daa1552b71dc4393e2105
 ---
 
 # Build notes report what a target drops, degrades or omits
@@ -37,7 +37,7 @@ The [target description](../models/target-description.md) said dropping a field 
 - Every `build`, `build --check` and `validate` returns a list of info-level notes per target. A note is `{target, path, kind, name}` and never fails a command.[^notes]
 - The kinds, in their sort and print order:
   - `dropped`: a field the target's field map drops. This includes Claude Code's own drops of an agent's `permissionMode`, `mcpServers`, `hooks` and `initialPrompt`, and an LSP server field a target drops, named `<origin>.<server>.<field>`.
-  - `degraded`: a field moved into another form, a `description` suffix or a body section. A field is not reported when the component's `targets` block sets that host's `description`, since nothing is folded into it.
+  - `degraded`: a field moved into another form, a `description` suffix or a body section. A description-suffix field, such as `when_to_use` or `paths`, is not reported when the component's `targets` block sets that host's `description`, since nothing is folded into it; a body-section field, such as an agent's `skills`, is reported either way.
   - `tool-dropped`: a tool name the target cannot spell, or one its table drops.[^frontmatter]
   - `hook-omitted`: an event the target lacks whose entries all set `fallback: "omit"`.
 - A value a translation table drops, such as `model: inherit` on Copilot, gets no note: the host's default is the same value, so nothing is lost.

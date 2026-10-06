@@ -27,7 +27,7 @@ Every target with a local MCP or LSP server gets `lib/pluginfinity/server.sh`, a
 `pluginfinity build`, `build --check` and `validate` now list, under each target's `✓` line, what that host dropped, degraded or omitted, one line per source file:
 
 ```text
-✓ copilot: plugins/x/builds/copilot (0 added, 1 changed, 0 removed)
+✓ copilot: /work/plugins/x/builds/copilot (0 added, 1 changed, 0 removed)
   · agents/x.md: dropped color, maxTurns
   · skills/s/SKILL.md: degraded paths; tool-dropped ToolSearch
   · config: dropped lspServers.md.diagnostics; hook-omitted Setup

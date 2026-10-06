@@ -15,7 +15,7 @@ entry of `builds` or `validations` carries a `notes` array of `{ "path", "kind",
 | Kind | Means | What to do |
 | :-- | :-- | :-- |
 | `dropped` | The host has no such field, so the build left it out. `name` is the field, or `<origin>.<server>.<field>` for a server field under `config` | Nothing, if expected. If the host needs it, set that host's own field in the component's `targets` block |
-| `degraded` | The field was moved into another form: a `description` suffix (`when_to_use`, `paths`) or a body section (`skills`) | Nothing, or set `targets.<id>.description` to write that host's description yourself |
+| `degraded` | The field was moved into another form: a `description` suffix (`when_to_use`, `paths`) or a body section (`skills`) | Nothing. For a description suffix, setting `targets.<id>.description` writes that host's description yourself and clears the note; a body section is reported either way |
 | `tool-dropped` | The host has no name for the tool: a Claude-only tool, another plugin's MCP tool, or this plugin's MCP tool on a server that host does not declare | Check the name. For this plugin's own tools write `mcp__plugin_<plugin>_<server>__<tool>`; see [what each host gets](targets.md#tools) |
 | `hook-omitted` | The host lacks the event and every entry sets `fallback: "omit"` | Nothing, if the hook is optional on that host |
 
