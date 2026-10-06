@@ -89,3 +89,12 @@ Debug enabled: yes/no
 ```
 
 When it is written, tell the user the path.
+
+## Body tokens and links
+
+These lines exercise body tokens and plugin links; they are not evaluation steps.
+
+- Read files with Read and the dogfood server's echo tool, mcp__plugin_pluginfinity-dogfood_dogfood__echo.
+- Delegate to pluginfinity-dogfood:eval-subagent, or see the helper agent (`pluginfinity-dogfood:eval-subagent`).
+- This skill is /pluginfinity-dogfood:hook-eval; shape the report with [the report template](${CLAUDE_PLUGIN_ROOT}/skills/hook-eval/references/report-template.md).
+- The plugin root is ${CLAUDE_PLUGIN_ROOT}.

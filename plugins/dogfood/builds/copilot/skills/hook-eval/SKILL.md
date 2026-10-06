@@ -95,3 +95,11 @@ Debug enabled: yes/no
 ```
 
 When it is written, tell the user the path.
+
+## Body tokens and links
+
+These lines exercise body tokens and plugin links; they are not evaluation steps.
+
+- Read files with view and the dogfood server's echo tool, dogfood-echo.
+- Delegate to pluginfinity-dogfood:eval-subagent, or see the helper agent (`pluginfinity-dogfood:eval-subagent`).
+- This skill is /pluginfinity-dogfood:hook-eval; shape the report with the report template (the `hook-eval` skill's `references/report-template.md`).

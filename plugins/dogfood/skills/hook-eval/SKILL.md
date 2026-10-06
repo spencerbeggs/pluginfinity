@@ -113,3 +113,14 @@ Debug enabled: yes/no
 ```
 
 When it is written, tell the user the path.
+
+## Body tokens and links
+
+These lines exercise body tokens and plugin links; they are not evaluation steps.
+
+- Read files with {{tool Read}} and the dogfood server's echo tool, {{tool mcp__plugin_pluginfinity-dogfood_dogfood__echo}}.
+- Delegate to {{agent eval-subagent}}, or see [the helper agent](pluginfinity://agent/eval-subagent).
+- This skill is {{skill hook-eval}}; shape the report with [the report template](pluginfinity://skill/hook-eval/references/report-template.md).
+<!-- pluginfinity:only claude -->
+- The plugin root is {{plugin_root}}.
+<!-- /pluginfinity:only -->
