@@ -27,6 +27,8 @@ import type { TargetHookEvent } from "./hooks.js";
 import { hookCommandFiles, hookScripts, renderHooks, targetHooks } from "./hooks.js";
 import type { LoadedConfig } from "./loader.js";
 import { renderManifest, serializeManifest } from "./manifest.js";
+import type { BuildNote } from "./notes.js";
+import { CONFIG_NOTE_PATH, sortNotes } from "./notes.js";
 import type { ConfigSelection, PreparedPlugin } from "./selection.js";
 import { preparePlugins } from "./selection.js";
 import { SERVER_LIB_DIR, serverLibFiles } from "./server-lib.js";
@@ -71,6 +73,8 @@ export interface TargetBuild {
 	readonly out: string;
 	/** How the build directory differed before this run; empty after a write. */
 	readonly plan: EmitPlan;
+	/** What the target dropped, degraded or omitted, sorted by path (the config last), then kind, then name. */
+	readonly notes: ReadonlyArray<BuildNote>;
 }
 
 /**
@@ -84,6 +88,8 @@ export interface TargetValidation {
 	readonly out: string;
 	/** Whether the host CLI checked the build, or `--no-host` skipped it. */
 	readonly host: "passed" | "skipped";
+	/** The same notes `build` reports for the target. */
+	readonly notes: ReadonlyArray<BuildNote>;
 }
 
 const PackageVersion = Schema.fromJsonString(Schema.Struct({ version: Schema.String }));
@@ -366,7 +372,13 @@ const planPlugin = (
 			);
 
 		const planned: Array<PlannedTarget> = [];
-		for (const { id, target, events } of hooks) {
+		for (const { id, target, events, omitted } of hooks) {
+			const notes: Array<BuildNote> = omitted.map((event) => ({
+				target: id,
+				path: CONFIG_NOTE_PATH,
+				kind: "hook-omitted",
+				name: event,
+			}));
 			const own = new Set(filesOf(events));
 			const servers = serverFiles(target, id, config.config);
 			const serverFilesShipped: Array<string> = [];
@@ -404,12 +416,19 @@ const planPlugin = (
 				if (!failures.some((seen) => seen.message === issue.message)) failures.push(issue);
 			}
 			generated.push(...rendered.files);
+			notes.push(...rendered.notes);
 			if (rendered.stdio) generated.push(...serverLibFiles());
-			for (const skill of skills)
-				generated.push(...((yield* collect(renderSkill(target, id, skill, KNOWN_TARGET_IDS))) ?? []));
+			for (const skill of skills) {
+				const skillRender = yield* collect(renderSkill(target, id, skill, KNOWN_TARGET_IDS));
+				if (skillRender === undefined) continue;
+				generated.push(...skillRender.files);
+				notes.push(...skillRender.notes);
+			}
 			for (const agent of agents) {
-				const file = yield* collect(renderAgent(target, id, agent, KNOWN_TARGET_IDS));
-				if (file !== undefined) generated.push(file);
+				const agentRender = yield* collect(renderAgent(target, id, agent, KNOWN_TARGET_IDS));
+				if (agentRender === undefined) continue;
+				generated.push(agentRender.file);
+				notes.push(...agentRender.notes);
 			}
 
 			// The libraries' directories belong to pluginfinity; a source file there would shadow or join them.
@@ -429,7 +448,16 @@ const planPlugin = (
 			const files = [...generated, ...copied];
 			const out = path.join(config.root, "builds", id);
 			const plan = yield* planEmit(out, files);
-			planned.push({ config: config.path, target: id, out, plan, files, name: String(manifest.name), version });
+			planned.push({
+				config: config.path,
+				target: id,
+				out,
+				plan,
+				notes: sortNotes(notes),
+				files,
+				name: String(manifest.name),
+				version,
+			});
 		}
 		if (failures.length > 0) {
 			return yield* Effect.fail(new ComponentsInvalid({ path: config.path, components: failures }));
@@ -463,7 +491,7 @@ export const build = (
 			const planned = yield* planPlugin(prepared);
 			if (input.check) yield* requireClean(prepared.config.path, planned);
 			else for (const target of planned) yield* applyEmit(target.out, target.files, target.plan);
-			for (const { config, target, out, plan } of planned) builds.push({ config, target, out, plan });
+			for (const { config, target, out, plan, notes } of planned) builds.push({ config, target, out, plan, notes });
 		}
 		return builds;
 	});
@@ -556,6 +584,7 @@ export const validate = (
 					target: target.target,
 					out: target.out,
 					host: input.skipHosts ? "skipped" : "passed",
+					notes: target.notes,
 				});
 			}
 		}

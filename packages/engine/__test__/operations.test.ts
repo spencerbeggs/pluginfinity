@@ -3,6 +3,7 @@ import { assert, describe, layer } from "@effect/vitest";
 import { ScriptedSpawner } from "@effected/commands";
 import { Effect, FileSystem, Path } from "effect";
 import { hookLibFiles } from "../src/hook-lib.js";
+import type { BuildNote } from "../src/index.js";
 import { ENGINE_VERSION, build, isBuildError, preparePlugins, validate } from "../src/index.js";
 import {
 	FILES_BUILDS,
@@ -16,8 +17,12 @@ import {
 	HOOKED_EXEC,
 	HOOKED_UNSUPPORTED,
 	LSP_UNRESOLVED,
+	NOTED,
+	NOTED_AGENT,
+	NOTED_SKILL,
 	ONLY_COPILOT,
 	PACKAGE_JSON,
+	PLAIN_SKILL,
 	SERVER_CLIMB_INSIDE,
 	SERVER_DIR_COMMAND,
 	SERVER_DIR_ENV,
@@ -1256,6 +1261,62 @@ describe("validate", () => {
 					),
 				);
 				assert.strictEqual(error._tag, "HostRejected");
+			}),
+		);
+	});
+});
+
+describe("build notes", () => {
+	/** A plugin whose agent, skill, hooks and LSP server each lose something on Copilot. */
+	const notedPlugin = () =>
+		writeTree({
+			"pluginfinity.config.ts": NOTED,
+			"package.json": PACKAGE_JSON,
+			"hooks/setup.sh": "#!/bin/bash\n",
+			"agents/x.md": NOTED_AGENT,
+			"skills/s/SKILL.md": NOTED_SKILL,
+			"skills/plain/SKILL.md": PLAIN_SKILL,
+		});
+
+	const EXPECTED: ReadonlyArray<BuildNote> = [
+		{ target: "copilot", path: "agents/x.md", kind: "dropped", name: "color" },
+		{ target: "copilot", path: "agents/x.md", kind: "dropped", name: "maxTurns" },
+		{ target: "copilot", path: "skills/s/SKILL.md", kind: "degraded", name: "paths" },
+		{ target: "copilot", path: "skills/s/SKILL.md", kind: "tool-dropped", name: "ToolSearch" },
+		{ target: "copilot", path: "config", kind: "dropped", name: "lspServers.md.diagnostics" },
+		{ target: "copilot", path: "config", kind: "hook-omitted", name: "Setup" },
+	];
+
+	layer(NodeServices.layer)((it) => {
+		it.effect("each target's build carries its notes, sorted by component, then kind, then name", () =>
+			Effect.gen(function* () {
+				const root = yield* notedPlugin();
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.deepStrictEqual(
+					builds.map((one) => [one.target, one.notes]),
+					[
+						["claude", []],
+						["copilot", EXPECTED],
+					],
+				);
+			}),
+		);
+
+		it.effect("build --check returns the same notes as a write", () =>
+			Effect.gen(function* () {
+				const root = yield* notedPlugin();
+				yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+				const builds = yield* build({ selection: nearest(root), targets: ["copilot"], check: true });
+				assert.deepStrictEqual(builds[0]?.notes, EXPECTED);
+			}),
+		);
+
+		it.effect("validate reports the same notes", () =>
+			Effect.gen(function* () {
+				const root = yield* notedPlugin();
+				yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+				const validations = yield* validate({ selection: nearest(root), targets: ["copilot"], skipHosts: true });
+				assert.deepStrictEqual(validations[0]?.notes, EXPECTED);
 			}),
 		);
 	});

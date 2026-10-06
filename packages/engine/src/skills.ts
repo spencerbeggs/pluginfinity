@@ -1,5 +1,6 @@
 import type { Target } from "@pluginfinity/core";
 import { ComponentName, SKILL_FIELDS, SkillFrontmatter } from "@pluginfinity/core";
+import type { KnownTargetId } from "@pluginfinity/targets";
 import type { PlatformError } from "effect";
 import { Effect, FileSystem, Path, Schema } from "effect";
 import { applyHostBlocks } from "./body.js";
@@ -16,6 +17,7 @@ import {
 import type { EmittedFile } from "./emit.js";
 import type { ComponentInvalid, ConfigIssue } from "./errors.js";
 import { appendSections, mapFrontmatter } from "./frontmatter.js";
+import type { BuildNote } from "./notes.js";
 
 /**
  * The most characters a built skill's `description` may hold: the Agent
@@ -129,6 +131,18 @@ export const readSkills = (
 	});
 
 /**
+ * A skill rendered for a target: its files, and what the target dropped or
+ * degraded from its frontmatter.
+ *
+ * @public
+ */
+export interface RenderedSkill {
+	readonly files: ReadonlyArray<EmittedFile>;
+	/** Each about `skills/<name>/SKILL.md`, in the order met. */
+	readonly notes: ReadonlyArray<BuildNote>;
+}
+
+/**
  * Render one skill for a target, or `undefined` when its `targets` block
  * excludes it: `SKILL.md` with the target's frontmatter and host blocks
  * applied, `.md` support files with host blocks applied, and every other
@@ -138,11 +152,11 @@ export const readSkills = (
  */
 export const renderSkill = (
 	target: Target,
-	id: string,
+	id: KnownTargetId,
 	skill: SourceSkill,
 	known: ReadonlyArray<string>,
 ): Effect.Effect<
-	ReadonlyArray<EmittedFile> | undefined,
+	RenderedSkill | undefined,
 	ComponentInvalid | PlatformError.PlatformError,
 	FileSystem.FileSystem | Path.Path
 > =>
@@ -207,5 +221,7 @@ export const renderSkill = (
 			}
 			files.push({ path: `${out}/${file}`, content: processed.text, mode });
 		}
-		return files;
+		const source = `skills/${skill.name}/SKILL.md`;
+		const notes = mapped.drops.map(({ field, kind }) => ({ target: id, path: source, kind, name: field }));
+		return { files, notes };
 	});

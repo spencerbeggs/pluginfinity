@@ -173,3 +173,73 @@ describe("appendSections", () => {
 		);
 	});
 });
+
+describe("mapFrontmatter drops", () => {
+	const agent = { name: "x", description: "Does x.", color: "red", maxTurns: 3 };
+
+	it("copilot reports each agent field it drops; claude, which keeps them, reports none", () => {
+		const copilot = mapFrontmatter(COPILOT, COPILOT.agents.fields, COPILOT.agents.hostFields, agent, {});
+		assert.deepStrictEqual(copilot.drops, [
+			{ field: "color", kind: "dropped" },
+			{ field: "maxTurns", kind: "dropped" },
+		]);
+		const claude = mapFrontmatter(CLAUDE, CLAUDE.agents.fields, CLAUDE.agents.hostFields, agent, {});
+		assert.deepStrictEqual(claude.drops, []);
+	});
+
+	it("a skill's paths and an agent's skills are degraded on copilot", () => {
+		const skill = mapFrontmatter(
+			COPILOT,
+			COPILOT.skills.fields,
+			COPILOT.skills.hostFields,
+			{ name: "s", description: "Does s.", paths: ["src/**"] },
+			{},
+		);
+		assert.deepStrictEqual(skill.drops, [{ field: "paths", kind: "degraded" }]);
+		const withSkills = mapFrontmatter(
+			COPILOT,
+			COPILOT.agents.fields,
+			COPILOT.agents.hostFields,
+			{ name: "x", description: "Does x.", skills: ["s"] },
+			{},
+		);
+		assert.deepStrictEqual(withSkills.drops, [{ field: "skills", kind: "degraded" }]);
+	});
+
+	it("a tool copilot cannot name is tool-dropped, once; a rule-bearing renamed tool stays unresolved", () => {
+		const mapped = mapFrontmatter(
+			COPILOT,
+			COPILOT.skills.fields,
+			COPILOT.skills.hostFields,
+			{ name: "s", description: "Does s.", "allowed-tools": "Read ToolSearch ToolSearch Bash(git log:*)" },
+			{},
+		);
+		assert.deepStrictEqual(mapped.drops, [{ field: "ToolSearch", kind: "tool-dropped" }]);
+		assert.deepStrictEqual(
+			mapped.unresolved.map((field) => field.field),
+			["allowed-tools: Bash(git log:*)"],
+		);
+	});
+
+	it("a component that sets its own description degrades nothing into it, so reports no degraded field", () => {
+		const mapped = mapFrontmatter(
+			COPILOT,
+			COPILOT.skills.fields,
+			COPILOT.skills.hostFields,
+			{ name: "s", description: "Does s.", when_to_use: "doing s", paths: ["src/**"] },
+			{ description: "Copilot's own." },
+		);
+		assert.deepStrictEqual(mapped.drops, []);
+	});
+
+	it("claude reports nothing for a skill that sets nothing host-specific", () => {
+		const mapped = mapFrontmatter(
+			CLAUDE,
+			CLAUDE.skills.fields,
+			CLAUDE.skills.hostFields,
+			{ name: "s", description: "Does s.", when_to_use: "doing s", "allowed-tools": "Read ToolSearch" },
+			{},
+		);
+		assert.deepStrictEqual(mapped.drops, []);
+	});
+});

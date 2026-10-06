@@ -1,5 +1,6 @@
 import type { Target } from "@pluginfinity/core";
 import { AGENT_FIELDS, AgentFrontmatter } from "@pluginfinity/core";
+import type { KnownTargetId } from "@pluginfinity/targets";
 import type { PlatformError } from "effect";
 import { Effect, FileSystem, Path } from "effect";
 import { applyHostBlocks } from "./body.js";
@@ -7,6 +8,7 @@ import { decodeComponent, frontmatterText, invalid, issue, overlayIssues, unknow
 import type { EmittedFile } from "./emit.js";
 import type { ComponentInvalid, ConfigIssue } from "./errors.js";
 import { appendSections, mapFrontmatter } from "./frontmatter.js";
+import type { BuildNote } from "./notes.js";
 
 /**
  * One agent as read from `agents/<name>.md`: its name, its decoded
@@ -86,6 +88,18 @@ export const readAgents = (
 	});
 
 /**
+ * An agent rendered for a target: its file, and what the target dropped or
+ * degraded from its frontmatter.
+ *
+ * @public
+ */
+export interface RenderedAgent {
+	readonly file: EmittedFile;
+	/** Each about `agents/<name>.md`, in the order met. */
+	readonly notes: ReadonlyArray<BuildNote>;
+}
+
+/**
  * Render one agent for a target, or `undefined` when its `targets` block
  * excludes it: the file at `<agents.dir>/<name><agents.suffix>` with the
  * target's frontmatter, degraded fields appended as body sections, and host
@@ -95,10 +109,10 @@ export const readAgents = (
  */
 export const renderAgent = (
 	target: Target,
-	id: string,
+	id: KnownTargetId,
 	agent: SourceAgent,
 	known: ReadonlyArray<string>,
-): Effect.Effect<EmittedFile | undefined, ComponentInvalid | PlatformError.PlatformError, FileSystem.FileSystem> =>
+): Effect.Effect<RenderedAgent | undefined, ComponentInvalid | PlatformError.PlatformError, FileSystem.FileSystem> =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
 		const block = agent.frontmatter.targets?.[id];
@@ -126,9 +140,13 @@ export const renderAgent = (
 
 		const { name: _name, description, ...rest } = mapped.fields;
 		const yaml = yield* frontmatterText({ name: agent.name, description, ...rest }, agent);
+		const source = `agents/${agent.name}.md`;
 		return {
-			path: `${target.agents.dir}/${agent.name}${target.agents.suffix}`,
-			content: `---\n${yaml}---\n${appendSections(body.text, mapped.sections)}`,
-			mode: (yield* fs.stat(agent.path)).mode & 0o777,
+			file: {
+				path: `${target.agents.dir}/${agent.name}${target.agents.suffix}`,
+				content: `---\n${yaml}---\n${appendSections(body.text, mapped.sections)}`,
+				mode: (yield* fs.stat(agent.path)).mode & 0o777,
+			},
+			notes: mapped.drops.map(({ field, kind }) => ({ target: id, path: source, kind, name: field })),
 		};
 	});

@@ -203,3 +203,21 @@ export const SERVER_HOST_SPELLING = serverRefs(
 	"server-host-spelling",
 	`{ command: "sh", args: ["\${CLAUDE_PLUGIN_ROOT}/bin/start.sh"] }`,
 );
+
+export const NOTED = `export default {
+	name: "noted",
+	description: "Fixture plugin.",
+	hooks: { Setup: [{ script: "hooks/setup.sh", fallback: "omit" }] },
+	lspServers: { md: { command: "sh", extensionToLanguage: { ".md": "markdown" }, diagnostics: true } },
+	claude: true,
+	copilot: true,
+};\n`;
+
+/** An agent with fields Copilot drops. */
+export const NOTED_AGENT = "---\nname: x\ndescription: Does x.\ncolor: red\nmaxTurns: 3\n---\n\nBody.\n";
+
+/** A skill with a field Copilot degrades and a tool it cannot name. */
+export const NOTED_SKILL = "---\nname: s\ndescription: Does s.\npaths: src/**\nallowed-tools: Read ToolSearch\n---\n\nBody.\n";
+
+/** A skill that sets nothing host-specific. */
+export const PLAIN_SKILL = "---\nname: plain\ndescription: Does plain.\n---\n\nBody.\n";

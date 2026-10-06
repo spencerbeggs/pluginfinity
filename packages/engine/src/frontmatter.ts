@@ -1,4 +1,5 @@
 import type { FieldMapEntry, Target } from "@pluginfinity/core";
+import type { BuildNoteKind } from "./notes.js";
 
 /**
  * A markdown file split at its YAML frontmatter: the frontmatter text without
@@ -82,9 +83,21 @@ export interface UnresolvedField {
 }
 
 /**
+ * Something a target did not carry as written while mapping a component: a
+ * field it dropped or degraded, or a tool it could not name, in which case
+ * `field` is the tool's name.
+ *
+ * @public
+ */
+export interface FieldDrop {
+	readonly field: string;
+	readonly kind: Exclude<BuildNoteKind, "hook-omitted">;
+}
+
+/**
  * The result of mapping a component's frontmatter onto a target: the fields
- * to write in order, the sections to append to the body, and any fields the
- * target cannot place.
+ * to write in order, the sections to append to the body, any fields the
+ * target cannot place, and what it dropped or degraded.
  *
  * @public
  */
@@ -92,6 +105,8 @@ export interface MappedFrontmatter {
 	readonly fields: Readonly<Record<string, unknown>>;
 	readonly sections: ReadonlyArray<{ readonly field: string; readonly value: unknown }>;
 	readonly unresolved: ReadonlyArray<UnresolvedField>;
+	/** Each field dropped or degraded and each tool dropped, once, in the order met. */
+	readonly drops: ReadonlyArray<FieldDrop>;
 	/** Fields in the target block that are neither core fields nor the target's host fields. */
 	readonly unknown: ReadonlyArray<string>;
 }
@@ -104,7 +119,8 @@ export interface MappedFrontmatter {
  * The component's `targets` block for this target overlays the base fields:
  * a core field there replaces the base value before mapping, and a host field
  * (one of `hostFields`) is written as is. When the block sets `description`,
- * no field is degraded into it: the author wrote that host's description.
+ * no field is degraded into it: the author wrote that host's description,
+ * so no such field is reported in `drops`.
  *
  * @public
  */
@@ -125,6 +141,10 @@ export const mapFrontmatter = (
 	const suffixes: Array<string> = [];
 	const sections: Array<{ field: string; value: unknown }> = [];
 	const unresolved: Array<UnresolvedField> = [];
+	const drops: Array<FieldDrop> = [];
+	const dropped = (field: string, kind: FieldDrop["kind"]): void => {
+		if (!drops.some((drop) => drop.field === field && drop.kind === kind)) drops.push({ field, kind });
+	};
 	for (const [field, value] of Object.entries(source)) {
 		if (value === undefined) continue;
 		const entry = map[field];
@@ -137,6 +157,7 @@ export const mapFrontmatter = (
 				fields[entry.to] = value;
 				break;
 			case "drop":
+				dropped(field, "dropped");
 				break;
 			case "translate": {
 				const name = entry.to ?? field;
@@ -146,7 +167,7 @@ export const mapFrontmatter = (
 					else if (typeof mapped === "string") fields[name] = mapped;
 					else if (mapped._tag === "unresolved") {
 						unresolved.push({ field: `${field}: ${String(value)}`, note: mapped.note });
-					}
+					} else dropped(field, "dropped");
 					break;
 				}
 				const names: Array<string> = [];
@@ -166,11 +187,13 @@ export const mapFrontmatter = (
 						target.tools.names[name] ??
 						mcpToolName(target, name) ??
 						(target.tools.unlisted === "keep" ? name : undefined);
-					if (mapped === undefined) continue;
 					if (typeof mapped === "string") {
 						if (!names.includes(mapped)) names.push(mapped);
-					} else if (mapped._tag === "unresolved") {
+					} else if (mapped?._tag === "unresolved") {
 						unresolved.push({ field: `${field}: ${name}`, note: mapped.note });
+					} else {
+						// No spelling on the target, or a table entry that drops the tool.
+						dropped(name, "tool-dropped");
 					}
 				}
 				fields[name] = names;
@@ -178,9 +201,13 @@ export const mapFrontmatter = (
 			}
 			case "degrade":
 				if (entry.form === "description-suffix") {
-					if (!("description" in block)) suffixes.push(`${SUFFIX_LABELS[field] ?? field}: ${asText(value)}`);
+					if (!("description" in block)) {
+						suffixes.push(`${SUFFIX_LABELS[field] ?? field}: ${asText(value)}`);
+						dropped(field, "degraded");
+					}
 				} else {
 					sections.push({ field, value });
+					dropped(field, "degraded");
 				}
 				break;
 			case "unresolved":
@@ -192,7 +219,7 @@ export const mapFrontmatter = (
 		fields.description = [fields.description.trimEnd(), ...suffixes].join(" ");
 	}
 	for (const [key, value] of hostOverlay) fields[key] = value;
-	return { fields, sections, unresolved, unknown };
+	return { fields, sections, unresolved, drops, unknown };
 };
 
 /** The heading a field degraded to a body section is written under, by field. */

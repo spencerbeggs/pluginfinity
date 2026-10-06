@@ -132,6 +132,25 @@ describe("renderServers: LSP", () => {
 		assert.notProperty(out.lspServers.okfit, "restartOnCrash");
 	});
 
+	it("each LSP field Copilot drops is a config note named by server and field; Claude has none", () => {
+		const render = renderServers(
+			COPILOT,
+			"copilot",
+			base({
+				lspServers: lsp,
+				copilot: { lspServers: { own: { command: "sh", extensionToLanguage: { ".a": "a" }, diagnostics: true } } },
+			}),
+			"demo",
+			LIB,
+		);
+		assert.deepStrictEqual(render.notes, [
+			{ target: "copilot", path: "config", kind: "dropped", name: "lspServers.okfit.diagnostics" },
+			{ target: "copilot", path: "config", kind: "dropped", name: "lspServers.okfit.restartOnCrash" },
+			{ target: "copilot", path: "config", kind: "dropped", name: "copilot.lspServers.own.diagnostics" },
+		]);
+		assert.deepStrictEqual(renderServers(CLAUDE, "claude", base({ lspServers: lsp }), "demo", LIB).notes, []);
+	});
+
 	it("an unresolved field on Copilot is an issue naming the server and field", () => {
 		const render = renderServers(
 			COPILOT,

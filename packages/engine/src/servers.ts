@@ -2,6 +2,8 @@ import type { FieldMapEntry, Target } from "@pluginfinity/core";
 import type { KnownTargetId, PluginfinityConfig } from "@pluginfinity/targets";
 import type { EmittedFile } from "./emit.js";
 import { ConfigIssue } from "./errors.js";
+import type { BuildNote } from "./notes.js";
+import { CONFIG_NOTE_PATH } from "./notes.js";
 
 type Server = Readonly<Record<string, unknown>>;
 type Servers = Readonly<Record<string, Server>>;
@@ -11,7 +13,8 @@ type Env = Readonly<Record<string, string>>;
 
 /**
  * A target's server config files, the problems that stop it building them,
- * and whether any server is a local process that needs the server library.
+ * whether any server is a local process that needs the server library, and
+ * the server fields the target dropped.
  *
  * @public
  */
@@ -19,6 +22,8 @@ export interface ServerRender {
 	readonly files: ReadonlyArray<EmittedFile>;
 	readonly issues: ReadonlyArray<ConfigIssue>;
 	readonly stdio: boolean;
+	/** Each LSP field dropped, as a `config` note named `<origin>.<server>.<field>`, in the order met. */
+	readonly notes: ReadonlyArray<BuildNote>;
 }
 
 const PLACEHOLDER = `\${PLUGIN_ROOT}`;
@@ -112,7 +117,8 @@ const rootOf = (spelling: Target["pluginRoot"]["mcp"], key: string, issues: Arra
 	return undefined;
 };
 
-// Apply one LSP field map entry. Server fields take keep, rename, drop and unresolved only.
+// Apply one LSP field map entry, recording a dropped field's key. Server fields take keep, rename, drop and
+// unresolved only.
 const mapField = (
 	entry: FieldMapEntry | undefined,
 	field: string,
@@ -120,6 +126,7 @@ const mapField = (
 	out: Record<string, unknown>,
 	key: string,
 	issues: Array<ConfigIssue>,
+	dropped: Array<string>,
 ): void => {
 	switch (entry?._tag) {
 		case "keep":
@@ -129,6 +136,7 @@ const mapField = (
 			out[entry.to] = value;
 			return;
 		case "drop":
+			dropped.push(key);
 			return;
 		case "unresolved":
 			issues.push(ConfigIssue.make({ key, message: entry.note }));
@@ -187,15 +195,17 @@ interface LspInput {
 	readonly env: Env;
 	readonly root: string;
 	readonly issues: Array<ConfigIssue>;
+	/** Receives the key of each field the target drops. */
+	readonly dropped: Array<string>;
 }
 
-const lspEntries = ({ target, servers, env, root, issues }: LspInput): Record<string, unknown> => {
+const lspEntries = ({ target, servers, env, root, issues, dropped }: LspInput): Record<string, unknown> => {
 	const out: Record<string, unknown> = {};
 	for (const [name, origin, server] of servers) {
 		const entry: Record<string, unknown> = {};
 		hostSpellings(server, LSP_ROOT_FIELDS, `${origin}.${name}`, issues);
 		for (const [field, value] of Object.entries(rewriteFields(server, LSP_ROOT_FIELDS, root))) {
-			mapField(target.lsp.fields[field], field, value, entry, `${origin}.${name}.${field}`, issues);
+			mapField(target.lsp.fields[field], field, value, entry, `${origin}.${name}.${field}`, issues, dropped);
 		}
 		out[name] = withEnv(entry, env);
 	}
@@ -224,6 +234,7 @@ export const renderServers = (
 	libDir: string,
 ): ServerRender => {
 	const issues: Array<ConfigIssue> = [];
+	const dropped: Array<string> = [];
 	const files: Array<EmittedFile> = [];
 	const mcp = merged(id, config, "mcpServers");
 	const lsp = merged(id, config, "lspServers");
@@ -243,12 +254,13 @@ export const renderServers = (
 			const env = injectedEnv(id, plugin, root, libDir);
 			files.push({
 				path: target.lsp.path,
-				content: serialize(LSP_ENCODERS[target.lsp.format]({ target, servers: lsp, env, root, issues })),
+				content: serialize(LSP_ENCODERS[target.lsp.format]({ target, servers: lsp, env, root, issues, dropped })),
 			});
 		}
 	}
 	const stdio = mcp.some(([, , server]) => isStdio(server)) || lsp.length > 0;
-	return { files, issues, stdio };
+	const notes = dropped.map((name) => ({ target: id, path: CONFIG_NOTE_PATH, kind: "dropped" as const, name }));
+	return { files, issues, stdio, notes };
 };
 
 const filesIn = (value: unknown): Array<string> =>
