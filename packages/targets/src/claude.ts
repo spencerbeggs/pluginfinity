@@ -63,8 +63,8 @@ export const CLAUDE: Target = Target.make({
 		keys: ["name", "version", "description", "author", "homepage", "repository", "license", "keywords"],
 	},
 	pluginRoot: { hooks: ROOT, mcp: ROOT, lsp: ROOT, body: ROOT },
-	skills: { dir: "skills", fields: skillFields, hostFields: [] },
-	agents: { dir: "agents", suffix: ".md", fields: agentFields, hostFields: [] },
+	skills: { dir: "skills", fields: skillFields, hostFields: [], invoke: "/{plugin}:{skill}" },
+	agents: { dir: "agents", suffix: ".md", fields: agentFields, hostFields: [], id: "{plugin}:{agent}" },
 	hooks: {
 		path: "hooks/hooks.json",
 		format: "claude-hooks-json",
@@ -74,7 +74,12 @@ export const CLAUDE: Target = Target.make({
 	mcp: { path: ".mcp.json", format: "claude-mcp-json" },
 	lsp: { path: ".lsp.json", format: "claude-lsp-json", fields: lspFields },
 	references: { style: "path" },
-	tools: { names: {}, mcp: "mcp__{server}__{tool}", unlisted: "keep" },
+	tools: {
+		names: {},
+		mcp: "mcp__{server}__{tool}",
+		unlisted: "keep",
+		runtime: { names: {}, mcp: "mcp__plugin_{plugin}_{server}__{tool}", unlisted: "keep" },
+	},
 	models: {},
 	efforts: {},
 });

@@ -156,12 +156,23 @@ export class Target extends Schema.Class<Target>("Target")({
 		keys: Schema.Array(Schema.String),
 	}),
 	pluginRoot: Schema.Struct({ hooks: RootSpelling, mcp: RootSpelling, lsp: RootSpelling, body: RootSpelling }),
-	skills: Schema.Struct({ dir: Schema.String, fields: FieldMap, hostFields: Schema.Array(Schema.String) }),
+	skills: Schema.Struct({
+		dir: Schema.String,
+		fields: FieldMap,
+		hostFields: Schema.Array(Schema.String),
+		/**
+		 * How a user invokes a plugin skill: a template with `{plugin}` and `{skill}`,
+		 * or `unresolved` when the host has no such command.
+		 */
+		invoke: Schema.Union([Schema.String, Unresolved]),
+	}),
 	agents: Schema.Struct({
 		dir: Schema.String,
 		suffix: Schema.String,
 		fields: FieldMap,
 		hostFields: Schema.Array(Schema.String),
+		/** A plugin agent's run-time id: a template with `{plugin}` and `{agent}`. */
+		id: Schema.String,
 	}),
 	hooks: Schema.Struct({
 		path: Schema.String,
@@ -181,6 +192,18 @@ export class Target extends Schema.Class<Target>("Target")({
 		 * leaves it out, for a host that has no such tool.
 		 */
 		unlisted: Schema.Literals(["keep", "drop"]),
+		/**
+		 * The tool names the host shows a model at run time, which a skill or agent
+		 * body can name. `names` maps a Claude Code tool name to its run-time
+		 * spelling (or `unresolved`); `mcp` is the template for a plugin MCP tool
+		 * (`{plugin}`, `{server}`, `{tool}`); `unlisted` says whether a name absent
+		 * from `names` is `keep`-kept as written or `unresolved`.
+		 */
+		runtime: Schema.Struct({
+			names: Schema.Record(Schema.String, Schema.Union([Schema.String, Unresolved])),
+			mcp: Schema.String,
+			unlisted: Schema.Literals(["keep", "unresolved"]),
+		}),
 	}),
 	models: Schema.Record(Schema.String, ValueMapping),
 	efforts: Schema.Record(Schema.String, ValueMapping),

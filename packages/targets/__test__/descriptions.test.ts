@@ -34,6 +34,12 @@ for (const entry of TARGETS) {
 			assert.sameMembers(Object.keys(entry.target.hooks.events), [...CLAUDE_HOOK_EVENTS]);
 		});
 
+		it("names every frontmatter tool at run time too", () => {
+			assert.isEmpty(
+				Object.keys(entry.target.tools.names).filter((name) => !(name in entry.target.tools.runtime.names)),
+			);
+		});
+
 		it("never lists a host-only field that is already a core field of the same kind", () => {
 			const skillFields = new Set<string>(SKILL_FIELDS);
 			const agentFields = new Set<string>(AGENT_FIELDS);
@@ -91,5 +97,61 @@ describe("the copilot description", () => {
 			[],
 		);
 		assert.deepStrictEqual(copilot?.hooks.ownEvents, [...COPILOT_OWN_EVENTS]);
+	});
+});
+
+it("the run-time totality check flags a frontmatter tool the run-time table lacks", () => {
+	const copilot = TARGETS.find((t) => t.id === "copilot")?.target;
+	const runtime = Object.keys(copilot?.tools.runtime.names ?? {}).slice(1);
+	assert.isAbove(Object.keys(copilot?.tools.names ?? {}).filter((name) => !runtime.includes(name)).length, 0);
+});
+
+it("Claude spells plugin tools, agents and skills with its plugin prefix and keeps unlisted tools", () => {
+	const claude = TARGETS.find((t) => t.id === "claude")?.target;
+	assert.deepStrictEqual(claude?.tools.runtime, {
+		names: {},
+		mcp: "mcp__plugin_{plugin}_{server}__{tool}",
+		unlisted: "keep",
+	});
+	assert.strictEqual(claude?.agents.id, "{plugin}:{agent}");
+	assert.strictEqual(claude?.skills.invoke, "/{plugin}:{skill}");
+});
+
+describe("the copilot run-time names (measured on Copilot CLI 1.0.92)", () => {
+	const copilot = TARGETS.find((entry) => entry.id === "copilot")?.target;
+
+	it("spells built-in tools as the model sees them", () => {
+		const names = copilot?.tools.runtime.names;
+		assert.deepStrictEqual(
+			Object.fromEntries(Object.entries(names ?? {}).filter(([, value]) => typeof value === "string")),
+			{
+				Read: "view",
+				Bash: "bash",
+				Edit: "edit",
+				MultiEdit: "edit",
+				Write: "create",
+				Agent: "task",
+				Task: "task",
+				Grep: "grep",
+				Glob: "glob",
+				WebFetch: "web_fetch",
+				WebSearch: "web_search",
+				Skill: "skill",
+			},
+		);
+	});
+
+	it("leaves tools with no measured Copilot tool unresolved", () => {
+		for (const name of ["TodoWrite", "NotebookEdit", "NotebookRead", "PowerShell"]) {
+			const entry = copilot?.tools.runtime.names[name];
+			assert.strictEqual(typeof entry === "object" ? entry._tag : entry, "unresolved", name);
+		}
+	});
+
+	it("spells MCP tools, agents and skills as measured", () => {
+		assert.strictEqual(copilot?.tools.runtime.mcp, "{server}-{tool}");
+		assert.strictEqual(copilot?.tools.runtime.unlisted, "unresolved");
+		assert.strictEqual(copilot?.agents.id, "{plugin}:{agent}");
+		assert.strictEqual(copilot?.skills.invoke, "/{plugin}:{skill}");
 	});
 });

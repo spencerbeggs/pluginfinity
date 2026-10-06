@@ -127,8 +127,9 @@ export const COPILOT: Target = Target.make({
 		lsp: ROOT,
 		body: unresolved("Copilot documents no plugin-root expansion inside skill or agent bodies"),
 	},
-	skills: { dir: "skills", fields: skillFields, hostFields: [] },
+	skills: { dir: "skills", fields: skillFields, hostFields: [], invoke: "/{plugin}:{skill}" },
 	agents: {
+		id: "{plugin}:{agent}",
 		dir: "com.github.copilot/agents",
 		suffix: ".agent.md",
 		fields: agentFields,
@@ -186,6 +187,29 @@ export const COPILOT: Target = Target.make({
 		},
 		mcp: "{server}/{tool}",
 		unlisted: "drop",
+		// The names the model sees at run time, from the same measurement.
+		runtime: {
+			names: {
+				Read: "view",
+				Bash: "bash",
+				Edit: "edit",
+				MultiEdit: "edit",
+				Write: "create",
+				Agent: "task",
+				Task: "task",
+				Grep: "grep",
+				Glob: "glob",
+				WebFetch: "web_fetch",
+				WebSearch: "web_search",
+				Skill: "skill",
+				TodoWrite: unresolved("No todo tool appeared in any measured Copilot session"),
+				NotebookEdit: unresolved("Copilot has no notebook tool; the run-time name was not measured"),
+				NotebookRead: unresolved("Copilot has no notebook tool; the run-time name was not measured"),
+				PowerShell: unresolved("The run-time PowerShell tool name was not measured; Copilot showed bash"),
+			},
+			mcp: "{server}-{tool}",
+			unlisted: "unresolved",
+		},
 	},
 	// Copilot inherits the session's model when an agent sets none. Claude Code's
 	// model aliases have no Copilot spelling; a full model ID passes through.
