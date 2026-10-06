@@ -49,11 +49,12 @@ The omitted event is simply absent on Copilot, so keep anything the plugin depen
 ## Host differences that change how you write a hook
 
 - Copilot keeps its own key names inside `tool_input`: Read sends `path`, Write sends `path` and `file_text`, Edit sends `path`, `old_str` and `new_str`. `hook_input tool_input.<claude key>` reads either spelling. `hook_input tool_input` (the whole object) and the JSON you give `hook_allow` use Copilot's names there. Copilot CLI 1.0.91, 2026-10-03.
+- Copilot ignores a `matcher` on `SessionStart`, `SessionEnd` and `SubagentStop`. The build passes it as `PLUGINFINITY_MATCHER` and notes it as `hook-matcher-runtime`, and the hook library applies it against `source`, `reason` and `agent_type`, but only for a `script` entry that sources `hook.sh`. A plain `command` entry runs for every source on Copilot (GitHub Copilot hooks reference).
 - Copilot sends no `hook_event_name` on a camelCase entry. The build sets `PLUGINFINITY_EVENT` on every Copilot entry, so `hook_event` works there. Copilot CLI 1.0.91, 2026-10-03.
 - Copilot delivers `SubagentStart` context by putting it at the top of the subagent's first prompt. Copilot CLI 1.0.91, 2026-10-03.
 - Copilot fires UserPromptSubmit for a subagent's prompt, under the subagent's own session id, and does not fire it for a reply submitted through a form or question tool. Copilot CLI 1.0.91, 2026-10-03.
 - Claude Code shows a UserPromptSubmit `systemMessage` to the user and does not add it to model context. Claude Code 2.1.288.
-- On Copilot, any non-zero exit from a `preToolUse` hook denies the call, where Claude Code lets the call proceed (GitHub Copilot hooks reference). The library's exit trap turns a crash into a clean exit and a fail-open response, so scripts never exit non-zero. Use `hook_fail_closed` for a guard that must deny when it fails.
+- On Copilot, any non-zero exit from a `preToolUse` hook denies the call, where Claude Code lets the call proceed (GitHub Copilot hooks reference). The library's exit trap turns a crash into a clean exit and a fail-open response, so scripts never exit non-zero. Set `failClosed: true` on the entry, or call `hook_fail_closed`, for a guard that must deny when it fails.
 - Copilot SessionStart context was seen in one live run and not in the next, so do not make a hook depend on it alone. Copilot CLI 1.0.91, 2026-10-03.
 - Claude Code subagent hooks reuse the parent `session_id`. Key per-agent state on `agent_id` (Claude Code hooks docs).
 

@@ -71,6 +71,35 @@ targets:
   description.
 - An unknown target id, or a field neither core nor that host knows, fails.
 
+### Recipe: a skill for one host
+
+A skill that only makes sense on one host, such as one about Claude Code's monitors, is left out of the
+other host's build with `false` in its own frontmatter. The skill's directory, name and files stay the same.
+
+```yaml
+---
+name: watch-the-build
+description: Start a background monitor that reports build results.
+targets:
+  copilot: false
+---
+```
+
+- **Name the host that has the skill, not the one that lacks it.** `copilot: false` keeps the skill on
+  Claude Code only; `claude: false` keeps it on Copilot only. Setting both leaves it nowhere.
+- **A skill cannot be linked to or named on the host that lacks it.** A `pluginfinity://skill/<name>` link
+  or `{{skill <name>}}` token to it fails that host's build, with the file, line and host. Put each
+  mention in a host block for the hosts that have the skill.
+
+  ```markdown
+  <!-- pluginfinity:only claude -->
+  To start one, use [watch-the-build](pluginfinity://skill/watch-the-build).
+  <!-- /pluginfinity:only -->
+  ```
+
+- **A skill that exists on both hosts but differs** takes a `targets.<id>.description` for each host, and a
+  host block for the passages that differ, instead of two skills.
+
 ## Host blocks
 
 A passage for one host only goes in a host block. Each marker is an HTML comment on a line of its own:
@@ -111,6 +140,11 @@ In an agent id or a skill command, `<plugin>` is the plugin's name on that host:
 `copilot.name` override, else `name`. In an MCP tool name it is always the Claude Code name, the
 `claude.name` override, else `name`, on both hosts. A token writes the
 bare string; add backticks yourself, as in `` `{{tool Read}}` ``.
+
+A tool token may carry a fallback after `|`: `{{tool TodoWrite | your task list}}` writes `TodoWrite` on Claude
+Code and `your task list` on Copilot, which has no run-time name for it, instead of failing the build. The
+fallback is literal prose, trimmed, not empty and without `{` or `}`; on a host that has the name it is
+discarded. Only a `tool` token takes one: a `|` on `agent`, `skill` or `plugin_root` fails the build.
 
 There is no wildcard token: prose about "all of this plugin's MCP tools" must name the tools, each as `{{tool …}}`.
 

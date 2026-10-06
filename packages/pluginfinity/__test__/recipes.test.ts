@@ -13,14 +13,14 @@ const MAP = [
 	{
 		title: "Command guard",
 		event: "PreToolUse",
-		config: '{ matcher: "Bash", script: "hooks/pre-tool-use.sh", timeout: 5 }',
+		config: '{ matcher: "Bash", script: "hooks/pre-tool-use.sh", timeout: 5, failClosed: true }',
 		script: "hooks/pre-tool-use.sh",
 		test: "PreToolUse denies the marker command on both targets",
 	},
 	{
 		title: "Startup context",
 		event: "SessionStart",
-		config: '{ script: "hooks/session-start.sh", timeout: 5 }',
+		config: '{ matcher: "startup", script: "hooks/session-start.sh", timeout: 5 }',
 		script: "hooks/session-start.sh",
 		test: "SessionStart adds context naming the host, on both targets",
 	},

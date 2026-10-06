@@ -17,12 +17,13 @@ and `build --check` fails until it does.
 
 ```text
 <plugin>/
-  pluginfinity.config.ts      name, metadata, targets, hooks, servers, files
+  pluginfinity.config.ts      name, metadata, targets, hooks, servers, monitors, files
   package.json                its "version" is every manifest's version
   skills/<skill>/SKILL.md     plus references/, scripts/, assets/
   agents/<agent>.md
   hooks/                      hook scripts; the directory ships whole
   bin/                        server launchers; they ship because a server names them
+  monitors/                   monitor scripts; they ship because a monitor names them (Claude Code only)
   builds/<target>/            generated and committed; never edited
 ```
 
@@ -71,6 +72,9 @@ In an agent id or skill command `<plugin>` is the plugin's name on that host (`c
   around it yourself.
   There is no wildcard token: prose about "all of this plugin's MCP tools" must name each tool, each as
   `\{{tool …}}`.
+  A tool that one host cannot name takes a fallback instead of failing the build:
+  `\{{tool TodoWrite | your task list}}` writes the text after `|` on a host with no run-time name for it.
+  Only a tool token takes one; see [skills and agents](references/components.md#tokens).
 - **Name agents with `\{{agent …}}`.** Copilot namespaces agent ids, so a bare `okf-docs` is no agent
   there. On the command line it is `copilot --agent <plugin>:<agent>`.
 - **Link to another skill's file or to an agent** with an inline link,
@@ -128,6 +132,20 @@ files: ["share/"],
 
 Write the launcher on the server library with the `plugin-scripts` skill.
 
+## Monitors
+
+A monitor is a background script whose stdout lines reach the model as notifications. Declare it once under
+`monitors` in the config; Claude Code builds it and Copilot drops it with a `monitor-omitted` note. Write
+the script on the monitor library, with `monitor_every` and `monitor_notify`, as in
+[monitors](references/monitors.md). A monitor script follows the logging standard in the `plugin-scripts`
+skill.
+
+## Per-host files and skills
+
+`files` on a target ships a path to that host only: `copilot: { files: ["copilot-only/"] }`. A skill or agent
+for one host takes `targets: { <other host>: false }` in its frontmatter; see the recipe in
+[skills and agents](references/components.md#recipe-a-skill-for-one-host).
+
 ## Commands
 
 | Command | What it does |
@@ -142,9 +160,12 @@ one host. A finding exits 1 with a message and a hint; read [the findings](refer
 what each means.
 
 - **Read the notes under each target.** `build`, `build --check` and `validate` list, under each target's
-  `✓` line, every field the host dropped or degraded, every tool it cannot name and every hook event it
-  omitted, one line per file: `· agents/x.md: dropped color; tool-dropped ToolSearch`. Notes never fail a
-  command, but a name you meant to keep, such as an MCP tool, shows up there first.
+  `✓` line, every field the host dropped or degraded, every tool it cannot name, every hook event or
+  monitor it omitted, every matcher it leaves to the hook library at run time and every hook helper whose
+  output it ignores, one line per file: `· agents/x.md: dropped color; tool-dropped ToolSearch`. Notes never
+  fail a command, but a name you meant to keep, such as an MCP tool, shows up there first. A
+  `hook-matcher-runtime` note is honoured only for a script that sources the hook library; a plain `command`
+  entry gets none. See [the findings](references/findings.md).
 - **Give the plugin folder as `[path]` when it is not a workspace package.** `pnpm exec pluginfinity` run
   inside a folder with no `package.json` of its own fails with `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL`. Run
   from the repository root instead, such as `pluginfinity build plugin` and
@@ -180,7 +201,9 @@ build does:
 - [The config](references/config.md): every field, hooks and server overrides, and the target keys.
 - [Skills and agents](references/components.md): frontmatter, `targets` blocks, host blocks, tokens and
   links, and support files.
-- [Hooks](references/hooks.md): script and command entries, `scripts.invoke`, fallbacks and what ships.
+- [Hooks](references/hooks.md): script and command entries, `scripts.invoke`, `failClosed`, run-time
+  matchers, fallbacks and what ships.
+- [Monitors](references/monitors.md): the config, the monitor library and a test recipe.
 - [What each host gets](references/targets.md): how every field, tool, model, path and server is
   translated.
 - [Findings](references/findings.md): every error a command reports, its cause and its fix.

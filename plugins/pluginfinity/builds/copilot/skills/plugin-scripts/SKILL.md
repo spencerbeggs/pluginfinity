@@ -25,7 +25,8 @@ server_exec_bin myplugin-mcp @myplugin/mcp "$@"
 | `server_plugin_root` | Prints the build root, found from the library's own location |
 | `server_project_dir` | Prints the user's project and returns 0, or prints nothing and returns 1 when there is none to report. On Claude it is `CLAUDE_PROJECT_DIR`. When the working directory is the plugin root or under it, as for every Copilot MCP server, it returns 1: Copilot gives an MCP server no project directory, so the server should ask its MCP client for roots. Otherwise it is the closest directory above `$PWD` holding `.git`, else `$PWD` |
 | `server_exec_bin <bin> <package> [--install <install-package>] [args]` | Execs the project's `node_modules/.bin/<bin>` when it is executable. Otherwise it prints, on stderr, that the bin is not installed and the install line for the project's package manager, then execs `npx --yes <package> [args]`. With no project directory it goes straight to `npx`. `--install <install-package>` names a different package in the install line only, for a bin that ships in a package `npx` cannot run directly; it is read only straight after the two positionals, and any later `--install` passes through to the server |
-| `server_log <message>` | Appends a timestamped line to `${XDG_STATE_HOME:-$HOME/.local/state}/pluginfinity/<plugin>/server-error.log` |
+| `server_log <message>` | Appends a line to `error.log` in the plugin's log directory, with component `server`; see Logging |
+| `server_debug <message>` | Appends a line to `debug.log` when `PLUGINFINITY_DEBUG=1`, with component `server` |
 
 - Keep `set -eu` and source `$PLUGINFINITY_LIB/server.sh` first. Under `set -u` a launcher run outside a host, with no `PLUGINFINITY_LIB`, fails loudly instead of sourcing `/server.sh`.
 - Never print to stdout before the `exec`: stdout carries the MCP or LSP protocol, and one stray line breaks the handshake. Send messages to stderr or `server_log`. The library itself writes only to stderr.
@@ -37,6 +38,51 @@ server_exec_bin myplugin-mcp @myplugin/mcp "$@"
 - Name it with `${PLUGIN_ROOT}`, never a host spelling such as `${CLAUDE_PLUGIN_ROOT}` or a brace-less `$PLUGIN_ROOT`: only `${PLUGIN_ROOT}` is rewritten per host, and any other spelling in a server's root fields fails the build.
 - A `${PLUGIN_ROOT}/<dir>` reference, such as a data directory in `env`, ships every file under the directory. A reference ends at `:` and `,` too, so `PATH: "${PLUGIN_ROOT}/bin:/usr/bin"` ships `bin/`.
 - Test the built launcher with bats, once per host. Make a fake project holding `.git/` and an executable stub at `node_modules/.bin/<bin>` that echoes its arguments, `cd` into it, and run `sh "$BUILDS/<host>/bin/<launcher>"` under `env -i` with `PATH`, `HOME`, `PLUGINFINITY_HOST=<host>`, `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB="$BUILDS/<host>/lib/pluginfinity"`, where `BUILDS` is the absolute path to `builds/`: after the `cd`, a relative launcher or library path no longer resolves. Assert stdout is exactly the stub's output, so nothing else reached it. The dogfood fixture's `__test__/servers.bats` does this.
+
+## Logging
+
+Hooks, server launchers, monitors and skill scripts all log through one standard. A line goes to
+`${XDG_STATE_HOME:-$HOME/.local/state}/pluginfinity/<plugin>/` as
+`<ISO-8601 UTC> [<host>] <component>/<script>: <message>`, with the component `hook`, `server`, `monitor` or
+`script` and the script's own file name.
+
+| File | Holds |
+| :-- | :-- |
+| `error.log` | Failures, always written |
+| `debug.log` | Debug lines, written only when `PLUGINFINITY_DEBUG=1` |
+
+`PLUGINFINITY_DEBUG=1` is the one debug switch. It also logs each hook's raw input, which can hold prompts and
+tool inputs in plaintext, so unset it after a debugging session. A plugin from an earlier pluginfinity that reads a different
+log file or sets a different debug variable needs updating to these.
+
+| From | Calls | Library |
+| :-- | :-- | :-- |
+| A hook | `hook_log`, `hook_debug` | `hook.sh` |
+| A server launcher | `server_log`, `server_debug` | `server.sh` |
+| A monitor | `monitor_log`, `monitor_debug` | `monitor.sh` |
+| A skill script | `script_log`, `script_debug` | `log.sh` |
+
+The build writes `log.sh` to `lib/pluginfinity/log.sh` in every target, and the other libraries source it.
+A skill script sources it by hand. It is POSIX `sh`, writes nothing to stdout, and needs `_pf_log_dir` set to
+its directory first, because `sh` cannot find a sourced file's own path. From a script at
+`skills/<skill>/scripts/<name>.sh`:
+
+```sh
+_pf_log_dir="$(dirname "$0")/../../../lib/pluginfinity"
+. "$_pf_log_dir/log.sh"
+script_log "could not read the config"
+script_debug "read ${count} entries"
+```
+
+Without a readable `log.sh` the call fails, so source it only from a script that ships in a build. Add one
+`..` per extra directory between the script and the plugin root.
+
+## Monitors
+
+A monitor is a script a `monitors` entry runs on Claude Code, whose stdout lines the model receives. Write
+it on the monitor library (`monitor_every`, `monitor_notify`, `monitor_once`) and send nothing else to
+stdout. The config, the library functions, the pitfalls and a bats recipe are in the `pluginfinity` skill's
+[monitors](../pluginfinity/references/monitors.md).
 
 ## Where am I
 
@@ -108,6 +154,12 @@ Call `_gh pr view`, never bare `gh pr view`. The fallback to `GH_TOKEN` and `GIT
 - Write plain bats tests in `__test__/`, with fixtures in `__test__/fixtures/`.
 - Run the script under `env -i` and pass every variable it reads (`HOME`, `PATH`, `CLAUDE_PLUGIN_DATA`, `MYPLUGIN_GH_TOKEN`), so the user's real environment never decides a result.
 - Put a stub `gh` first on `PATH` that prints its arguments and `GH_TOKEN`, and assert the stale token never reaches it.
-- The pluginfinity helper's `run_hook` is for hooks only. It feeds a hook payload on stdin and reads a hook response.
+- `run_hook` is for hooks only. It feeds a hook payload on stdin and reads a hook response.
+- `run_script <target> <path> [--stdin <file>] [args...]` runs a built skill script or a launcher with
+  `bash builds/<target>/<path>` under `env -i` and that host's environment, from the plugin root on Copilot.
+  It sets `$status`, `$output` and `$stderr`. The helper sets `XDG_STATE_HOME` to `$BATS_TEST_TMPDIR/state`, so a
+  script that logs writes under the test's temp directory; read `error.log` there.
+- `run_monitor <target> <name> [--ticks <n>] [VAR=value...]` runs a Claude monitor's built command, bounded
+  to `n` ticks. See [monitors](../pluginfinity/references/monitors.md#test-one).
 - macOS ships bash 3.2, so the script must avoid `${var^^}`, `declare -A`, `mapfile` and `local -n`.
 - Run `bats --recursive __test__`.

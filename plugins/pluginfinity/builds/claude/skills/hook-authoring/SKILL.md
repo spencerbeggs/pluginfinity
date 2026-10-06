@@ -29,6 +29,7 @@ pluginfinity builds one hook script for both hosts. The hook library, sourced at
 
 - Source the library with `. "$(dirname "$0")/lib/pluginfinity/hook.sh"`. Add `../` for each directory depth below `hooks/`.
 - Start with `set -euo pipefail`.
+- Call `hook_require_input` at the top level, right after sourcing, when the script cannot do anything useful without a JSON payload. Empty or garbage stdin otherwise reads as `{}`. `exit` inside a subshell ends only the subshell, so never call it there.
 - Assign input to a variable before you use it: `cmd=$(hook_input tool_input.command)`.
 - Read the event only through `hook_input`; the library has already consumed stdin.
 - Call `hook_cd_project` before running a CLI that finds its project from the working directory. Copilot runs hooks from the plugin root, so without it the CLI finds the plugin, not the user's project.
@@ -36,10 +37,15 @@ pluginfinity builds one hook script for both hosts. The hook library, sourced at
 - Send one response per run.
 - Never `exit 2`. Use `hook_deny` or `hook_block`.
 - Never install your own `trap … EXIT`. The library owns it.
-- Use `hook_noop` to let a call proceed. Use `hook_allow` only to auto-approve or rewrite.
-- Call `hook_fail_closed` only in guards that must not fail open.
+- Use `hook_noop` to let a call proceed. Use `hook_allow` only to auto-approve or rewrite. Its arguments are `[reason] [updated-input-json]`, reason first: `hook_allow "" '{"command":"ls"}'` rewrites with no reason. A script written for the older `hook_allow '<json>'` now sends the JSON as the reason.
+- Fail closed only in guards that must not let a call through when they break. Set `failClosed: true` on the entry in `pluginfinity.config.ts`, which holds even if the script dies before it reaches a call, or call `hook_fail_closed` early. Context, reaction and stop hooks stay open.
+- `hook_project_dir` is where this call runs: the input's `cwd` walked up to its git root. `hook_session_dir` is the session's project, which in a git worktree is not the same. Use `hook_cd_project` for the first.
+- `hook_tool_name <claude-name>` prints the host's run-time spelling of a tool, such as `view` for `Read` on Copilot, and returns 1 when the host has none. Branch on its status, not on the host.
+- To hand the decision to a CLI that prints a Claude-shaped response, give it `hook_envelope claude` on stdin and pass its output to `hook_relay`. `hook_relay` picks one answer (permission decision, then block, then context, then system message, then noop), calls the matching helper so each host's rules apply, and logs dropped fields to the debug log.
+- A `matcher` on `SessionStart`, `SessionEnd` or `SubagentStop` is ignored by Copilot, and the library enforces it at run time, but only for a `script` entry that sources `hook.sh`. A `command` entry gets the build note without the enforcement.
 - Never vendor the library, never write `hooks.json`, and never edit `builds/`.
 - Branching on `hook_supports` is the sanctioned way to handle a capability one host lacks, such as `if hook_supports block; then hook_block "…"; else hook_context "…"; fi`. Never branch on `hook_host` for that. See [a capability one host lacks](references/recipes.md#a-capability-one-host-lacks).
+- Log with `hook_log` (always, to `error.log`) and `hook_debug` (to `debug.log` when `PLUGINFINITY_DEBUG=1`). `PLUGINFINITY_DEBUG=1` is the one switch for hooks, servers, monitors and skill scripts.
 - The library needs `jq`, `cat`, `mktemp`, `rm`, `date`, `mkdir`, `basename` and `dirname` on `PATH`. Keep them reachable in a test that narrows `PATH`.
 
 ## Where things live

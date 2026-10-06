@@ -17,29 +17,40 @@ hooks: {
 | `script` | A path from the plugin root. pluginfinity writes the command for each host |
 | `args` | Arguments to a `script`, quoted for bash where they need it |
 | `command` | A shell command as written. Its one placeholder is `${PLUGIN_ROOT}`, spelled each host's way |
-| `matcher` | Which tools or sources the hook applies to, in Claude Code's terms |
+| `matcher` | Which tools or sources the hook applies to, in Claude Code's terms. Where a host ignores it, the library applies it at run time; see [matchers a host ignores](#matchers-a-host-ignores) |
 | `timeout` | Seconds, a positive whole number |
 | `fallback` | What a host without the event does: `"fail"`, the default, or `"omit"` |
-| `failClosed` | Deny or block when the script fails before answering. Defaults to failing open |
+| `failClosed` | Deny or block when the script fails before answering. Defaults to failing open; see [when a hook fails](#when-a-hook-fails) |
 
 An entry has exactly one of `script` or `command`.
 
 ## How scripts run
 
 With `scripts.invoke: "bash"`, the default, a script entry runs through `bash`, so the file needs no
-executable bit. On Claude Code it is written in exec form, `"command": "env"` with the entry's `PLUGINFINITY_*`
-variables, `bash` and the script path in `args`, so no shell parses the path. On Copilot it is the shell string `bash "<root>/<script>"`, with a
-path the shell would read, such as one holding `$` or a space, single-quoted. Running through `bash` suits
+executable bit. On Claude Code it is written in exec form, `env K=V... bash <path> <args>`: `"command": "env"`
+with the entry's `PLUGINFINITY_*` variables, `bash` and the script path in `args`, so no shell parses the path.
+On Copilot it is the shell string `bash "<root>/<script>"`, with a
+path the shell would read, such as one holding `$` or a space, single-quoted, and the variables in the
+entry's `env` field. Running through `bash` suits
 repositories that keep scripts in git without the executable bit. A `command` entry is written as the
-shell string you gave. With `"exec"`, the
-command is the quoted path alone, and the build fails if the script is not executable.
+shell string you gave, with the variables as an `export K='V';` prefix on Claude Code. With `"exec"`, the
+command is the quoted path alone, and the build fails if the script is not executable. Under `"exec"` a
+script path that contains `=` fails the build, because `env` would read it as a variable; a monitor's
+script is exempt.
+
+Every hook entry carries three facts as environment variables, so a script needs no host branch to learn
+them: `PLUGINFINITY_EVENT` (the event, in Claude Code's spelling), `PLUGINFINITY_FAIL_CLOSED=1` when the
+entry sets `failClosed`, and `PLUGINFINITY_MATCHER` when the host ignores the entry's matcher. A `command`
+entry that does not source the library still gets them, but nothing reads them; see
+[matchers a host ignores](#matchers-a-host-ignores).
 
 The plugin root is `${CLAUDE_PLUGIN_ROOT}` on Claude Code and `${PLUGIN_ROOT}` on Copilot. Copilot also
 sets `CLAUDE_PLUGIN_ROOT` in a hook's environment, so a script can read either.
 
 ## The hook library
 
-Every build with at least one hook gets a bash library under `hooks/lib/pluginfinity/`. It reads the
+Every build with at least one hook gets a bash library under `hooks/lib/pluginfinity/`, and the shared
+log library under `lib/pluginfinity/log.sh`. The hook library reads the
 event, writes the response in each host's shape and keeps a crashing hook from blocking the host. A
 script opts in by sourcing it first, with a path relative to the script:
 
@@ -61,12 +72,16 @@ overwrites it.
 
 | Function | Prints |
 | :-- | :-- |
-| `hook_input <field>` | A field of the event's input by its Claude name. A dotted path such as `tool_input.command` reaches into nested keys. With no argument, the whole input as JSON. Nothing for a missing field |
-| `hook_event` | The event name, in Claude Code's spelling |
+| `hook_input <field>` | A field of the event's input by its Claude name. A dotted path such as `tool_input.command` reaches into nested keys. With no argument, the whole input as JSON. Nothing for a missing field. Empty or garbage stdin reads as `{}` |
+| `hook_require_input` | Returns when stdin held a JSON object. Otherwise it logs, answers `hook_noop` and ends the script. Call it at the top level of the script: `exit` inside a subshell ends only the subshell |
+| `hook_event` | The event name, in Claude Code's spelling, from `PLUGINFINITY_EVENT` or else the input's `hook_event_name`. Prints nothing and returns 1 when neither is known |
 | `hook_host` | `claude` or `copilot` |
 | `hook_plugin_root` | The build root the script runs from |
-| `hook_project_dir` | `CLAUDE_PROJECT_DIR` on Claude Code. On Copilot, the closest directory above the input's `cwd` that holds `.git`, else the `cwd` |
+| `hook_project_dir` | Where this call runs: the closest directory at or above the input's `cwd` that holds `.git`, else `CLAUDE_PROJECT_DIR` on Claude Code, else the same walk from `$PWD`, else `$PWD` |
+| `hook_session_dir` | The session's project: `CLAUDE_PROJECT_DIR` on Claude Code when set, else `hook_project_dir`. In a git worktree the two differ |
 | `hook_cd_project` | Changes into `hook_project_dir`. Prints nothing; when it cannot, it logs the reason with `hook_log` and returns 1 |
+| `hook_tool_name <claude-name>` | The host's run-time spelling of a Claude Code tool name, such as `view` for `Read` on Copilot, or nothing and return 1 when the host has none. Name this plugin's own MCP tools `mcp__plugin_<plugin>_<server>__<tool>`. Read from the build's generated `tools.sh` |
+| `hook_envelope claude` | The input as Claude Code would send it, as one line of JSON. On Copilot it renames `toolName`/`toolArgs` to `tool_name`/`tool_input`, snake_cases the other top-level keys, parses a string `tool_input` and maps Copilot's key names to Claude's where the Claude key is absent. It adds `hook_event_name` when missing. Any other argument logs and returns 1 |
 | `hook_supports <capability> [event]` | Succeeds when the host honours the capability on the event, which defaults to the current one |
 
 ```bash
@@ -115,25 +130,40 @@ Call one of these to answer the host. What each does depends on the host:
 | --- | --- | --- |
 | `hook_context "t"` | `hookSpecificOutput{hookEventName, additionalContext}` on SessionStart, SubagentStart, PostModelSwitch, UserPromptSubmit, UserPromptExpansion, PreToolUse, PostToolUse, PostToolUseFailure, PostToolBatch, Stop, SubagentStop; no-op (`{}`) elsewhere | flat `additionalContext` on SessionStart, SubagentStart, PostToolUse, Notification; no-op elsewhere (including UserPromptSubmit) |
 | `hook_deny "r"` | `hookSpecificOutput{hookEventName: "PreToolUse", permissionDecision: deny, permissionDecisionReason}` | flat `permissionDecision: deny` + `permissionDecisionReason` |
-| `hook_allow [json]` | `hookSpecificOutput{hookEventName: "PreToolUse", permissionDecision: allow}` (+ `updatedInput`) | `allow` (+ `modifiedArgs`) |
+| `hook_allow [reason] [json]` | `hookSpecificOutput{hookEventName: "PreToolUse", permissionDecision: allow}` (+ `permissionDecisionReason`, `updatedInput`) | `allow` (+ `permissionDecisionReason`, `modifiedArgs`) |
 | `hook_ask "r"` | `hookSpecificOutput{hookEventName: "PreToolUse", permissionDecision: ask}` | `ask` (the cloud agent treats it as deny; documented) |
 | `hook_block "r"` | top-level `decision: block` + `reason` on UserPromptSubmit, UserPromptExpansion, PostToolUse, PostToolBatch, Stop, SubagentStop, ConfigChange, PreCompact, TaskCreated, PreModelSwitch; no-op elsewhere | `decision: block` + `reason` on Stop, SubagentStop; no-op elsewhere |
 | `hook_system_message "t"` | `systemMessage`, shown to the user and not added to model context; no-op on Notification, SessionEnd, PreCompact and ConfigChange, which discard it | no-op |
+| `hook_relay "<json>"` | Maps one Claude-shaped response onto the helpers above; see below | the same |
 | `hook_noop` | `{}` | `{}` |
 | `hook_raw <host> <json>` | compacted and sent as is, only when `<host>` is `claude` | compacted and sent as is, only when `<host>` is `copilot` |
 
 Use `hook_noop` to let a call proceed under normal permissions. `hook_allow` auto-approves, which skips the
 permission prompt on Claude, so use it to approve or rewrite input deliberately.
 
-`hook_allow '<json>'` passes `updatedInput` or `modifiedArgs` through unchanged, so on Copilot write the
-replacement input with Copilot's key names (`path`, `file_text`, `old_str`, `new_str`). The argument must be
-valid JSON; otherwise the call logs the problem and returns 1, sending nothing.
+`hook_allow [reason] [json]` takes the reason first, then the replacement input: an empty reason is
+`hook_allow "" '<json>'`. The input is passed through as `updatedInput` or `modifiedArgs` unchanged, so on Copilot
+write it with Copilot's key names (`path`, `file_text`, `old_str`, `new_str`). The second argument must be
+valid JSON; otherwise the call logs the problem and returns 1, sending nothing. An older call that passed
+the JSON as the only argument now passes it as the reason, so move it to the second argument.
+
+`hook_relay` is for a script that hands the decision to a CLI that prints a Claude-shaped response. It picks
+one answer, first match wins: a `permissionDecision` (`allow`, `deny` or `ask`, with its reason and
+`updatedInput`), then `decision: "block"`, then `additionalContext`, then `systemMessage`, then `hook_noop`. It
+calls the matching helper, so the host's rules apply, and writes each field it dropped to the debug log. Input
+that is not a JSON object logs and returns 1.
+
+```bash
+hook_require_input
+out=$(mytool hook --stdin <<<"$(hook_envelope claude)") || out='{}'
+hook_relay "$out"
+```
 
 The rules:
 
 - One response goes out per run. A second call is ignored, even from a subshell, and logged when debug is on.
 - A call the host cannot honour on the current event becomes `{}` with exit 0, and logs a debug line when
-  `PLUGINFINITY_HOOK_DEBUG=1`. `hook_deny`, `hook_allow` and `hook_ask` work on `PreToolUse` only.
+  `PLUGINFINITY_DEBUG=1`. `hook_deny`, `hook_allow` and `hook_ask` work on `PreToolUse` only.
 - `hook_raw <host> <json>` covers a field only one host has. The JSON is compacted and sent as is, and only
   when the host matches; on the other host it does nothing.
 - The output caps (10,000 characters on Claude Code, 10 KB for `postToolUse` on Copilot) are not enforced.
@@ -152,8 +182,14 @@ The library installs an `EXIT` trap. If the script exits non-zero, aborts under 
 trap records the failure in the error log and exits 0, so the hook fails open. That matters on Copilot,
 where a failing `preToolUse` hook denies the tool call.
 
-- `hook_fail_closed` makes the trap respond with a deny (`PreToolUse`) or a block (where the host honours
-  one) instead. Call it early. It does nothing if the script already sent a response.
+- `hook_fail_closed`, or `failClosed: true` on the entry, makes the trap respond with a deny (`PreToolUse`)
+  or a block (where the host honours one) instead. The entry form takes effect even when the script dies
+  before it reaches a call, so prefer it for a guard. The call does nothing if the script already sent a
+  response.
+- **Fail closed only for a guard that must not let a call through when it breaks**, such as a hook that
+  denies a destructive command or protects a path. Leave a hook that adds context, reacts to an edit or
+  gates a Stop open: a crash there should cost one missing message, not a blocked session. On Copilot a
+  closed guard on an event that can neither deny nor block still fails open.
 - `exit 2` is a failure here, not a block. Use `hook_deny` or `hook_block` to refuse something.
 - Only the response may reach stdout, and the library has no stdout fence. Redirect any CLI a hook runs (`>/dev/null` or `>&2`), or capture it with `$(...)`.
 - Do not install your own `trap ... EXIT`. It replaces the library's trap, and a failing hook would then exit
@@ -167,19 +203,42 @@ where a failing `preToolUse` hook denies the tool call.
   A failing `$(...)` inside a command's arguments or a `case` word does not trip `set -e`, so the script
   carries on with an empty value.
 
-Logs live in `${XDG_STATE_HOME:-~/.local/state}/pluginfinity/<plugin>/`. `hook-error.log` holds failures and
-`hook-debug.log` holds debug lines, written when `PLUGINFINITY_HOOK_DEBUG=1`, which also logs each hook's
-raw input as an `input:` line and, when the hook exits, its result as one `outcome:` line: `block`, `deny`,
+Every hook, server launcher, monitor and skill script logs through one standard, in
+`${XDG_STATE_HOME:-~/.local/state}/pluginfinity/<plugin>/`. `error.log` holds failures. `debug.log` holds debug
+lines, written only when `PLUGINFINITY_DEBUG=1`. A line is
+`<ISO-8601 UTC> [<host>] <component>/<script>: <message>`, where the component is `hook`, `server`, `monitor` or
+`script`. With the switch set, a hook also logs its raw input as an `input:` line and, when it exits, its result as one `outcome:` line: `block`, `deny`,
 `allow`, `ask`, `context`, `system_message`, `noop`, `raw`, `none` (it sent no response), or `fail-closed deny` /
 `fail-closed block` when the library sent the response for a crash. A non-zero exit code is appended, as in
 `outcome: none (exit 3)`. A helper the host cannot honour on the event, such as `hook_deny` on `Stop`, sends `{}` and
 logs `noop`: the outcome is what was sent, not what you asked for. A second response is ignored and the first
 kind stays the outcome. If the library itself fails to load (no `jq`, or a missing `host.sh`), the hook exits
 before any logging and writes no `outcome:` line. Use it to see what a host sends and what your hook answered.
-`hook_log` and `hook_debug` append to the logs from your own script.
+`hook_log` and `hook_debug` append to the logs from your own script. The same files serve the other components:
+see the `plugin-scripts` skill's logging section.
 
-With `PLUGINFINITY_HOOK_DEBUG=1`, prompts and tool inputs are written to a plaintext log. Do not leave it set
+With `PLUGINFINITY_DEBUG=1`, prompts and tool inputs are written to a plaintext log. Do not leave it set
 outside a debugging session.
+
+### Matchers a host ignores
+
+Claude Code applies an entry's `matcher`. Copilot ignores it on `SessionStart`, `SessionEnd` and
+`SubagentStop`. For those events on Copilot the build hands the matcher to the script as
+`PLUGINFINITY_MATCHER` and lists a `hook-matcher-runtime` note under `config`. The library then applies it
+with Claude Code's rules, against `source`, `reason` and `agent_type` respectively: empty or `*` matches all, a value of only letters,
+digits, `_`, `|`, spaces, `,` and `-` is an exact `|` list, and anything else is an unanchored extended
+regular expression. A hook that does not match ends quietly with exit 0 and no response.
+
+This holds **only for an entry whose script sources the library**. A plain `command` entry on such an event
+gets the variable and the note, but nothing reads it, so on Copilot the hook runs for every source. Use a
+`script` entry that sources `hook.sh` when the matcher matters.
+
+### Output a host ignores
+
+Where a host discards a helper's output on an event, such as `hook_context` on a Copilot event it does not
+read, the build lists a `hook-output-ignored` note naming the script and `<Event>:<helper>`. The scan is best
+effort: it strips comments, reads whole-word helper names, does not model heredocs, cannot see a call made
+through a variable or a sourced file, and skips events only Copilot has.
 
 ## Testing hooks
 
@@ -198,6 +257,8 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 | `assert_hook_json <jq-filter> <expected>` | The filter's raw value over stdout equals `expected` |
 | `assert_hook_noop` | Exit 0 with no output or `{}` |
 | `hook_fixture <event> [overrides-json]` | Writes a Claude-shaped input for the event to a temp file and prints its path |
+| `run_script <target> <path> [--stdin <file>] [args...]` | Runs `bash builds/<target>/<path>` under `env -i` with that host's environment, from the plugin root on Copilot: a skill script or a launcher. Stdin is `/dev/null` unless `--stdin` is given. Sets `$status`, `$output` and `$stderr` |
+| `run_monitor <target> <name> [--ticks <n>] [VAR=value...]` | Runs a monitor's command from `builds/claude/monitors/monitors.json` under `bash -c`, with `CLAUDE_PLUGIN_ROOT` set and stdin `/dev/null`, bounded to `<n>` ticks (default 1). Only `claude` has monitors. See [monitors](monitors.md) |
 
 The dogfood plugin tests its `PreToolUse` hook on both targets:
 
@@ -252,8 +313,9 @@ names, except scripts only another host's hooks run. Keep test data out of `hook
 `hooks/` ships to the hosts that run it, as does any file a `command` names as `${PLUGIN_ROOT}/<path>`;
 the build fails if one is missing. Clutter such as `.DS_Store` never ships.
 
-pluginfinity also writes the hook library into every build with hooks, as `hooks/lib/pluginfinity/*.sh`
-plus a generated `host.sh`. That path is reserved: a source file under `hooks/lib/pluginfinity/` fails
+pluginfinity also writes the hook library into every build with hooks, as `hooks/lib/pluginfinity/hook.sh`
+plus a generated `host.sh` and `tools.sh` (the host's run-time tool names, read by `hook_tool_name`). The
+log library goes to `lib/pluginfinity/log.sh`. That path is reserved: a source file under `hooks/lib/pluginfinity/` fails
 the build, and `build --check` reports a library from a different pluginfinity version as drift.
 
 pluginfinity writes the hooks file itself: `hooks/hooks.json` on Claude Code and

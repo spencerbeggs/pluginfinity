@@ -8,7 +8,7 @@ Blocks a Bash command before it runs. It relies on `PreToolUse` and on the libra
 
 ```ts
 hooks: {
-	PreToolUse: [{ matcher: "Bash", script: "hooks/pre-tool-use.sh", timeout: 5 }],
+	PreToolUse: [{ matcher: "Bash", script: "hooks/pre-tool-use.sh", timeout: 5, failClosed: true }],
 }
 ```
 
@@ -16,10 +16,14 @@ hooks: {
 #!/usr/bin/env bash
 set -euo pipefail
 . "$(dirname "$0")/lib/pluginfinity/hook.sh"
+hook_require_input
 
 cmd=$(hook_input tool_input.command)
 case "$cmd" in
 *pf-dogfood-deny*) hook_deny "pluginfinity-dogfood denies commands holding pf-dogfood-deny" ;;
+*pf-dogfood-allow*) hook_allow "pluginfinity-dogfood approves commands holding pf-dogfood-allow" ;;
+# The entry is failClosed: a crash here must deny, not let the call through.
+*pf-dogfood-closed-crash*) false ;;
 *) hook_noop ;;
 esac
 ```
@@ -33,7 +37,7 @@ esac
 }
 ```
 
-**Change for your plugin:** the marker string, the denial message and the `Bash` matcher. Match a different tool by changing the matcher.
+**Change for your plugin:** the marker string, the denial message and the `Bash` matcher. Match a different tool by changing the matcher. `failClosed: true` makes a crash in this guard deny the call instead of letting it through; drop it for a hook that must not block work when it breaks. The `allow` line shows `hook_allow` taking its reason first.
 
 ## Recipe: Startup context
 
@@ -41,7 +45,7 @@ Adds context when a session starts. It relies on `SessionStart` and on `hook_con
 
 ```ts
 hooks: {
-	SessionStart: [{ script: "hooks/session-start.sh", timeout: 5 }],
+	SessionStart: [{ matcher: "startup", script: "hooks/session-start.sh", timeout: 5 }],
 }
 ```
 
@@ -49,6 +53,7 @@ hooks: {
 #!/usr/bin/env bash
 set -euo pipefail
 . "$(dirname "$0")/lib/pluginfinity/hook.sh"
+hook_require_input
 
 source=$(hook_input source)
 hook_context "pluginfinity-dogfood is loaded on $(hook_host) ($source)"
@@ -63,7 +68,7 @@ hook_context "pluginfinity-dogfood is loaded on $(hook_host) ($source)"
 }
 ```
 
-**Change for your plugin:** the context text. Keep it short, since it enters every session.
+**Change for your plugin:** the context text. Keep it short, since it enters every session. The `startup` matcher limits it to fresh sessions, not `resume` or `clear`. Copilot ignores a `SessionStart` matcher, so the build passes it to the script and the library applies it, which works because this is a `script` entry that sources `hook.sh`; the build lists a `hook-matcher-runtime` note.
 
 ## Recipe: Post-edit reaction
 
@@ -79,6 +84,7 @@ hooks: {
 #!/usr/bin/env bash
 set -euo pipefail
 . "$(dirname "$0")/lib/pluginfinity/hook.sh"
+hook_require_input
 
 file=$(hook_input tool_input.file_path)
 if [ -n "$file" ]; then
@@ -113,6 +119,7 @@ hooks: {
 #!/usr/bin/env bash
 set -euo pipefail
 . "$(dirname "$0")/lib/pluginfinity/hook.sh"
+hook_require_input
 
 stop_hook_active=$(hook_input stop_hook_active)
 if [ "$stop_hook_active" != true ] && [ -e "$(hook_project_dir)/.pf-dogfood-block" ]; then
@@ -151,6 +158,7 @@ hooks: {
 #!/usr/bin/env bash
 set -euo pipefail
 . "$(dirname "$0")/lib/pluginfinity/hook.sh"
+hook_require_input
 
 hook_context "pluginfinity-dogfood subagent context"
 ```
