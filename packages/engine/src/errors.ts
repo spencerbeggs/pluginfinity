@@ -1,4 +1,5 @@
 import type { Remediation } from "@effected/engine";
+import { KNOWN_TARGET_IDS } from "@pluginfinity/targets";
 import { Schema } from "effect";
 
 /**
@@ -14,9 +15,6 @@ export class ConfigIssue extends Schema.Class<ConfigIssue>("ConfigIssue")({
 	kind: Schema.optionalKey(Schema.Literal("token")),
 }) {}
 
-/** Every target a host block can name. */
-const KNOWN_TARGETS: ReadonlyArray<string> = ["claude", "copilot"];
-
 /**
  * The ways to clear a token or link problem besides correcting it: keep the
  * passage from the failing target, keep the braces literal, or keep a link
@@ -24,7 +22,7 @@ const KNOWN_TARGETS: ReadonlyArray<string> = ["claude", "copilot"];
  */
 const tokenAlternatives = (failing: ReadonlyArray<string | undefined>): string => {
 	const named = new Set(failing.filter((target): target is string => target !== undefined));
-	const others = KNOWN_TARGETS.filter((target) => !named.has(target));
+	const others = KNOWN_TARGET_IDS.filter((target) => !named.has(target));
 	const block =
 		others.length > 0
 			? `use a host block (<!-- pluginfinity:only ${others.join(" ")} -->) around a passage only another target can build`
