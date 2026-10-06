@@ -8,7 +8,58 @@ const OPEN = /^\s*<!--\s*pluginfinity:only\s+([^>]*?)\s*-->\s*$/;
 const CLOSE = /^\s*<!--\s*\/pluginfinity:only\s*-->\s*$/;
 const MARKER = /<!--\s*\/?pluginfinity:only/;
 export const FENCE = /^ {0,3}(`{3,}|~{3,})/;
-export const INLINE_CODE = /(`+)[\s\S]*?\1/g;
+
+/**
+ * The inline code spans of one line, as sorted, disjoint `[start, end)` ranges
+ * covering the backticks too. A span opens at a run of backticks and closes at
+ * the next run of exactly the same length; a run with no such partner is
+ * literal text. One pass over the line: runs are indexed, then each is paired
+ * with the next run of its length, so no input backtracks.
+ */
+export const inlineCodeSpans = (line: string): ReadonlyArray<{ readonly start: number; readonly end: number }> => {
+	const starts: Array<number> = [];
+	const lengths: Array<number> = [];
+	for (let i = 0; i < line.length; ) {
+		if (line[i] !== "`") {
+			i++;
+			continue;
+		}
+		let j = i;
+		while (line[j] === "`") j++;
+		starts.push(i);
+		lengths.push(j - i);
+		i = j;
+	}
+	const partner: Array<number> = new Array<number>(starts.length).fill(-1);
+	const nextOfLength = new Map<number, number>();
+	for (let k = starts.length - 1; k >= 0; k--) {
+		const len = lengths[k] as number;
+		partner[k] = nextOfLength.get(len) ?? -1;
+		nextOfLength.set(len, k);
+	}
+	const spans: Array<{ start: number; end: number }> = [];
+	for (let k = 0; k < starts.length; ) {
+		const close = partner[k] as number;
+		if (close === -1) {
+			k++;
+			continue;
+		}
+		spans.push({ start: starts[k] as number, end: (starts[close] as number) + (lengths[close] as number) });
+		k = close + 1;
+	}
+	return spans;
+};
+
+/** The line with its inline code spans removed. */
+export const stripInlineCode = (line: string): string => {
+	let out = "";
+	let at = 0;
+	for (const { start, end } of inlineCodeSpans(line)) {
+		out += line.slice(at, start);
+		at = end;
+	}
+	return out + line.slice(at);
+};
 
 /**
  * Why a body's host blocks are malformed, with the 1-based line it was found on.
@@ -77,7 +128,7 @@ export const mapHostBlocks = (
 			open = undefined;
 			continue;
 		}
-		if (MARKER.test(line.replace(INLINE_CODE, ""))) {
+		if (MARKER.test(stripInlineCode(line))) {
 			return { problem: { line: number, message: "a host block marker must be on a line of its own" } };
 		}
 		if (keep) push(line, number);

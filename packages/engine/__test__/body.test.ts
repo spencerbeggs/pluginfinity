@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { applyHostBlocks, mapHostBlocks } from "../src/body.js";
+import { applyHostBlocks, inlineCodeSpans, mapHostBlocks } from "../src/body.js";
 
 const KNOWN = ["claude", "copilot"];
 
@@ -110,4 +110,42 @@ describe("applyHostBlocks", () => {
 			assert.include(result.problem.message, message);
 		});
 	}
+});
+
+describe("inlineCodeSpans", () => {
+	it("finds single and double backtick spans", () => {
+		assert.deepStrictEqual(inlineCodeSpans("a `b` c ``d`` e"), [
+			{ start: 2, end: 5 },
+			{ start: 8, end: 13 },
+		]);
+	});
+	it("treats runs of another length inside a span as content", () => {
+		assert.deepStrictEqual(inlineCodeSpans("``a ` b``"), [{ start: 0, end: 9 }]);
+		assert.deepStrictEqual(inlineCodeSpans("`a `` b`"), [{ start: 0, end: 8 }]);
+	});
+	it("leaves an unclosed run literal and keeps scanning", () => {
+		assert.deepStrictEqual(inlineCodeSpans("`` a `b`"), [{ start: 5, end: 8 }]);
+		assert.deepStrictEqual(inlineCodeSpans("`a"), []);
+	});
+	it("finds adjacent spans", () => {
+		assert.deepStrictEqual(inlineCodeSpans("`a`x`b`"), [
+			{ start: 0, end: 3 },
+			{ start: 4, end: 7 },
+		]);
+	});
+	it("finds nothing in an empty string", () => {
+		assert.deepStrictEqual(inlineCodeSpans(""), []);
+	});
+	it("scans a line of 100k backticks in linear time", () => {
+		const line = "`".repeat(100_000);
+		const t = performance.now();
+		inlineCodeSpans(line);
+		assert.isBelow(performance.now() - t, 200);
+	});
+	it("scans 50k alternating '`x' in linear time", () => {
+		const line = "`x".repeat(50_000);
+		const t = performance.now();
+		inlineCodeSpans(line);
+		assert.isBelow(performance.now() - t, 200);
+	});
 });

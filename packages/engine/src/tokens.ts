@@ -1,5 +1,5 @@
 import type { Target, Unresolved } from "@pluginfinity/core";
-import { INLINE_CODE, fencedLines } from "./body.js";
+import { fencedLines, inlineCodeSpans } from "./body.js";
 import type { OwnMcp } from "./frontmatter.js";
 import { splitOwnMcp } from "./frontmatter.js";
 
@@ -189,8 +189,19 @@ const link = (text: string, destination: string, raw: string, ctx: TokenContext)
  */
 const links = (line: string, ctx: TokenContext, problems: Array<string>): string => {
 	if (!SCHEME.test(line)) return line;
-	const code = [...line.matchAll(INLINE_CODE)].map((m) => [m.index, m.index + m[0].length] as const);
-	const inCode = (at: number): boolean => code.some(([start, end]) => at >= start && at < end);
+	const code = inlineCodeSpans(line);
+	const inCode = (at: number): boolean => {
+		let lo = 0;
+		let hi = code.length - 1;
+		while (lo <= hi) {
+			const mid = (lo + hi) >> 1;
+			const span = code[mid] as { start: number; end: number };
+			if (at < span.start) hi = mid - 1;
+			else if (at >= span.end) lo = mid + 1;
+			else return true;
+		}
+		return false;
+	};
 	const handled: Array<readonly [number, number]> = [];
 	const out = line.replace(LINK, (raw, bang: string, text: string, destination: string, offset: number) => {
 		if (inCode(offset + bang.length)) return raw;
