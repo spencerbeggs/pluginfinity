@@ -25,15 +25,15 @@ sources:
     title: Claude Code plugin format, monitors
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:43:13Z
-  body_sha256: f419de128686b496a8c3a9f5899ed0adf225a4f898d4f080182bdc8698a5a86c
+  at: 2026-10-06T21:45:51Z
+  body_sha256: 59d12056073c6fbcae3acc26b9113362f9772e9b850a1741287cba081ab0575e
 ---
 
 # Monitors are a first-class component
 
 ## Context
 
-Claude Code runs a plugin's background monitors from `monitors/monitors.json` and delivers each stdout line to the model.[^cc-plugin-format] The first release listed monitors as out of scope ([source model](../models/plugin-source-model.md)). A plugin that needed one had to hand-write the file, which the build would then clash with or never ship. The owner directed that monitors become a component.[^owner-direction]
+Claude Code runs a plugin's background monitors from `monitors/monitors.json` and delivers each stdout line to the model.[^cc-plugin-format] The first release listed monitors as out of scope ([source model](../models/plugin-source-model.md)). A plugin that needed one had to hand-write the file, which the build would then clash with or never ship. The owner said: "We should build a first-class monitors solution though, these would be dropped in copilot obviously, but a first-class way to implement them would be helpful."[^owner-direction]
 
 ## Decision
 
@@ -51,8 +51,7 @@ Claude Code runs a plugin's background monitors from `monitors/monitors.json` an
 
 ## Alternatives rejected
 
-- **Leave monitors to hand-written files.** The build cannot ship the scripts a hand-written file names, and `build --check` would not see drift.
-- **Emulate monitors on Copilot with a hook.** The behaviours differ, and a silent substitute would hide that the host has none.
+- **A Node or JS helper for monitors.** Deferred: built plugins carry markdown, JSON and bash only ([decision](plugins-carry-no-node-dependencies.md)).
 
 [^owner-direction]: conversation with the repository owner, 2026-10-06
 [^core-monitors]: `../../packages/core/src/monitors.ts`

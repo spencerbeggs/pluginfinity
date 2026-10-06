@@ -8,9 +8,9 @@ tags:
   - dx
   - portability
 sources:
-  - id: owner-direction
-    resource: conversation with the repository owner
-    author: human:spencer
+  - id: design
+    resource: the round-1 plan and rulings of the implementing agent session
+    author: okfit/claude-code
     last_modified: 2026-10-06T00:00:00Z
   - id: notes
     resource: ../../packages/engine/src/notes.ts
@@ -23,15 +23,15 @@ sources:
     title: Where monitor-omitted notes are raised
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:43:13Z
-  body_sha256: c4217f3eda1de722967978bf8ffb48ae6f24359828e77862a0f1138ca034dcb6
+  at: 2026-10-06T21:45:51Z
+  body_sha256: 03e8d9eb45e14e4a5e62aa11fe21e9a5494ba122a6a4206ab72e20bd0473bf1a
 ---
 
 # Build notes also report hook matchers, ignored hook output and omitted monitors
 
 ## Context
 
-[The earlier decision](build-notes-report-dropped-fields.md) made every drop visible with four note kinds. Round 1 added three things a host can honour only partly: a hook matcher the host ignores, a hook script that emits output the host discards, and a monitor on a host with none. Each would otherwise ship as a weaker plugin with no report.[^owner-direction]
+[The earlier decision](build-notes-report-dropped-fields.md) made every drop visible with four note kinds. Round 1 added three things a host can honour only partly: a hook matcher the host ignores, a hook script that emits output the host discards, and a monitor on a host with none. Each would otherwise ship as a weaker plugin with no report. The implementing agent session extended the notes in the round-1 plan; it is the author's design, accepted by the owner only as part of approving the plan, not an owner-stated requirement.[^design]
 
 ## Decision
 
@@ -49,12 +49,7 @@ Everything in the earlier decision still holds: a note is `{target, path, kind, 
 - `hook-output-ignored` can miss a helper called through a variable or a sourced file, so a clean build is not proof that every output lands.
 - Both the `build` and `validate` human lines and their JSON `notes` arrays carry the new kinds, with no change to exit codes.
 
-## Alternatives rejected
-
-- **Fail the build on ignored output.** A script that targets two hosts legitimately emits output only one honours.
-- **Leave the new kinds to the host-specific docs.** That repeats the silent drop the first decision removed.
-
-[^owner-direction]: conversation with the repository owner, 2026-10-06
+[^design]: the round-1 plan and rulings of the implementing agent session, 2026-10-06
 [^notes]: `../../packages/engine/src/notes.ts`
 [^hook-output]: `../../packages/engine/src/hook-output.ts`
 [^monitors]: `../../packages/engine/src/monitors.ts`

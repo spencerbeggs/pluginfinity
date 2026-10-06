@@ -8,7 +8,7 @@ tags:
   - dx
 sources:
   - id: owner-direction
-    resource: conversation with the repository owner
+    resource: conversation with the repository owner, relaying the downstream's request, and the owner's confirmation
     author: human:spencer
     last_modified: 2026-10-06T00:00:00Z
   - id: log-lib
@@ -25,15 +25,15 @@ sources:
     title: server_log and server_debug
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:43:13Z
-  body_sha256: 3f1420a6c7f11e089656d5afe70565de188fd2ed7b2f91ac3fafb559a6f378e1
+  at: 2026-10-06T21:45:51Z
+  body_sha256: 48868910b6135fc1e0b28eda032515d5be5603727ae83b6740980e8f401dfacc
 ---
 
 # Hooks, servers, monitors and scripts share one logging standard
 
 ## Context
 
-The hook library wrote `hook-error.log` and, under `PLUGINFINITY_HOOK_DEBUG=1`, `hook-debug.log`; the server library wrote `server-error.log`. A skill script or a monitor had no way to log at all. A maintainer debugging a plugin on a host had to know which file each component wrote and which switch turned on each, and the lines differed in shape. The owner directed that every component a plugin runs log the same way.[^owner-direction]
+The hook library wrote `hook-error.log` and, under `PLUGINFINITY_HOOK_DEBUG=1`, `hook-debug.log`; the server library wrote `server-error.log`. A skill script or a monitor had no way to log at all. A maintainer debugging a plugin on a host had to know which file each component wrote and which switch turned on each, and the lines differed in shape. The downstream's request relayed the owner's stated preference: one standard for debug logging across everything pluginfinity ships (hooks, server launchers, monitors, skill scripts), with no per-plugin override. The owner then confirmed the shape below (one switch, one directory, `error.log` and `debug.log`, one line format) and that breaking changes need no shims, since only two plugins have migrated.[^owner-direction]
 
 ## Decision
 
@@ -51,8 +51,7 @@ The hook library wrote `hook-error.log` and, under `PLUGINFINITY_HOOK_DEBUG=1`, 
 
 ## Alternatives rejected
 
-- **Keep one file pair per component.** That is the divergence this removes.
-- **Log to stderr.** A host shows or swallows hook and monitor stderr differently, and a stdio server's stderr is the host's.
+- **A per-plugin override of the log location or switch.** The owner rejected it: the preference was one standard with no per-plugin override.[^owner-direction]
 
 [^owner-direction]: conversation with the repository owner, 2026-10-06
 [^log-lib]: `../../packages/engine/log-lib/log.sh`

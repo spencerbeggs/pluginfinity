@@ -7,9 +7,9 @@ tags:
   - architecture
   - portability
 sources:
-  - id: owner-direction
-    resource: conversation with the repository owner
-    author: human:spencer
+  - id: design
+    resource: the round-1 plan and rulings of the implementing agent session
+    author: okfit/claude-code
     last_modified: 2026-10-06T00:00:00Z
   - id: engine-hooks
     resource: ../../packages/engine/src/hooks.ts
@@ -25,15 +25,15 @@ sources:
     title: matcherIgnored in the hooks part
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:43:13Z
-  body_sha256: 60940a059b2c5549f0417f758a63386dfbdadedda108da48f982ad24064b7b8c
+  at: 2026-10-06T21:45:51Z
+  body_sha256: 7b5bcc23706d9627cb9165ff7040afc3871c9b0b11a1351806fd41eba41d0f41
 ---
 
 # Facts about a hook entry travel to its script as environment variables
 
 ## Context
 
-A Copilot payload is camelCase and carries no `hook_event_name`, so a script cannot tell its event from its input. A hook entry's `failClosed` choice and its matcher were facts the config held and the script could not see. Copilot also ignores the matcher on `SessionStart`, `SessionEnd` and `SubagentStop`, so an entry written for one matcher would fire for all of them.[^core-target] The owner directed that the build hand these facts to the script.[^owner-direction]
+A Copilot payload is camelCase and carries no `hook_event_name`, so a script cannot tell its event from its input. A hook entry's `failClosed` choice and its matcher were facts the config held and the script could not see. Copilot also ignores the matcher on `SessionStart`, `SessionEnd` and `SubagentStop`, so an entry written for one matcher would fire for all of them.[^core-target] The implementing agent session designed the build to hand these facts to the script, in the round-1 plan and its rulings, and the owner accepted that only as part of approving the plan. It is not an owner-stated requirement, so the verifier should weigh it as a design choice.[^design]
 
 ## Decision
 
@@ -50,10 +50,10 @@ A Copilot payload is camelCase and carries no `hook_event_name`, so a script can
 
 ## Alternatives rejected
 
-- **Derive the event from the payload.** Copilot's payload does not carry it.
-- **A shell prefix on Copilot.** Copilot's `env` field is the documented channel, and a prefix would need a shell the entry does not otherwise use.
+- **A shell prefix for the env on Copilot.** Rejected in favour of Copilot's `env` field, which the host documents and a live run confirmed.
+- **A `--` after the env pairs, to allow `=` in a script path.** It does not work: `env` parses options before assignments, so the path is still read as an assignment.
 
-[^owner-direction]: conversation with the repository owner, 2026-10-06
+[^design]: the round-1 plan and rulings of the implementing agent session, 2026-10-06, accepted by the owner as part of approving the plan
 [^engine-hooks]: `../../packages/engine/src/hooks.ts`
 [^hook-lib]: `../../packages/engine/hook-lib/hook.sh`
 [^errors]: `../../packages/engine/src/errors.ts`
