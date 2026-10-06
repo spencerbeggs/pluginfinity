@@ -9,6 +9,10 @@
 * Updated @pluginfinity/targets
 * Updated Plugin source model
 * Updated Target description
+* Updated @pluginfinity/engine
+* Updated Body tokens and pluginfinity links are built per target
+* Updated Hook scripts change mode around every commit with no diff, and build --check ignores it
+* Updated pluginfinity companion plugin
 
 ## 2026-10-05
 

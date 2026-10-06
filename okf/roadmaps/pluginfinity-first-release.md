@@ -30,8 +30,8 @@ sources:
     title: impeccable's post-build rewrite of the Claude Code plugin copy
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T20:49:08Z
-  body_sha256: 69c7e7349e7876b2eaeb220c3729fac60559f7910ef686211edf9809bbbf57fc
+  at: 2026-10-06T03:32:48Z
+  body_sha256: d60229ec91115733e997a366e37f7b5c1a198e1772d82d2bfc4c3d5db6dcffed
 ---
 
 # pluginfinity first release
@@ -113,9 +113,9 @@ What to avoid: impeccable's main output is a project install, and the Claude Cod
 
 0. **Workspace.** Done on 2026-10-02: the template became a workspace with the CLI split into carrier-pattern layer packages under `packages/` ([decision](../decisions/pluginfinity-ships-as-a-carrier-package.md)) and two plugin workspaces, `plugins/pluginfinity/` (the companion) and `plugins/dogfood/` (the end-to-end fixture), each depending on the `pluginfinity` carrier through `workspace:*`; and this bundle was seeded.
 1. **Design.** Done on 2026-10-02. The command surface and the first `pluginfinity.config.ts` shape landed first ([CLI interface](../interfaces/cli.md), [config interface](../interfaces/config.md)); the [plugin source model](../models/plugin-source-model.md), the [target description](../models/target-description.md), the pipeline and the test plan above complete it.
-2. **Builder.** Config discovery, loading and `doctor` work. `build` emits each target's manifest through the reconciling emit, `build --check` reports `BuildStale`, and `validate` runs both hosts' checks. The effected plugin is the acceptance test, built in slices: the bare plugin, then hooks, skills and agents. What remains is the pipeline and `check` mode in `@pluginfinity/engine`, the Claude Code and Copilot capability descriptions in `@pluginfinity/targets`, the `init` and `plugin add` scaffolding, and the host-CLI half of `validate`. Grow `plugins/dogfood/` alongside, so every CLI feature is exercised end to end even when the companion does not use it.
-3. **Companion plugin.** Author `plugins/pluginfinity/` as a single source from the start, drawing on plugin-bot's content in the bot repository as a reference rather than copying its two target folders. Compare its generated `builds/` with plugin-bot's hand-maintained targets to check that the build reproduces what porting produced by hand.
-4. **Guards and docs.** Wire `check` into CI. Teach the companion plugin the pluginfinity authoring pattern, including a hook that blocks direct edits under `plugins/*/builds/**`.
+2. **Builder.** Mostly done. Config discovery, loading and `doctor` work. `build` runs the whole pipeline: manifests, skills, agents, hooks with the injected [hook library](../decisions/hook-library-is-build-injected.md), MCP and LSP servers with their [launchers](../decisions/server-launchers-ship-by-discovery-and-files.md), `files` entries, [body tokens and `pluginfinity://` links](../decisions/body-tokens-and-links-are-built-per-target.md), and [build notes](../decisions/build-notes-report-dropped-fields.md), through the reconciling emit. `build --check` reports `BuildStale` on content or executable-bit differences, and `validate` runs both hosts' checks. The Claude Code and Copilot capability descriptions in `@pluginfinity/targets` carry the run-time names the [measurements](../measurements/copilot-runtime-names.md) established. `plugins/dogfood/` exercises each of these end to end on both hosts. What remains is the `init` and `plugin add` scaffolding, which are stubs that fail with `NotImplemented`.
+3. **Companion plugin.** Under way. `plugins/pluginfinity/` is a single source built into `builds/claude/` and `builds/copilot/`: the `pluginfinity`, `hook-authoring`, `hook-events`, `plugin-scripts` and `migrating-hooks` skills and the `plugin-engineer` agent. What remains is plugin-bot's host-reference and authoring skills, rewritten for one source, and the comparison of the generated `builds/` with plugin-bot's hand-maintained targets.
+4. **Guards and docs.** Not started. Wire `build --check` into CI, which no workflow runs yet, and add a hook to the companion that blocks direct edits under `plugins/*/builds/**`. The authoring pattern itself is already taught by the companion's skills.
 5. **First publish.** The name is settled as pluginfinity ([decision](../decisions/pluginfinity-name.md)). Write the README, make the carrier publishable (its manifest is still `private: true`), and publish to npm.
 
 ## Open questions
