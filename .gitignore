@@ -40,3 +40,6 @@ docs/superpowers/
 !plugins/*/builds/**/.mcp.json
 # pluginfinity local output
 .pluginfinity/
+
+# dogfood mailbox (silk:dogfood)
+.claude/dogfood/
