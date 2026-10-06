@@ -686,7 +686,7 @@ describe("build with hooks", () => {
 				const root = yield* hookedPlugin();
 				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
 				const lib = (target: string) =>
-					hookLibFiles(target as "claude" | "copilot", "hooked", ENGINE_VERSION).map((file) => file.path);
+					hookLibFiles(target as "claude" | "copilot", "hooked", ENGINE_VERSION, "").map((file) => file.path);
 				assert.deepStrictEqual(
 					builds.map((entry) => [entry.target, entry.plan.added]),
 					[
@@ -725,7 +725,7 @@ describe("build with hooks", () => {
 				const path = yield* Path.Path;
 				const root = yield* hookedPlugin();
 				yield* build({ selection: nearest(root), targets: [], check: false });
-				for (const file of hookLibFiles("claude", "hooked", ENGINE_VERSION)) {
+				for (const file of hookLibFiles("claude", "hooked", ENGINE_VERSION, "")) {
 					yield* fs.chmod(path.join(root, "builds/claude", file.path), 0o755);
 				}
 				const check = yield* build({ selection: nearest(root), targets: [], check: true });

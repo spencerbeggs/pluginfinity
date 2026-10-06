@@ -39,6 +39,7 @@ import { mcpServerNames, renderServers, serverFiles } from "./servers.js";
 import type { SourceSkill } from "./skills.js";
 import { readSkills, renderSkill } from "./skills.js";
 import type { TokenContext } from "./tokens.js";
+import { renderToolMap } from "./tool-map.js";
 import { ENGINE_VERSION } from "./version.js";
 
 /**
@@ -460,7 +461,14 @@ const planPlugin = (
 			const hooksFile = renderHooks(target, events, invoke);
 			if (hooksFile !== undefined) {
 				generated.push({ path: target.hooks.path, content: hooksFile });
-				generated.push(...hookLibFiles(id, String(manifest.name), ENGINE_VERSION));
+				generated.push(
+					...hookLibFiles(
+						id,
+						String(manifest.name),
+						ENGINE_VERSION,
+						renderToolMap(target, pluginName(config.config, "claude"), [...mcpServerNames(id, config.config)]),
+					),
+				);
 			}
 			generated.push(...libFiles(id, String(manifest.name), ENGINE_VERSION, { monitors: false }));
 			generated.push(...rendered.files);

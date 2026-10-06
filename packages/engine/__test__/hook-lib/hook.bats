@@ -830,3 +830,41 @@ exit 7'
 	[ "$(jq -c .hookSpecificOutput.updatedInput <<<"$output")" = '{"command":"ls"}' ]
 	[[ "$(debug_log)" == *"hook_relay dropped continue"* ]]
 }
+
+# --- tool names ---
+
+@test "hook_tool_name spells an own MCP tool on Copilot" {
+	make_plugin copilot silk "$(printf "_PF_TOOLS='Read=view'\n_PF_TOOLS_MCP='{server}-{tool}'\n_PF_TOOLS_SERVERS='savvy-mcp'\n_PF_TOOLS_UNLISTED=unresolved\n")"
+	hook_script 'hook_tool_name mcp__plugin_silk_savvy-mcp__biome_check; hook_tool_name Read'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'savvy-mcp-biome_check\nview')" ]
+}
+
+@test "hook_tool_name fails for another plugin's tool on Copilot" {
+	make_plugin copilot silk "$(printf "_PF_TOOLS=''\n_PF_TOOLS_MCP='{server}-{tool}'\n_PF_TOOLS_SERVERS='savvy-mcp'\n_PF_TOOLS_UNLISTED=unresolved\n")"
+	hook_script 'hook_tool_name mcp__plugin_other_x__y || echo "rc=$?"; hook_tool_name AskUserQuestion || echo "rc=$?"'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'rc=1\nrc=1')" ]
+}
+
+@test "hook_tool_name echoes on Claude" {
+	make_plugin claude silk "$(printf "_PF_TOOLS=''\n_PF_TOOLS_MCP='mcp__plugin_{plugin}_{server}__{tool}'\n_PF_TOOLS_SERVERS=''\n_PF_TOOLS_UNLISTED=keep\n")"
+	hook_script 'hook_tool_name mcp__plugin_other_x__y'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = mcp__plugin_other_x__y ]
+}
+
+@test "hook_tool_name uses the Claude plugin name when tools.sh carries one" {
+	make_plugin copilot renamed "$(printf "_PF_TOOLS=''\n_PF_TOOLS_PLUGIN='silk'\n_PF_TOOLS_MCP='{server}-{tool}'\n_PF_TOOLS_SERVERS='a b'\n_PF_TOOLS_UNLISTED=unresolved\n")"
+	hook_script 'hook_tool_name mcp__plugin_silk_b__t'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = b-t ]
+}
+
+@test "hook_tool_name without tools.sh keeps the name" {
+	make_plugin claude silk
+	rm "$PLUGIN/hooks/lib/pluginfinity/tools.sh"
+	hook_script 'hook_tool_name Whatever'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = Whatever ]
+}

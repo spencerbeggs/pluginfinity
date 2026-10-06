@@ -3,11 +3,15 @@ import { HOOK_LIB_FILES } from "../src/hook-lib.generated.js";
 import { HOOK_LIB_DIR, hookLibFiles, renderHostFile } from "../src/hook-lib.js";
 
 describe("hookLibFiles", () => {
-	it("writes every library file plus host.sh under hooks/lib/pluginfinity", () => {
-		const files = hookLibFiles("copilot", "demo", "1.2.3");
+	it("writes every library file plus host.sh and tools.sh under hooks/lib/pluginfinity", () => {
+		const files = hookLibFiles("copilot", "demo", "1.2.3", "TOOLS");
 		assert.deepStrictEqual(
 			files.map((file) => file.path),
-			[...HOOK_LIB_FILES.map((file) => `${HOOK_LIB_DIR}/${file.name}`), `${HOOK_LIB_DIR}/host.sh`],
+			[
+				...HOOK_LIB_FILES.map((file) => `${HOOK_LIB_DIR}/${file.name}`),
+				`${HOOK_LIB_DIR}/host.sh`,
+				`${HOOK_LIB_DIR}/tools.sh`,
+			],
 		);
 		assert.isTrue(
 			files.every((file) => file.mode === undefined),

@@ -57,6 +57,19 @@ trap _pf_early_exit EXIT
 	exit 0
 }
 
+# The tool map the build wrote for this host. A build without it keeps names
+# as they are.
+_PF_TOOLS=""
+_PF_TOOLS_PLUGIN=""
+_PF_TOOLS_MCP=""
+_PF_TOOLS_SERVERS=""
+_PF_TOOLS_UNLISTED=keep
+# A failed `.` aborts a shell on bash 3.2, so test the file first.
+if [ -r "$_pf_lib_dir/tools.sh" ]; then
+	# shellcheck source=/dev/null
+	. "$_pf_lib_dir/tools.sh" 2>/dev/null || true
+fi
+
 # --- input ----------------------------------------------------------------
 
 # Read the event once. A terminal on stdin (a hand run) reads as {}.
@@ -236,6 +249,48 @@ hook_cd_project() {
 		hook_log "hook_cd_project: cannot cd to $dir"
 		return 1
 	}
+}
+
+# Print the host's run-time spelling of a Claude run-time tool name and return
+# 0, or print nothing and return 1 when the host has none. An own MCP tool is
+# written mcp__plugin_<plugin>_<server>__<tool>, as Claude Code names it.
+hook_tool_name() {
+	local name=${1:-} line plugin rest head seg server tool template
+	[ -n "$name" ] || return 1
+	while IFS= read -r line; do
+		if [ "${line%%=*}" = "$name" ] && [ "${line#*=}" != "$line" ]; then
+			printf '%s\n' "${line#*=}"
+			return 0
+		fi
+	done <<<"$_PF_TOOLS"
+	plugin=${_PF_TOOLS_PLUGIN:-${PLUGINFINITY_PLUGIN:-}}
+	case "$name" in
+	"mcp__plugin_${plugin}_"*)
+		rest=${name#"mcp__plugin_${plugin}_"}
+		# Try each "__" as the server/tool boundary, as the build does.
+		head=""
+		while [ "${rest#*__}" != "$rest" ]; do
+			seg=${rest%%__*}
+			rest=${rest#*__}
+			server="${head:+${head}__}$seg"
+			tool=$rest
+			head=$server
+			[ -n "$server" ] && [ -n "$tool" ] && [ -n "$_PF_TOOLS_MCP" ] || continue
+			case " $_PF_TOOLS_SERVERS " in
+			*" $server "*)
+				template=$_PF_TOOLS_MCP
+				template=${template//\{plugin\}/$plugin}
+				template=${template//\{server\}/$server}
+				template=${template//\{tool\}/$tool}
+				printf '%s\n' "$template"
+				return 0
+				;;
+			esac
+		done
+		;;
+	esac
+	[ "$_PF_TOOLS_UNLISTED" = keep ] || return 1
+	printf '%s\n' "$name"
 }
 
 # Whether the host honours capability $1 on event $2 (default: this event).

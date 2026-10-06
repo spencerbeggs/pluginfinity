@@ -8,7 +8,7 @@ LIB_SRC="$BATS_TEST_DIRNAME/../../hook-lib"
 LOG_SRC="$BATS_TEST_DIRNAME/../../log-lib"
 FIXTURES="$BATS_TEST_DIRNAME/../fixtures/hooks"
 
-# make_plugin <host> [plugin-name]: a fake build root at $PLUGIN.
+# make_plugin <host> [plugin-name] [tools.sh text]: a fake build root at $PLUGIN.
 make_plugin() {
 	PLUGIN="$BATS_TEST_TMPDIR/plugin $1"
 	mkdir -p "$PLUGIN/hooks/lib/pluginfinity" "$PLUGIN/lib/pluginfinity"
@@ -17,6 +17,11 @@ make_plugin() {
 	printf "PLUGINFINITY_HOST=%s\nPLUGINFINITY_PLUGIN='%s'\nPLUGINFINITY_LIB_VERSION=0.0.0-test\n" \
 		"$1" "${2:-fixture}" >"$PLUGIN/hooks/lib/pluginfinity/host.sh"
 	cp "$PLUGIN/hooks/lib/pluginfinity/host.sh" "$PLUGIN/lib/pluginfinity/host.sh"
+	if [ -n "${3:-}" ]; then
+		printf '%s\n' "$3" >"$PLUGIN/hooks/lib/pluginfinity/tools.sh"
+	else
+		printf "_PF_TOOLS=''\n_PF_TOOLS_MCP=''\n_PF_TOOLS_SERVERS=''\n_PF_TOOLS_UNLISTED=keep\n" >"$PLUGIN/hooks/lib/pluginfinity/tools.sh"
+	fi
 }
 
 # hook_script <body>: write $PLUGIN/hooks/test.sh, which sources the library then runs <body>.
