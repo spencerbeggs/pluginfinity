@@ -11,6 +11,8 @@ import {
 	FILES_MISSING,
 	FILES_OVERLAP,
 	FILES_RESERVED,
+	FILES_SHADOW,
+	FILES_SHADOW_SERVER,
 	FILES_SHARE,
 	HOOKED,
 	HOOKED_COMMAND,
@@ -37,6 +39,7 @@ import {
 	SERVER_PATH_ENV,
 	SERVER_PLAIN,
 	SERVER_SHARED_LAUNCHER,
+	SHADOW_SERVERS,
 	SYNTAX_ERROR,
 	VALID,
 	WITH_MCP,
@@ -207,8 +210,6 @@ describe("build", () => {
 				yield* fs.chmod(path.join(root, "bin/start-mcp.sh"), 0o755);
 				yield* build({ selection: nearest(root), targets: [], check: false });
 				for (const file of [
-					"builds/claude/.mcp.json",
-					"builds/claude/.lsp.json",
 					"builds/claude/bin/start-mcp.sh",
 					"builds/claude/bin/start-lsp.sh",
 					"builds/claude/share/data.json",
@@ -219,8 +220,51 @@ describe("build", () => {
 				])
 					assert.isTrue(yield* fs.exists(path.join(root, file)), file);
 				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/bin/unused.sh")));
+				// Claude's servers live inline in plugin.json; no root server file, which a .gitignore could exclude.
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/.mcp.json")));
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/.lsp.json")));
+				const manifest = JSON.parse(
+					yield* fs.readFileString(path.join(root, "builds/claude/.claude-plugin/plugin.json")),
+				);
+				assert.deepStrictEqual(Object.keys(manifest), ["name", "version", "description", "mcpServers", "lspServers"]);
+				assert.strictEqual(manifest.mcpServers.mcp.args[0], `\${CLAUDE_PLUGIN_ROOT}/bin/start-mcp.sh`);
+				assert.strictEqual(manifest.mcpServers.mcp.env.PLUGINFINITY_HOST, "claude");
+				assert.strictEqual(manifest.lspServers.md.args[0], `\${CLAUDE_PLUGIN_ROOT}/bin/start-lsp.sh`);
+				assert.deepStrictEqual(manifest.lspServers.md.extensionToLanguage, { ".md": "markdown" });
+				const copilot = JSON.parse(yield* fs.readFileString(path.join(root, COPILOT_MANIFEST)));
+				assert.notProperty(copilot, "mcpServers");
+				assert.notProperty(copilot, "lspServers");
 				const mode = (yield* fs.stat(path.join(root, "builds/claude/bin/start-mcp.sh"))).mode & 0o777;
 				assert.strictEqual(mode, 0o755);
+				const check = yield* build({ selection: nearest(root), targets: [], check: true });
+				assert.isTrue(check.every((target) => target.plan.clean));
+			}),
+		);
+
+		it.effect("a .mcp.json or .lsp.json an earlier Claude build wrote is removed, and --check reports it", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": WITH_SERVERS,
+					"package.json": PACKAGE_JSON,
+					"bin/start-mcp.sh": "#!/bin/sh\n",
+					"bin/start-lsp.sh": "#!/bin/sh\n",
+					"share/data.json": "{}\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				yield* fs.writeFileString(path.join(root, "builds/claude/.mcp.json"), `{ "mcpServers": {} }\n`);
+				yield* fs.writeFileString(path.join(root, "builds/claude/.lsp.json"), "{}\n");
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: true }));
+				assert.strictEqual(error._tag, "BuildStale");
+				if (error._tag !== "BuildStale") return;
+				assert.deepStrictEqual(
+					error.targets.map((drift) => [drift.target, drift.added, drift.changed, [...drift.removed].sort()]),
+					[["claude", [], [], [".lsp.json", ".mcp.json"]]],
+				);
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/.mcp.json")));
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/.lsp.json")));
 				const check = yield* build({ selection: nearest(root), targets: [], check: true });
 				assert.isTrue(check.every((target) => target.plan.clean));
 			}),
@@ -232,8 +276,10 @@ describe("build", () => {
 				const path = yield* Path.Path;
 				const root = yield* writeTree({ "pluginfinity.config.ts": WITH_MCP, "package.json": PACKAGE_JSON });
 				yield* build({ selection: nearest(root), targets: [], check: false });
-				const mcp = JSON.parse(yield* fs.readFileString(path.join(root, "builds/claude/.mcp.json")));
-				assert.isUndefined(mcp.mcpServers.docs.env);
+				const manifest = JSON.parse(
+					yield* fs.readFileString(path.join(root, "builds/claude/.claude-plugin/plugin.json")),
+				);
+				assert.deepStrictEqual(manifest.mcpServers.docs, { type: "http", url: "https://example.com/mcp" });
 				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/lib/pluginfinity")));
 			}),
 		);
@@ -493,7 +539,11 @@ describe("build", () => {
 				});
 				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
 				assert.strictEqual(error._tag, "PathConflict");
-				if (error._tag === "PathConflict") assert.strictEqual(error.file, "lib/pluginfinity/server.sh");
+				if (error._tag !== "PathConflict") return;
+				assert.strictEqual(error.file, "lib/pluginfinity/server.sh");
+				assert.strictEqual(error.conflict, "reserved-dir");
+				assert.include(error.message, "reserves for its injected library");
+				assert.include(error.remediation.hint, "Move lib/pluginfinity/server.sh");
 			}),
 		);
 
@@ -502,11 +552,81 @@ describe("build", () => {
 				const root = yield* writeTree({
 					"pluginfinity.config.ts": FILES_COLLIDE,
 					"package.json": PACKAGE_JSON,
-					".mcp.json": "{}\n",
+					"mcp.json": "{}\n",
 				});
 				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
 				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.strictEqual(error.file, "mcp.json");
+				assert.strictEqual(error.conflict, "generated");
+				assert.include(error.message, "copilot generates mcp.json");
+				assert.include(error.remediation.hint, "pluginfinity writes that file itself");
+			}),
+		);
+
+		for (const file of [".mcp.json", ".lsp.json"] as const) {
+			it.effect(`a ${file} that would ship to Claude, beside its inline servers, is PathConflict`, () =>
+				Effect.gen(function* () {
+					const root = yield* writeTree({
+						"pluginfinity.config.ts": FILES_SHADOW(file, "claude: true,", SHADOW_SERVERS[file]),
+						"package.json": PACKAGE_JSON,
+						[file]: "{}\n",
+					});
+					const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+					assert.strictEqual(error._tag, "PathConflict");
+					if (error._tag !== "PathConflict") return;
+					assert.strictEqual(error.target, "claude");
+					assert.strictEqual(error.file, file);
+					assert.strictEqual(error.conflict, "reserved-server-file");
+					assert.include(error.message, `claude loads ${file} as a server config file`);
+					assert.include(error.remediation.hint, "mcpServers or lspServers");
+					assert.notInclude(error.remediation.hint, "writes that file itself");
+				}),
+			);
+
+			it.effect(`a ${file} ships to Claude when the plugin has no inline servers of that kind`, () =>
+				Effect.gen(function* () {
+					const fs = yield* FileSystem.FileSystem;
+					const path = yield* Path.Path;
+					const root = yield* writeTree({
+						"pluginfinity.config.ts": FILES_SHADOW(file, "claude: true,"),
+						"package.json": PACKAGE_JSON,
+						[file]: "{}\n",
+					});
+					yield* build({ selection: nearest(root), targets: [], check: false });
+					assert.isTrue(yield* fs.exists(path.join(root, "builds/claude", file)));
+				}),
+			);
+		}
+
+		it.effect("a .mcp.json a server names is PathConflict on Claude", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_SHADOW_SERVER,
+					"package.json": PACKAGE_JSON,
+					"bin/start-mcp.sh": "#!/bin/sh\n",
+					".mcp.json": "{}\n",
+				});
+				yield* fs.chmod(path.join(root, "bin/start-mcp.sh"), 0o755);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
 				if (error._tag === "PathConflict") assert.strictEqual(error.file, ".mcp.json");
+			}),
+		);
+
+		it.effect("a .mcp.json listed in files ships to Copilot, whose servers are in files", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_SHADOW(".mcp.json", "copilot: true,"),
+					"package.json": PACKAGE_JSON,
+					".mcp.json": "{}\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/copilot/.mcp.json")));
 			}),
 		);
 

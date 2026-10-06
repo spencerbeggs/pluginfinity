@@ -356,7 +356,10 @@ const tokenContext = (
  * and an executable file when a whole `command`; a named directory ships every
  * file under it), and every file the `files` key lists, each once. A target
  * with a local server gets the server library under `lib/pluginfinity/`,
- * which is reserved the same way.
+ * which is reserved the same way. A target that writes its servers inline
+ * in its manifest also reserves the server file its host loads by default
+ * (Claude Code's `.mcp.json` and `.lsp.json`), but only when this plugin
+ * has servers of that kind inline.
  */
 const planPlugin = (
 	prepared: PreparedPlugin,
@@ -441,17 +444,18 @@ const planPlugin = (
 			const copied: Array<EmittedFile> = [];
 			for (const file of shipped) copied.push(yield* copyFile(config.root, file));
 
-			const manifest = renderManifest(target, id, config.config, version);
+			// Servers first: a target may place them inline in its manifest.
+			const rendered = renderServers(target, id, config.config, pluginName(config.config, id), SERVER_LIB_DIR);
+			if (rendered.issues.length > 0) {
+				const issue = new ComponentInvalid({ path: config.path, target: id, issues: rendered.issues });
+				if (!failures.some((seen) => seen.message === issue.message)) failures.push(issue);
+			}
+			const manifest = renderManifest(target, id, config.config, version, rendered.manifest);
 			const generated: Array<EmittedFile> = [{ path: target.manifest.path, content: serializeManifest(manifest) }];
 			const hooksFile = renderHooks(target, events, invoke);
 			if (hooksFile !== undefined) {
 				generated.push({ path: target.hooks.path, content: hooksFile });
 				generated.push(...hookLibFiles(id, String(manifest.name), ENGINE_VERSION));
-			}
-			const rendered = renderServers(target, id, config.config, String(manifest.name), SERVER_LIB_DIR);
-			if (rendered.issues.length > 0) {
-				const issue = new ComponentInvalid({ path: config.path, target: id, issues: rendered.issues });
-				if (!failures.some((seen) => seen.message === issue.message)) failures.push(issue);
 			}
 			generated.push(...rendered.files);
 			notes.push(...rendered.notes);
@@ -471,17 +475,35 @@ const planPlugin = (
 			}
 
 			// The libraries' directories belong to pluginfinity; a source file there would shadow or join them.
-			const reserved = copied.find((file) =>
-				[HOOK_LIB_DIR, SERVER_LIB_DIR].some((dir) => file.path === dir || file.path.startsWith(`${dir}/`)),
+			// A server file the host loads by default is reserved when the target writes those servers inline,
+			// since the host would load a shipped one beside them.
+			const reservedFiles = new Set(
+				[target.mcp.placement, target.lsp.placement].flatMap((placement) =>
+					placement._tag === "manifest" && placement.key in rendered.manifest ? [placement.reserves] : [],
+				),
+			);
+			const reserved = copied.find(
+				(file) =>
+					reservedFiles.has(file.path) ||
+					[HOOK_LIB_DIR, SERVER_LIB_DIR].some((dir) => file.path === dir || file.path.startsWith(`${dir}/`)),
 			);
 			if (reserved !== undefined) {
-				return yield* Effect.fail(new PathConflict({ path: config.path, target: id, file: reserved.path }));
+				return yield* Effect.fail(
+					new PathConflict({
+						path: config.path,
+						target: id,
+						file: reserved.path,
+						conflict: reservedFiles.has(reserved.path) ? "reserved-server-file" : "reserved-dir",
+					}),
+				);
 			}
 
 			const copiedPaths = new Set(copied.map((file) => file.path));
 			const conflict = generated.find((file) => copiedPaths.has(file.path));
 			if (conflict !== undefined) {
-				return yield* Effect.fail(new PathConflict({ path: config.path, target: id, file: conflict.path }));
+				return yield* Effect.fail(
+					new PathConflict({ path: config.path, target: id, file: conflict.path, conflict: "generated" }),
+				);
 			}
 
 			const files = [...generated, ...copied];

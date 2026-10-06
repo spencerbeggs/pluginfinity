@@ -42,6 +42,19 @@ describe("renderManifest", () => {
 		assert.strictEqual(manifest.name, "full-copilot");
 	});
 
+	it("claude: inline servers follow the metadata, mcpServers before lspServers, whatever order they arrive in", () => {
+		const servers = { lspServers: { md: { command: "sh" } }, mcpServers: { mcp: { command: "sh" } } };
+		const manifest = renderManifest(CLAUDE, "claude", FULL, "1.2.3", servers);
+		assert.deepStrictEqual(Object.keys(manifest).slice(-3), ["keywords", "mcpServers", "lspServers"]);
+		assert.deepStrictEqual(manifest.mcpServers, { mcp: { command: "sh" } });
+		assert.deepStrictEqual(manifest.lspServers, { md: { command: "sh" } });
+	});
+
+	it("copilot: a server key outside its allowlist never reaches the manifest", () => {
+		const manifest = renderManifest(COPILOT, "copilot", FULL, "1.2.3", { mcpServers: { mcp: { command: "sh" } } });
+		assert.notProperty(manifest, "mcpServers");
+	});
+
 	it("unset metadata fields are left out, not written as null", () => {
 		const manifest = renderManifest(
 			CLAUDE,

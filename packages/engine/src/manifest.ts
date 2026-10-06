@@ -28,9 +28,10 @@ const FORMATS: Record<typeof ManifestFormat.Type, (target: Target, fields: Manif
 };
 
 /**
- * Render a target's manifest from the config and the package version: the
- * format's record, cut to the target's key allowlist, in allowlist order, with
- * unset keys left out.
+ * Render a target's manifest from the config, the package version and the
+ * server maps the target places in its manifest (`ServerRender.manifest`):
+ * the format's record, cut to the target's key allowlist, in allowlist order,
+ * with unset keys left out.
  *
  * @public
  */
@@ -39,8 +40,10 @@ export const renderManifest = (
 	id: KnownTargetId,
 	config: PluginfinityConfig,
 	version: string,
+	servers: Readonly<Record<string, unknown>> = {},
 ): Manifest => {
 	const record = FORMATS[target.manifest.format](target, {
+		...servers,
 		name: pluginName(config, id),
 		version,
 		description: config.description,

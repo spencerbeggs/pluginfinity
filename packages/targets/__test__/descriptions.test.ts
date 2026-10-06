@@ -1,5 +1,15 @@
 import { assert, describe, it } from "@effect/vitest";
-import { AGENT_FIELDS, CLAUDE_HOOK_EVENTS, LSP_FIELDS, SKILL_FIELDS, Target, drop, rename } from "@pluginfinity/core";
+import {
+	AGENT_FIELDS,
+	CLAUDE_HOOK_EVENTS,
+	LSP_FIELDS,
+	SKILL_FIELDS,
+	Target,
+	drop,
+	inFile,
+	inManifest,
+	rename,
+} from "@pluginfinity/core";
 import { Effect, Schema } from "effect";
 import { COPILOT_OWN_EVENTS, TARGETS } from "../src/index.js";
 
@@ -28,6 +38,12 @@ for (const entry of TARGETS) {
 
 		it("maps every LSP server field and nothing else", () => {
 			assert.sameMembers(Object.keys(entry.target.lsp.fields), [...LSP_FIELDS]);
+		});
+
+		it("admits every manifest-placed server key to the manifest's key allowlist", () => {
+			for (const placement of [entry.target.mcp.placement, entry.target.lsp.placement]) {
+				if (placement._tag === "manifest") assert.include(entry.target.manifest.keys, placement.key);
+			}
 		});
 
 		it("maps every Claude Code hook event and nothing else", () => {
@@ -67,8 +83,26 @@ it("Claude keeps every LSP field and Copilot renames extensionToLanguage", () =>
 	assert.deepStrictEqual(copilot?.target.lsp.fields.extensionToLanguage, rename("fileExtensions"));
 	assert.strictEqual(copilot?.target.lsp.fields.workspaceFolder?._tag, "unresolved");
 	assert.strictEqual(copilot?.target.lsp.fields.settings?._tag, "unresolved");
-	assert.strictEqual(copilot?.target.lsp.path, "com.github.copilot/lsp.json");
-	assert.strictEqual(claude?.target.lsp.path, ".lsp.json");
+});
+
+// A root .mcp.json is conventionally gitignored as local dev config, so a committed Claude build would ship no
+// MCP server; Claude's servers go inline in plugin.json instead. Copilot's Agent Plugins 1.0 manifest forbids
+// those keys, so its servers stay in files.
+it("Claude places MCP and LSP servers inline in plugin.json; Copilot places them in files", () => {
+	const [claude, copilot] = [TARGETS.find((t) => t.id === "claude"), TARGETS.find((t) => t.id === "copilot")];
+	assert.deepStrictEqual(claude?.target.mcp.placement, inManifest("mcpServers", ".mcp.json"));
+	assert.deepStrictEqual(claude?.target.lsp.placement, inManifest("lspServers", ".lsp.json"));
+	assert.deepStrictEqual(claude?.target.manifest.keys.slice(-2), ["mcpServers", "lspServers"]);
+	assert.deepStrictEqual(copilot?.target.mcp.placement, inFile("mcp.json"));
+	assert.deepStrictEqual(copilot?.target.lsp.placement, inFile("com.github.copilot/lsp.json"));
+	assert.notInclude(copilot?.target.manifest.keys ?? [], "mcpServers");
+	assert.notInclude(copilot?.target.manifest.keys ?? [], "lspServers");
+});
+
+// Positive control: the allowlist check sees a manifest-placed key the allowlist lacks.
+it("the allowlist check flags a manifest-placed key the allowlist lacks", () => {
+	const keys = (TARGETS.find((t) => t.id === "claude")?.target.manifest.keys ?? []).filter((k) => k !== "mcpServers");
+	assert.throws(() => assert.include(keys, "mcpServers"));
 });
 
 it("Copilot's unresolved LSP notes point at the top-level copilot.lspServers config key", () => {

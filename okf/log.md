@@ -14,6 +14,7 @@
 * Updated Hook scripts change mode around every commit with no diff, and build --check ignores it
 * Updated pluginfinity companion plugin
 * Updated pluginfinity first release
+* Updated @pluginfinity/core
 
 ## 2026-10-05
 

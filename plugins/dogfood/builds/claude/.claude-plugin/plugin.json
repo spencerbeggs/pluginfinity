@@ -1,5 +1,36 @@
 {
 	"name": "pluginfinity-dogfood",
 	"version": "0.0.0",
-	"description": "End-to-end fixture for the pluginfinity CLI"
+	"description": "End-to-end fixture for the pluginfinity CLI",
+	"mcpServers": {
+		"dogfood": {
+			"command": "sh",
+			"args": [
+				"${CLAUDE_PLUGIN_ROOT}/bin/start-mcp.sh"
+			],
+			"env": {
+				"PLUGINFINITY_HOST": "claude",
+				"PLUGINFINITY_PLUGIN": "pluginfinity-dogfood",
+				"PLUGINFINITY_LIB": "${CLAUDE_PLUGIN_ROOT}/lib/pluginfinity"
+			}
+		}
+	},
+	"lspServers": {
+		"dogfood": {
+			"command": "sh",
+			"args": [
+				"${CLAUDE_PLUGIN_ROOT}/bin/start-lsp.sh",
+				"--stdio"
+			],
+			"extensionToLanguage": {
+				".dogfood": "plaintext"
+			},
+			"diagnostics": true,
+			"env": {
+				"PLUGINFINITY_HOST": "claude",
+				"PLUGINFINITY_PLUGIN": "pluginfinity-dogfood",
+				"PLUGINFINITY_LIB": "${CLAUDE_PLUGIN_ROOT}/lib/pluginfinity"
+			}
+		}
+	}
 }

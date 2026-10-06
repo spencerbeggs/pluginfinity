@@ -8,6 +8,8 @@ import {
 	absent,
 	degrade,
 	drop,
+	inFile,
+	inManifest,
 	keep,
 	rename,
 	translate,
@@ -45,8 +47,8 @@ const minimalTarget = {
 		events: { Stop: "Stop", Setup: absent },
 		ownEvents: [],
 	},
-	mcp: { path: "mcp.json", format: "agent-plugins-mcp-1.0" as const },
-	lsp: { path: "lsp.json", format: "copilot-lsp-json" as const, fields: { command: keep } },
+	mcp: { placement: inFile("mcp.json"), format: "agent-plugins-mcp-1.0" as const },
+	lsp: { placement: inFile("lsp.json"), format: "copilot-lsp-json" as const, fields: { command: keep } },
 	references: { style: "prose" as const },
 	tools: {
 		names: { Agent: "agent", Skill: drop, Task: unresolved("no alias") },
@@ -147,6 +149,59 @@ describe("Target", () => {
 	it.effect("rejects an unknown key", () =>
 		Effect.gen(function* () {
 			const error = yield* Effect.flip(decodeTarget({ ...minimalTarget, lsp: {} }));
+			assert.strictEqual(error._tag, "SchemaError");
+		}),
+	);
+});
+
+describe("server placement", () => {
+	it.effect("decodes a manifest placement for MCP and LSP servers", () =>
+		Effect.gen(function* () {
+			const decoded = yield* decodeTarget({
+				...minimalTarget,
+				mcp: {
+					placement: { _tag: "manifest", key: "mcpServers", reserves: ".mcp.json" },
+					format: "claude-mcp-servers",
+				},
+				lsp: {
+					placement: { _tag: "manifest", key: "lspServers", reserves: ".lsp.json" },
+					format: "claude-lsp-servers",
+					fields: {},
+				},
+			});
+			assert.deepStrictEqual(decoded.mcp.placement, inManifest("mcpServers", ".mcp.json"));
+			assert.deepStrictEqual(decoded.lsp.placement, inManifest("lspServers", ".lsp.json"));
+		}),
+	);
+
+	it.effect("decodes a file placement", () =>
+		Effect.gen(function* () {
+			const decoded = yield* decodeTarget(minimalTarget);
+			assert.deepStrictEqual(decoded.mcp.placement, inFile("mcp.json"));
+		}),
+	);
+
+	for (const [label, placement] of [
+		["an empty path", { _tag: "file", path: "" }],
+		["an empty manifest key", { _tag: "manifest", key: "", reserves: ".mcp.json" }],
+		["a manifest placement with no reserved file", { _tag: "manifest", key: "mcpServers" }],
+		["an empty reserved file", { _tag: "manifest", key: "mcpServers", reserves: "" }],
+		["an unknown placement", { _tag: "inline", key: "mcpServers" }],
+		["a bare path string", "mcp.json"],
+	] as const) {
+		it.effect(`rejects ${label}`, () =>
+			Effect.gen(function* () {
+				const error = yield* Effect.flip(decodeTarget({ ...minimalTarget, mcp: { ...minimalTarget.mcp, placement } }));
+				assert.strictEqual(error._tag, "SchemaError");
+			}),
+		);
+	}
+
+	it.effect("rejects the old path field", () =>
+		Effect.gen(function* () {
+			const error = yield* Effect.flip(
+				decodeTarget({ ...minimalTarget, mcp: { path: "mcp.json", format: "agent-plugins-mcp-1.0" } }),
+			);
 			assert.strictEqual(error._tag, "SchemaError");
 		}),
 	);

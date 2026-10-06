@@ -35,26 +35,56 @@ export const HOOKS_FORMATS = ["claude-hooks-json", "copilot-hooks-v1"] as const;
 export const HooksFormat = Schema.Literals(HOOKS_FORMATS);
 
 /**
- * MCP config formats. The engine owns one encoder per format.
+ * MCP config formats. The engine owns one encoder per format:
+ * `claude-mcp-servers` is the bare server map Claude Code reads under a
+ * manifest's `mcpServers` key, and `agent-plugins-mcp-1.0` is the Agent
+ * Plugins `mcp.json` envelope, `$schema` and an `mcpServers` map.
  *
  * @public
  */
-export const MCP_FORMATS = ["claude-mcp-json", "agent-plugins-mcp-1.0"] as const;
+export const MCP_FORMATS = ["claude-mcp-servers", "agent-plugins-mcp-1.0"] as const;
 
 /** @public */
 export const McpFormat = Schema.Literals(MCP_FORMATS);
 
 /**
- * LSP config formats. The engine owns one encoder per format.
+ * LSP config formats. The engine owns one encoder per format:
+ * `claude-lsp-servers` is the bare server map Claude Code reads under a
+ * manifest's `lspServers` key, and `copilot-lsp-json` is Copilot's
+ * `{ "lspServers": … }` file.
  *
  * @public
  */
-export const LSP_FORMATS = ["claude-lsp-json", "copilot-lsp-json"] as const;
+export const LSP_FORMATS = ["claude-lsp-servers", "copilot-lsp-json"] as const;
 
 /** @public */
 export const LspFormat = Schema.Literals(LSP_FORMATS);
 
 const NonEmpty = Schema.String.check(Schema.isMinLength(1));
+
+/** Write a target's servers to a file of their own, at a plugin-relative path. @public */
+export class InFile extends Schema.TaggedClass<InFile>()("file", { path: NonEmpty }) {}
+
+/**
+ * Write a target's servers inline in its manifest, under a key the manifest's
+ * allowlist admits. `reserves` is the plugin-relative file the host also loads
+ * servers from by default, such as Claude Code's `.mcp.json`; no file may ship
+ * there, since the host would load it beside the inline servers.
+ *
+ * @public
+ */
+export class InManifest extends Schema.TaggedClass<InManifest>()("manifest", { key: NonEmpty, reserves: NonEmpty }) {}
+
+/**
+ * Where a target writes its MCP or LSP servers: a file of their own, or inline
+ * in the manifest.
+ *
+ * @public
+ */
+export const ServerPlacement = Schema.Union([InFile, InManifest]);
+
+/** @public */
+export type ServerPlacement = typeof ServerPlacement.Type;
 
 /** Write the field unchanged. @public */
 export class Keep extends Schema.TaggedClass<Keep>()("keep", {}) {}
@@ -180,8 +210,12 @@ export class Target extends Schema.Class<Target>("Target")({
 		events: Schema.Record(Schema.String, EventMapping),
 		ownEvents: Schema.Array(Schema.String),
 	}),
-	mcp: Schema.Struct({ path: Schema.String, format: McpFormat, schema: Schema.optionalKey(Schema.String) }),
-	lsp: Schema.Struct({ path: Schema.String, format: LspFormat, fields: FieldMap }),
+	mcp: Schema.Struct({
+		placement: ServerPlacement,
+		format: McpFormat,
+		schema: Schema.optionalKey(Schema.String),
+	}),
+	lsp: Schema.Struct({ placement: ServerPlacement, format: LspFormat, fields: FieldMap }),
 	references: Schema.Struct({ style: Schema.Literals(["path", "prose"]) }),
 	tools: Schema.Struct({
 		names: Schema.Record(Schema.String, ToolMapping),
@@ -208,6 +242,12 @@ export class Target extends Schema.Class<Target>("Target")({
 	models: Schema.Record(Schema.String, ValueMapping),
 	efforts: Schema.Record(Schema.String, ValueMapping),
 }) {}
+
+/** @public */
+export const inFile = (path: string): InFile => InFile.make({ path });
+
+/** @public */
+export const inManifest = (key: string, reserves: string): InManifest => InManifest.make({ key, reserves });
 
 /** @public */
 export const keep: Keep = Keep.make({});
