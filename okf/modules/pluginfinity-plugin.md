@@ -32,8 +32,8 @@ sources:
     title: The plugin-engineer build test
 generated:
   by: okfit/claude-code
-  at: 2026-10-05T16:27:40Z
-  body_sha256: aad9997a77c71b80ba29e1ee69bddb8db4a6bbf9534c3812082c6381cfa4c6a5
+  at: 2026-10-06T03:16:00Z
+  body_sha256: 6353f3abfe0dc30eb61055f10213b66286aa3824e6be74732071b42618fbef60
 ---
 
 # pluginfinity companion plugin
@@ -52,7 +52,7 @@ generated:
 
 The `pluginfinity` skill, the first of five, teaches an agent to author and build a plugin with pluginfinity: the source layout and config, skill and agent frontmatter, `targets` blocks and host blocks, hooks, what each host gets, and every finding with its fix, split into references the skill loads on demand.[^skill] It is built with pluginfinity into `builds/claude/` and `builds/copilot/`, which are committed and skipped by Biome and markdownlint. plugin-bot's host-reference and authoring skills are left for a later release, rewritten for one source.
 
-The hooks reference covers more than declaring hooks: the [hook library](../decisions/hook-library-is-build-injected.md) a script sources and how to read an event and respond on both hosts, with the `tool_input` key aliases and the response table. It also covers what happens when a hook fails, testing hooks with the bats helper, what ships, and which events each host has. It tells authors to assign `hook_input` to a variable first, and to turn on `PLUGINFINITY_HOOK_DEBUG=1` to see each hook's raw input.[^hooks-reference]
+The hooks reference covers more than declaring hooks: the [hook library](../decisions/hook-library-is-build-injected.md) a script sources and how to read an event and respond on both hosts, with the `tool_input` key aliases and the response table. It also covers what happens when a hook fails, testing hooks with the bats helper, what ships, and which events each host has. It tells authors to assign `hook_input` to a variable first, and to turn on `PLUGINFINITY_HOOK_DEBUG=1` to see each hook's raw input and its outcome.[^hooks-reference]
 
 ## The plugin-engineer agent and its skills
 

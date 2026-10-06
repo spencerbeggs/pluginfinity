@@ -168,7 +168,10 @@ where a failing `preToolUse` hook denies the tool call.
 
 Logs live in `${XDG_STATE_HOME:-~/.local/state}/pluginfinity/<plugin>/`. `hook-error.log` holds failures and
 `hook-debug.log` holds debug lines, written when `PLUGINFINITY_HOOK_DEBUG=1`, which also logs each hook's
-raw input as an `input:` line. Use it to see what a host sends. `hook_log` and `hook_debug` append to the
+raw input as an `input:` line and, when the hook exits, its result as one `outcome:` line: `block`, `deny`,
+`allow`, `ask`, `context`, `system_message`, `noop`, `raw`, `none` (it sent no response), or `fail-closed deny` /
+`fail-closed block` when the library sent the response for a crash. A non-zero exit code is appended, as in
+`outcome: none (exit 3)`. Use it to see what a host sends and what your hook answered. `hook_log` and `hook_debug` append to the
 logs from your own script.
 
 With `PLUGINFINITY_HOOK_DEBUG=1`, prompts and tool inputs are written to a plaintext log. Do not leave it set
