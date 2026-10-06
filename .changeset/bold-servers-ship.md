@@ -4,6 +4,17 @@
 
 ## Features
 
+### bats helper for testing built hooks
+
+The package now ships `bats/pluginfinity.bash`, a bats helper for testing a plugin's built hooks. It provides `run_hook`, a set of assert functions and `hook_fixture`, so hook tests can feed fixture input to a built hook and assert on its output and exit status.
+
+### Host-neutral bash hook library
+
+`pluginfinity build` now injects a bash hook library, `hook.sh`, plus a generated `host.sh` into `hooks/lib/pluginfinity/` of every target that has hooks. Hook scripts source it to read hook input and emit decisions the same way on Claude Code and GitHub Copilot.
+
+* Setting `PLUGINFINITY_HOOK_DEBUG=1` logs each hook's raw input and one `outcome:` line per hook exit to a plaintext debug log
+* Copilot hook entries now carry `env: { PLUGINFINITY_EVENT: <event> }`
+
 ### MCP and LSP servers
 
 `pluginfinity build` now builds the `mcpServers` a config declares, which used to fail with `NotImplemented`, and a new `lspServers` key, both in Claude Code's server shape. Each target gets its own server files: `.mcp.json` and `.lsp.json` on Claude Code, and `mcp.json` and `com.github.copilot/lsp.json` on GitHub Copilot.
@@ -73,3 +84,6 @@ Inline `[text](pluginfinity://skill/<skill>[/<path>][#anchor])` and `[text](plug
 * A template variable that starts with a token kind, such as `{{ tool }}` or `{{ skill.name }}`, is now read as a token and fails the build; write `\{{` to keep it literal
 * A malformed token of a known kind, such as an unclosed `{{tool Read` or `{{agent}}` with no name, now fails the build instead of shipping as text
 * `{{tool mcp__<server>__<tool>}}` naming a third-party MCP server fails the Copilot build: Copilot has no run-time name for another server's tools, so put the passage in a Claude Code host block
+* A plugin source file at or under `hooks/lib/pluginfinity/` is now reported as a `PathConflict`, because that path is owned by the build
+* Every target with hooks gains `hooks/lib/pluginfinity/{hook.sh,host.sh}`, so existing builds drift on upgrade; rebuild to refresh them
+* `host.sh` stamps the engine version, so every pluginfinity upgrade needs a rebuild, and `pluginfinity build --check` reports the library as drift until then

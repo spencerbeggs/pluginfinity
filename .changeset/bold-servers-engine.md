@@ -25,6 +25,14 @@ An agent `tools` or skill `allowed-tools` name `mcp__plugin_<plugin>_<server>__<
 
 `renderTokens` rewrites a skill or agent body for one target after host blocks. A `{{tool <name>}}`, `{{agent <name>}}`, `{{skill <name>}}` or `{{plugin_root}}` token is replaced everywhere, code included, with the target's run-time spelling; any other `{{…}}` is text, and `\{{` keeps a token literal. An inline `[text](pluginfinity://skill/<skill>[/<path>][#anchor])` or `[text](pluginfinity://agent/<agent>)` link outside code is built in the target's reference style instead of refused. `SKILL.md`, every other `.md` file in a skill directory and agent bodies are rendered; a token or link a target cannot spell, or any other `pluginfinity://` outside code, is a `ComponentInvalid` on the file, keyed by its source line and naming the target. `renderSkill` fails with a `ComponentsInvalid` when several files of one skill have problems. `TokenContext` and `TokenProblem` are exported. `TokenContext.plugin` is the plugin's name on the target being built, used for agent ids and skill commands, and `own.plugin` the Claude Code name, used for the plugin's own MCP tools and the `{plugin}` of the run-time MCP template. A token or link issue carries `kind: "token"` on its `ConfigIssue`, and `ComponentInvalid` and `ComponentsInvalid` then lead their hint with correcting the listed problems, then offer a host block for another target, the `\{{` escape or inline code instead of a `targets` block.
 
+### Host-neutral bash hook library
+
+`pluginfinity build` now injects a bash hook library, `hook.sh`, plus a generated `host.sh` into `hooks/lib/pluginfinity/` of every target that has hooks. Hook scripts can source it to read hook input and emit decisions the same way on Claude Code and GitHub Copilot.
+
+* The library reads Copilot's `tool_input` key names through Claude's names, so one script handles both hosts
+* Setting `PLUGINFINITY_HOOK_DEBUG=1` logs the raw hook input and one `outcome:` line per hook exit (block, deny, noop, none, a fail-closed response, plus any non-zero exit code) for debugging
+* Copilot hook entries now carry `env: { PLUGINFINITY_EVENT: <event> }` so the library knows which event fired
+
 ### Hook and server library helpers
 
 * `hook_cd_project` changes into `hook_project_dir`, for a hook that runs a project-aware CLI on Copilot, where hooks run from the plugin root
@@ -44,3 +52,6 @@ An agent `tools` or skill `allowed-tools` name `mcp__plugin_<plugin>_<server>__<
 * `{{tool mcp__<server>__<tool>}}` for a third-party MCP server is a `ComponentInvalid` issue on Copilot
 * The `referenceLines` export is removed; links are built by `renderTokens`
 * `lib/pluginfinity/` is reserved in every target: a shipped source file there fails with `PathConflict`
+* A plugin source file at or under `hooks/lib/pluginfinity/` is reported as a `PathConflict`, because that path is owned by the build
+* Every target with hooks, not only Copilot, gains `hooks/lib/pluginfinity/{hook.sh,host.sh}`, and Copilot hook entries gain `env: { PLUGINFINITY_EVENT: <event> }`, so existing builds drift on upgrade; rebuild to refresh them
+* `host.sh` stamps the engine version, so every pluginfinity upgrade needs a rebuild, and `pluginfinity build --check` reports the library as drift until then
