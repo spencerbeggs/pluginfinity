@@ -13,7 +13,7 @@
 export type { RenderedAgent, SourceAgent } from "./agents.js";
 export { readAgents, renderAgent } from "./agents.js";
 export type { HostBlockProblem } from "./body.js";
-export { applyHostBlocks, referenceLines } from "./body.js";
+export { applyHostBlocks } from "./body.js";
 export { CONFIG_FILE_NAMES, ConfigDiscovery } from "./discovery.js";
 export type { DoctorInput } from "./doctor.js";
 export {

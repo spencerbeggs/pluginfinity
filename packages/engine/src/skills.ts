@@ -10,15 +10,18 @@ import {
 	invalid,
 	isJunk,
 	issue,
+	lineIssues,
 	overlayIssues,
 	toLf,
 	unknownTargets,
 } from "./component.js";
 import type { EmittedFile } from "./emit.js";
 import type { ComponentInvalid, ConfigIssue } from "./errors.js";
-import type { OwnMcp } from "./frontmatter.js";
+import { ComponentsInvalid } from "./errors.js";
 import { appendSections, mapFrontmatter } from "./frontmatter.js";
 import type { BuildNote } from "./notes.js";
+import type { TokenContext } from "./tokens.js";
+import { renderTokens } from "./tokens.js";
 
 /**
  * The most characters a built skill's `description` may hold: the Agent
@@ -145,9 +148,14 @@ export interface RenderedSkill {
 
 /**
  * Render one skill for a target, or `undefined` when its `targets` block
- * excludes it: `SKILL.md` with the target's frontmatter and host blocks
- * applied, `.md` support files with host blocks applied, and every other
- * file copied. Every file keeps its source mode.
+ * excludes it: `SKILL.md` with the target's frontmatter, then host blocks
+ * and body tokens applied, `.md` support files with host blocks and tokens
+ * applied, and every other file copied. Every file keeps its source mode.
+ *
+ * @remarks
+ * Fails with one `ComponentInvalid` when one file has problems, and with a
+ * `ComponentsInvalid` holding one per file when several do. A token problem
+ * is keyed by its file line and names the target.
  *
  * @public
  */
@@ -156,10 +164,10 @@ export const renderSkill = (
 	id: KnownTargetId,
 	skill: SourceSkill,
 	known: ReadonlyArray<string>,
-	own?: OwnMcp,
+	tokens: TokenContext,
 ): Effect.Effect<
 	RenderedSkill | undefined,
-	ComponentInvalid | PlatformError.PlatformError,
+	ComponentInvalid | ComponentsInvalid | PlatformError.PlatformError,
 	FileSystem.FileSystem | Path.Path
 > =>
 	Effect.gen(function* () {
@@ -174,7 +182,7 @@ export const renderSkill = (
 			target.skills.hostFields,
 			skill.frontmatter,
 			block ?? {},
-			own,
+			tokens.own,
 		);
 		const problems: Array<ConfigIssue> = [
 			...(yield* overlayIssues(SkillFrontmatter, SKILL_FIELDS, skill.frontmatter, block ?? {}, id)),
@@ -197,7 +205,9 @@ export const renderSkill = (
 				invalid(skill.path, [issue(`line ${body.problem.line + skill.bodyOffset}`, body.problem.message)]),
 			);
 		}
-		if (problems.length > 0) return yield* Effect.fail(invalid(skill.path, problems, id));
+		const rendered = renderTokens(body.text, tokens);
+		if ("problems" in rendered) problems.push(...lineIssues(rendered.problems, skill.bodyOffset));
+		const failures: Array<ComponentInvalid> = problems.length > 0 ? [invalid(skill.path, problems, id)] : [];
 
 		const yaml = yield* frontmatterText({ name: skill.name, description, ...rest }, skill);
 		const dir = path.dirname(skill.path);
@@ -205,7 +215,7 @@ export const renderSkill = (
 		const files: Array<EmittedFile> = [
 			{
 				path: `${out}/SKILL.md`,
-				content: `---\n${yaml}---\n${appendSections("text" in body ? body.text : "", mapped.sections)}`,
+				content: `---\n${yaml}---\n${appendSections("text" in rendered ? rendered.text : "", mapped.sections)}`,
 				mode: (yield* fs.stat(skill.path)).mode & 0o777,
 			},
 		];
@@ -218,11 +228,19 @@ export const renderSkill = (
 			}
 			const processed = applyHostBlocks(toLf(yield* fs.readFileString(absolute)), id, known);
 			if ("problem" in processed) {
-				return yield* Effect.fail(
-					invalid(absolute, [issue(`line ${processed.problem.line}`, processed.problem.message)]),
-				);
+				failures.push(invalid(absolute, [issue(`line ${processed.problem.line}`, processed.problem.message)]));
+				continue;
 			}
-			files.push({ path: `${out}/${file}`, content: processed.text, mode });
+			const tokened = renderTokens(processed.text, tokens);
+			if ("problems" in tokened) {
+				failures.push(invalid(absolute, lineIssues(tokened.problems, 0), id));
+				continue;
+			}
+			files.push({ path: `${out}/${file}`, content: tokened.text, mode });
+		}
+		const [only, ...more] = failures;
+		if (only !== undefined) {
+			return yield* Effect.fail(more.length === 0 ? only : new ComponentsInvalid({ path: dir, components: failures }));
 		}
 		const source = `skills/${skill.name}/SKILL.md`;
 		const notes = mapped.drops.map(({ field, kind }) => ({ target: id, path: source, kind, name: field }));

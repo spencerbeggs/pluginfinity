@@ -818,6 +818,96 @@ describe("build with skills", () => {
 			}),
 		);
 
+		it.effect("a skill's references/*.md gets its tokens and pluginfinity links rendered per target", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/references/guide.md":
+						"Use {{tool Read}}. See [x](pluginfinity://skill/beta/references/x.md) and {{skill beta}}.\n",
+					"skills/beta/SKILL.md": "---\ndescription: Does beta.\n---\nBeta.\n",
+					"skills/beta/references/x.md": "X.\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.strictEqual(
+					yield* read(root, "builds/claude/skills/alpha/references/guide.md"),
+					`Use Read. See [x](\${CLAUDE_PLUGIN_ROOT}/skills/beta/references/x.md) and /valid-claude:beta.\n`,
+				);
+				assert.strictEqual(
+					yield* read(root, "builds/copilot/skills/alpha/references/guide.md"),
+					"Use view. See x (the `beta` skill's `references/x.md`) and /valid-claude:beta.\n",
+				);
+			}),
+		);
+
+		it.effect("{{plugin_root}} in a Copilot body fails the build naming the file, the target and the line", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": "---\ndescription: Does alpha.\n---\n\nRun {{plugin_root}}/bin/x.\n",
+				});
+				yield* build({ selection: nearest(root), targets: ["claude"], check: false });
+				assert.include(yield* read(root, "builds/claude/skills/alpha/SKILL.md"), `Run \${CLAUDE_PLUGIN_ROOT}/bin/x.`);
+				const error = yield* failure(root);
+				assert.match(error.path, /skills\/alpha\/SKILL\.md$/);
+				assert.strictEqual(error.target, "copilot");
+				assert.strictEqual(error.issues[0]?.key, "line 5");
+				assert.include(error.issues[0]?.message, "{{plugin_root}}");
+			}),
+		);
+
+		it.effect("a token inside a claude-only host block builds clean on both targets", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": [
+						"---",
+						"description: Does alpha.",
+						"---",
+						"<!-- pluginfinity:only claude -->",
+						"Run {{plugin_root}}/bin/x.",
+						"<!-- /pluginfinity:only -->",
+						"Always.",
+						"",
+					].join("\n"),
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.include(yield* read(root, "builds/claude/skills/alpha/SKILL.md"), `Run \${CLAUDE_PLUGIN_ROOT}/bin/x.`);
+				assert.notInclude(yield* read(root, "builds/copilot/skills/alpha/SKILL.md"), "plugin_root");
+			}),
+		);
+
+		it.effect("a link to a skill a target leaves out fails on that target only", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/references/guide.md": "See [beta](pluginfinity://skill/beta).\n",
+					"skills/beta/SKILL.md": "---\ndescription: Does beta.\ntargets:\n  copilot: false\n---\nBeta.\n",
+				});
+				yield* build({ selection: nearest(root), targets: ["claude"], check: false });
+				const error = yield* failure(root);
+				assert.strictEqual(error.target, "copilot");
+				assert.include(error.issues[0]?.message, 'no skill "beta"');
+			}),
+		);
+
+		it.effect("token problems in SKILL.md and a reference file are each reported on their own file", () =>
+			Effect.gen(function* () {
+				const root = yield* skillPlugin({
+					"skills/alpha/SKILL.md": "---\ndescription: Does alpha.\n---\n{{plugin_root}}\n",
+					"skills/alpha/references/guide.md": "ok\n\n{{tool TodoWrite}} [g](pluginfinity://skill/ghost)\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: ["copilot"], check: false }));
+				if (error._tag !== "ComponentsInvalid") throw new Error(`expected ComponentsInvalid, got ${error._tag}`);
+				assert.deepStrictEqual(
+					error.components.map((component) => [
+						component.path.split("/skills/")[1],
+						component.target,
+						component.issues.map((found) => found.key),
+					]),
+					[
+						["alpha/SKILL.md", "copilot", ["line 4"]],
+						["alpha/references/guide.md", "copilot", ["line 3", "line 3"]],
+					],
+				);
+			}),
+		);
+
 		it.effect("a CRLF skill builds with LF line endings throughout", () =>
 			Effect.gen(function* () {
 				const root = yield* skillPlugin({
@@ -1125,6 +1215,36 @@ describe("build with agents", () => {
 						"# why it exists",
 					);
 				}),
+		);
+
+		it.effect("an agent body renders an {{agent}} token as the plugin's agent id on both targets", () =>
+			Effect.gen(function* () {
+				const root = yield* agentPlugin({
+					"agents/helper.md": "---\nname: helper\ndescription: Helps.\n---\nHand off to {{agent other}}.\n",
+					"agents/other.md": "---\nname: other\ndescription: Other.\n---\nOther.\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.include(yield* read(root, "builds/claude/agents/helper.md"), "Hand off to valid-claude:other.");
+				assert.include(
+					yield* read(root, "builds/copilot/com.github.copilot/agents/helper.agent.md"),
+					"Hand off to valid-claude:other.",
+				);
+			}),
+		);
+
+		it.effect("an agent body token problem names the agent file, the target and the file line", () =>
+			Effect.gen(function* () {
+				const root = yield* agentPlugin({
+					"agents/helper.md": "---\nname: helper\ndescription: Helps.\n---\n\nUse {{tool TodoWrite}}.\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				if (error._tag !== "ComponentsInvalid") throw new Error(`expected ComponentsInvalid, got ${error._tag}`);
+				assert.deepStrictEqual(
+					error.components.map((component) => [component.target, component.issues.map((found) => found.key)]),
+					[["copilot", ["line 6"]]],
+				);
+				assert.match(error.components[0]?.path ?? "", /agents\/helper\.md$/);
+			}),
 		);
 
 		it.effect("an agent whose name differs from its file is reported", () =>

@@ -3,6 +3,7 @@ import type { Schema as SchemaNs } from "effect";
 import { Effect, Schema, SchemaIssue } from "effect";
 import { ComponentInvalid, ConfigIssue } from "./errors.js";
 import { splitFrontmatter } from "./frontmatter.js";
+import type { TokenProblem } from "./tokens.js";
 
 const formatter = SchemaIssue.makeFormatterStandardSchemaV1();
 
@@ -12,6 +13,15 @@ const formatter = SchemaIssue.makeFormatterStandardSchemaV1();
  * @internal
  */
 export const issue = (key: string, message: string): ConfigIssue => ConfigIssue.make({ key, message });
+
+/**
+ * Token problems as issues keyed by their file line, `offset` lines before
+ * the text.
+ *
+ * @internal
+ */
+export const lineIssues = (found: ReadonlyArray<TokenProblem>, offset: number): Array<ConfigIssue> =>
+	found.map((problem) => issue(`line ${problem.line + offset}`, problem.message));
 
 /**
  * A `ComponentInvalid` for `path`, optionally specific to one target.

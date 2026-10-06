@@ -1,10 +1,12 @@
 import { Run } from "@effected/commands";
-import type { KnownTargetId } from "@pluginfinity/targets";
+import type { Target } from "@pluginfinity/core";
+import type { KnownTargetId, PluginfinityConfig } from "@pluginfinity/targets";
 import { KNOWN_TARGET_IDS, TARGETS } from "@pluginfinity/targets";
 import type { PlatformError } from "effect";
 import { Effect, FileSystem, Path, Schema } from "effect";
 import type { ChildProcessSpawner } from "effect/process";
 import { ChildProcess } from "effect/process";
+import type { SourceAgent } from "./agents.js";
 import { readAgents, renderAgent } from "./agents.js";
 import { isJunk } from "./component.js";
 import type { EmitPlan, EmittedFile } from "./emit.js";
@@ -33,7 +35,9 @@ import type { ConfigSelection, PreparedPlugin } from "./selection.js";
 import { preparePlugins } from "./selection.js";
 import { SERVER_LIB_DIR, serverLibFiles } from "./server-lib.js";
 import { mcpServerNames, renderServers, serverFiles } from "./servers.js";
+import type { SourceSkill } from "./skills.js";
 import { readSkills, renderSkill } from "./skills.js";
+import type { TokenContext } from "./tokens.js";
 import { ENGINE_VERSION } from "./version.js";
 
 /**
@@ -326,6 +330,33 @@ const serverShipped = (
  * with a local server gets the server library under `lib/pluginfinity/`,
  * which is reserved the same way.
  */
+/**
+ * What a target's skill and agent bodies may name: the skills and agents it
+ * builds, every file of those skills, and the plugin's own MCP servers. The
+ * plugin is its Claude name, which Claude Code namespaces MCP tools with and
+ * every target's agent id uses, so `plugin` and `own.plugin` are one value.
+ */
+const tokenContext = (
+	target: Target,
+	id: KnownTargetId,
+	config: PluginfinityConfig,
+	skills: ReadonlyArray<SourceSkill>,
+	agents: ReadonlyArray<SourceAgent>,
+): TokenContext => {
+	const plugin = pluginName(config, "claude");
+	const built = skills.filter((skill) => skill.frontmatter.targets?.[id] !== false);
+	return {
+		target,
+		plugin,
+		skills: new Set(built.map((skill) => skill.name)),
+		agents: new Set(agents.filter((agent) => agent.frontmatter.targets?.[id] !== false).map((agent) => agent.name)),
+		skillFiles: new Set(
+			built.flatMap((skill) => [`${skill.name}/SKILL.md`, ...skill.files.map((file) => `${skill.name}/${file}`)]),
+		),
+		own: { plugin, servers: mcpServerNames(id, config) },
+	};
+};
+
 const planPlugin = (
 	prepared: PreparedPlugin,
 ): Effect.Effect<ReadonlyArray<PlannedTarget>, PlanError, FileSystem.FileSystem | Path.Path> =>
@@ -365,14 +396,16 @@ const planPlugin = (
 		const { agents, failures: agentFailures } = yield* readAgents(config.root, KNOWN_TARGET_IDS);
 		// Every component problem in the plugin, so one build reports them all.
 		const failures: Array<ComponentInvalid> = [...skillFailures, ...agentFailures];
-		const collect = <A, R>(effect: Effect.Effect<A | undefined, ComponentInvalid | PlatformError.PlatformError, R>) =>
+		// A problem that names no target recurs for every target; keep one.
+		const keep = (error: ComponentInvalid) => {
+			if (!failures.some((seen) => seen.message === error.message)) failures.push(error);
+		};
+		const collect = <A, R>(
+			effect: Effect.Effect<A | undefined, ComponentInvalid | ComponentsInvalid | PlatformError.PlatformError, R>,
+		) =>
 			effect.pipe(
-				Effect.catchTag("ComponentInvalid", (error) =>
-					// A problem that names no target recurs for every target; keep one.
-					Effect.sync(() => {
-						if (!failures.some((seen) => seen.message === error.message)) failures.push(error);
-					}),
-				),
+				Effect.catchTag("ComponentInvalid", (error) => Effect.sync(() => keep(error))),
+				Effect.catchTag("ComponentsInvalid", (error) => Effect.sync(() => error.components.forEach(keep))),
 			);
 
 		const planned: Array<PlannedTarget> = [];
@@ -422,16 +455,15 @@ const planPlugin = (
 			generated.push(...rendered.files);
 			notes.push(...rendered.notes);
 			if (rendered.stdio) generated.push(...serverLibFiles());
-			// Claude Code namespaces a plugin's MCP tools with its Claude name; each target spells its own servers.
-			const ownMcp = { plugin: pluginName(config.config, "claude"), servers: mcpServerNames(id, config.config) };
+			const tokens = tokenContext(target, id, config.config, skills, agents);
 			for (const skill of skills) {
-				const skillRender = yield* collect(renderSkill(target, id, skill, KNOWN_TARGET_IDS, ownMcp));
+				const skillRender = yield* collect(renderSkill(target, id, skill, KNOWN_TARGET_IDS, tokens));
 				if (skillRender === undefined) continue;
 				generated.push(...skillRender.files);
 				notes.push(...skillRender.notes);
 			}
 			for (const agent of agents) {
-				const agentRender = yield* collect(renderAgent(target, id, agent, KNOWN_TARGET_IDS, ownMcp));
+				const agentRender = yield* collect(renderAgent(target, id, agent, KNOWN_TARGET_IDS, tokens));
 				if (agentRender === undefined) continue;
 				generated.push(agentRender.file);
 				notes.push(...agentRender.notes);

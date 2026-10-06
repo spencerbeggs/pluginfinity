@@ -4,12 +4,21 @@ import type { KnownTargetId } from "@pluginfinity/targets";
 import type { PlatformError } from "effect";
 import { Effect, FileSystem, Path } from "effect";
 import { applyHostBlocks } from "./body.js";
-import { decodeComponent, frontmatterText, invalid, issue, overlayIssues, unknownTargets } from "./component.js";
+import {
+	decodeComponent,
+	frontmatterText,
+	invalid,
+	issue,
+	lineIssues,
+	overlayIssues,
+	unknownTargets,
+} from "./component.js";
 import type { EmittedFile } from "./emit.js";
 import type { ComponentInvalid, ConfigIssue } from "./errors.js";
-import type { OwnMcp } from "./frontmatter.js";
 import { appendSections, mapFrontmatter } from "./frontmatter.js";
 import type { BuildNote } from "./notes.js";
+import type { TokenContext } from "./tokens.js";
+import { renderTokens } from "./tokens.js";
 
 /**
  * One agent as read from `agents/<name>.md`: its name, its decoded
@@ -103,8 +112,9 @@ export interface RenderedAgent {
 /**
  * Render one agent for a target, or `undefined` when its `targets` block
  * excludes it: the file at `<agents.dir>/<name><agents.suffix>` with the
- * target's frontmatter, degraded fields appended as body sections, and host
- * blocks applied. It keeps its source mode.
+ * target's frontmatter, host blocks and then body tokens applied, and
+ * degraded fields appended as body sections. It keeps its source mode. A
+ * token problem is keyed by its file line and names the target.
  *
  * @public
  */
@@ -113,7 +123,7 @@ export const renderAgent = (
 	id: KnownTargetId,
 	agent: SourceAgent,
 	known: ReadonlyArray<string>,
-	own?: OwnMcp,
+	tokens: TokenContext,
 ): Effect.Effect<RenderedAgent | undefined, ComponentInvalid | PlatformError.PlatformError, FileSystem.FileSystem> =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
@@ -125,7 +135,7 @@ export const renderAgent = (
 			target.agents.hostFields,
 			agent.frontmatter,
 			block ?? {},
-			own,
+			tokens.own,
 		);
 		const problems: Array<ConfigIssue> = [
 			...(yield* overlayIssues(AgentFrontmatter, AGENT_FIELDS, agent.frontmatter, block ?? {}, id)),
@@ -139,7 +149,9 @@ export const renderAgent = (
 				invalid(agent.path, [issue(`line ${body.problem.line + agent.bodyOffset}`, body.problem.message)]),
 			);
 		}
-		if (problems.length > 0) return yield* Effect.fail(invalid(agent.path, problems, id));
+		const rendered = renderTokens(body.text, tokens);
+		if ("problems" in rendered) problems.push(...lineIssues(rendered.problems, agent.bodyOffset));
+		if (problems.length > 0 || !("text" in rendered)) return yield* Effect.fail(invalid(agent.path, problems, id));
 
 		const { name: _name, description, ...rest } = mapped.fields;
 		const yaml = yield* frontmatterText({ name: agent.name, description, ...rest }, agent);
@@ -147,7 +159,7 @@ export const renderAgent = (
 		return {
 			file: {
 				path: `${target.agents.dir}/${agent.name}${target.agents.suffix}`,
-				content: `---\n${yaml}---\n${appendSections(body.text, mapped.sections)}`,
+				content: `---\n${yaml}---\n${appendSections(rendered.text, mapped.sections)}`,
 				mode: (yield* fs.stat(agent.path)).mode & 0o777,
 			},
 			notes: mapped.drops.map(({ field, kind }) => ({ target: id, path: source, kind, name: field })),
