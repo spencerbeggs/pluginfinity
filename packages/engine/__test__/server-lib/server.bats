@@ -251,6 +251,14 @@ run_fallback() { # [VAR=value...]
 	[ "$output" = "yarn dlx @demo/mcp --stdio" ]
 }
 
+@test "a non-object devEngines degrades to packageManager" {
+	make_build claude
+	stub_cmd bunx 'echo "bunx $*"'
+	printf '{"devEngines": "pnpm", "packageManager": "bun@1"}\n' >"$PROJECT/package.json"
+	run_fallback
+	[ "$output" = "bunx @demo/mcp --stdio" ]
+}
+
 @test "a launcher run with PLUGINFINITY_LIB unset fails with a clear message" {
 	make_build claude
 	launcher 'true'

@@ -66,7 +66,7 @@ _pf_detect_pm() { # project
 	_pf_pm=""
 	if [ -f "$1/package.json" ]; then
 		if command -v jq >/dev/null 2>&1; then
-			_pf_pm=$(jq -r '(.devEngines.packageManager | if type == "array" then .[0] else . end | .name?) // .packageManager // empty' \
+			_pf_pm=$(jq -r '((try (.devEngines.packageManager | if type == "array" then .[0] else . end | .name) catch null) | strings) // (.packageManager | strings) // empty' \
 				"$1/package.json" 2>/dev/null | cut -d@ -f1)
 		else
 			_pf_pm=$(grep -o '"packageManager"[[:space:]]*:[[:space:]]*"[^"]*"' "$1/package.json" 2>/dev/null |

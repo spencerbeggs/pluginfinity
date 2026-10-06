@@ -59,6 +59,39 @@ JSON
 	[ "$(printf '%s\n' "$output" | jq -r '.result.content[0].text')" = "pong from copilot, project none" ]
 }
 
+run_mcp_input() { # input (claude host)
+	cd "$PROJECT"
+	run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST=claude \
+		PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_LIB="$BUILDS/claude/lib/pluginfinity" \
+		CLAUDE_PROJECT_DIR="$PROJECT" sh "$BUILDS/claude/bin/start-mcp.sh" <<<"$1"
+}
+
+@test "the MCP server survives quotes and backslashes in params" {
+	run_mcp_input '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ping","arguments":{"x":"a\"b\\c"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+	[ "$status" -eq 0 ]
+	[ "${#lines[@]}" -eq 2 ]
+	[ "$(printf '%s\n' "${lines[0]}" | jq -r '.result.content[0].text')" = "pong from claude, project $PROJECT" ]
+	[ "$(printf '%s\n' "${lines[1]}" | jq -c '[.id, .result.tools[0].name]')" = '[2,"ping"]' ]
+}
+
+@test "the MCP server answers -32602 for non-object params and keeps going" {
+	run_mcp_input '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":"oops"}
+{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+	[ "$status" -eq 0 ]
+	[ "${#lines[@]}" -eq 2 ]
+	[ "$(printf '%s\n' "${lines[0]}" | jq -c '[.id, .error.code]')" = '[1,-32602]' ]
+	[ "$(printf '%s\n' "${lines[1]}" | jq -c '.id')" = 2 ]
+}
+
+@test "the MCP server answers a final request with no trailing newline" {
+	cd "$PROJECT"
+	run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST=claude \
+		PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_LIB="$BUILDS/claude/lib/pluginfinity" \
+		sh -c "printf '%s' '{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"ping\"}' | sh '$BUILDS/claude/bin/start-mcp.sh'"
+	[ "$(printf '%s\n' "$output" | jq -c '.id')" = 7 ]
+}
+
 @test "the LSP launcher passes --stdio through" {
 	run_built copilot start-lsp.sh --stdio
 	[ "$output" = "lsp --stdio" ]
