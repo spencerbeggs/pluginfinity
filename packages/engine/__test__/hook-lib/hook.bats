@@ -772,3 +772,61 @@ exit 7'
 	run_script '{"hook_event_name":"Stop"}' CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/main"
 	[ "$output" = "$BATS_TEST_TMPDIR/main" ]
 }
+
+# --- envelope and relay ---
+
+@test "hook_envelope claude renames Copilot's tool_input keys" {
+	make_plugin copilot; hook_script 'hook_envelope claude | jq -c "[.hook_event_name, .tool_name, .tool_input.file_path, .tool_input.content]"'
+	run_script "$FIXTURES/pretooluse.write.copilot.json" PLUGINFINITY_EVENT=PreToolUse
+	[ "$output" = '["PreToolUse","Write","/tmp/x","hello"]' ]
+}
+
+@test "hook_envelope claude snake-cases a camelCase payload and parses toolArgs" {
+	make_plugin copilot; hook_script 'hook_envelope claude | jq -c "[.session_id, .tool_input.command]"'
+	run_script "$FIXTURES/pretooluse.camel.json" PLUGINFINITY_EVENT=PreToolUse
+	[ "$output" = '["s-1","ls -la"]' ]
+}
+
+@test "hook_envelope on Claude keeps the input and an unknown target returns 1" {
+	make_plugin claude; hook_script 'hook_envelope claude | jq -c "[.hook_event_name, .tool_name]"; hook_envelope nope || echo "rc=$?"'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$output" = $'["PreToolUse","Bash"]\nrc=1' ]
+}
+
+@test "hook_relay maps a Claude deny onto Copilot's shape" {
+	make_plugin copilot
+	hook_script 'hook_relay "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"no\"}}"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PreToolUse
+	[ "$(jq -c '[.permissionDecision,.permissionDecisionReason]' <<<"$output")" = '["deny","no"]' ]
+}
+
+@test "hook_relay prefers the permission decision and logs the dropped context" {
+	make_plugin claude
+	hook_script 'hook_relay "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"additionalContext\":\"c\"}}"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
+	[ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = allow ]
+	[[ "$(debug_log)" == *"hook_relay dropped hookSpecificOutput.additionalContext"* ]]
+}
+
+@test "hook_relay of {} is a noop" {
+	make_plugin claude; hook_script 'hook_relay "{}"'; run_script "$FIXTURES/pretooluse.bash.json"; [ "$output" = '{}' ]
+}
+
+@test "hook_relay of non-JSON emits nothing and returns 1" {
+	make_plugin claude; hook_script 'hook_relay "oops" || echo "rc=$?"'
+	run_script "$FIXTURES/pretooluse.bash.json"; [ "$output" = "rc=1" ]; [[ "$(error_log)" == *"not a JSON object"* ]]
+}
+
+@test "hook_relay of a block on Copilot's Stop blocks" {
+	make_plugin copilot; hook_script 'hook_relay "{\"decision\":\"block\",\"reason\":\"keep going\"}"'
+	run_script '{"hook_event_name":"Stop"}' PLUGINFINITY_EVENT=Stop
+	[ "$(jq -r .decision <<<"$output")" = block ]
+}
+
+@test "hook_relay passes updatedInput to hook_allow and logs unmapped fields" {
+	make_plugin claude
+	hook_script 'hook_relay "{\"continue\":false,\"hookSpecificOutput\":{\"permissionDecision\":\"allow\",\"updatedInput\":{\"command\":\"ls\"}}}"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
+	[ "$(jq -c .hookSpecificOutput.updatedInput <<<"$output")" = '{"command":"ls"}' ]
+	[[ "$(debug_log)" == *"hook_relay dropped continue"* ]]
+}

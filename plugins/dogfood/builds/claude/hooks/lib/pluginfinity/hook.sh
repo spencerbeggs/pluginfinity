@@ -379,6 +379,79 @@ hook_system_message() {
 	_pf_emit "$body" system_message
 }
 
+# Print the input the way Claude would send it. On Copilot: hook_event_name
+# from hook_event, snake_case top-level keys (toolName/toolArgs become
+# tool_name/tool_input, parsed when a string), and Copilot's tool_input key
+# names mapped to Claude's where the Claude key is absent. On Claude: the
+# input unchanged, with hook_event_name filled in when missing.
+hook_envelope() {
+	if [ "${1:-}" != claude ]; then
+		hook_log "hook_envelope: unknown target: ${1:-none}"
+		return 1
+	fi
+	local event
+	event=$(hook_event 2>/dev/null) || event=""
+	printf '%s' "$_pf_input" | jq -c --arg event "$event" --arg host "$PLUGINFINITY_HOST" '
+def snake: gsub("(?<c>[A-Z])"; "_" + (.c | ascii_downcase));
+def args: if type == "string" then (fromjson? // .) else . end;
+def alias: {path: "file_path", file_text: "content", old_str: "old_string", new_str: "new_string"};
+def fix: if type == "object" then
+    . as $o | reduce (keys_unsorted[]) as $k ($o;
+      if alias[$k] != null and (has(alias[$k]) | not) then . + {(alias[$k]): $o[$k]} else . end)
+  else . end;
+(if $host == "copilot" then
+   with_entries(.key |= (if . == "toolName" then "tool_name" elif . == "toolArgs" then "tool_input" else snake end))
+   | if has("tool_input") then .tool_input |= (args | fix) else . end
+ else . end)
+| if (has("hook_event_name") | not) and $event != "" then . + {hook_event_name: $event} else . end' 2>/dev/null || {
+		hook_log "hook_envelope: input is not a JSON object"
+		return 1
+	}
+}
+
+# Map one Claude-shaped hook response onto this host's emitters. First match
+# wins: permission decision, block, additional context, system message, then
+# noop. Fields that lose or have no mapping are written to the debug log.
+hook_relay() {
+	local plan kind reason input text path
+	plan=$(printf '%s' "${1:-}" | jq -c '
+if type != "object" then error("not an object") else . end
+| (.hookSpecificOutput | if type == "object" then . else {} end) as $h
+| ($h.permissionDecision) as $d
+| (if ($d == "allow" or $d == "deny" or $d == "ask") then
+     {kind: $d, reason: ($h.permissionDecisionReason // ""), input: (if $d == "allow" and ($h.updatedInput != null) then ($h.updatedInput | tojson) else "" end), text: "",
+      used: ["hookSpecificOutput.permissionDecision", "hookSpecificOutput.permissionDecisionReason", "hookSpecificOutput.updatedInput"]}
+   elif .decision == "block" then
+     {kind: "block", reason: (.reason // ""), input: "", text: "", used: ["decision", "reason"]}
+   elif ($h.additionalContext != null) then
+     {kind: "context", reason: "", input: "", text: ($h.additionalContext | if type == "string" then . else tojson end), used: ["hookSpecificOutput.additionalContext"]}
+   elif .systemMessage != null then
+     {kind: "system_message", reason: "", input: "", text: (.systemMessage | if type == "string" then . else tojson end), used: ["systemMessage"]}
+   else {kind: "noop", reason: "", input: "", text: "", used: []} end) as $p
+| ([paths | select((length == 1 and (.[0] != "hookSpecificOutput" or ($h | length) == 0)) or (length == 2 and .[0] == "hookSpecificOutput" and (($h | length) > 0)))
+    | join(".")] | map(select(. != "hookSpecificOutput.hookEventName"))) as $all
+| $p + {dropped: ($all - $p.used)}' 2>/dev/null) || {
+		hook_log "hook_relay: not a JSON object"
+		return 1
+	}
+	kind=$(jq -r .kind <<<"$plan")
+	reason=$(jq -r .reason <<<"$plan")
+	input=$(jq -r .input <<<"$plan")
+	text=$(jq -r .text <<<"$plan")
+	while IFS= read -r path; do
+		[ -n "$path" ] && hook_debug "hook_relay dropped $path"
+	done <<<"$(jq -r '.dropped[]' <<<"$plan")"
+	case "$kind" in
+	allow) hook_allow "$reason" "$input" ;;
+	deny) hook_deny "$reason" ;;
+	ask) hook_ask "$reason" ;;
+	block) hook_block "$reason" ;;
+	context) hook_context "$text" ;;
+	system_message) hook_system_message "$text" ;;
+	*) hook_noop ;;
+	esac
+}
+
 # Emit a host-specific JSON response verbatim, only on that host.
 hook_raw() {
 	if [ "${1:-}" != "$PLUGINFINITY_HOST" ]; then
