@@ -15,8 +15,8 @@ sources:
     title: Probe runs by the implementing agent on the owner's machine under Copilot CLI 1.0.92, using --plugin-dir and --output-format json
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T03:14:59Z
-  body_sha256: caacb4211251cbbc5550886791d1d17039c77bf1800d7113a5ce24899ba586f3
+  at: 2026-10-06T03:16:22Z
+  body_sha256: bb7a5a3e9c8c53e5ccfbf6c45bcab80b32f05320eea0bfbf24acd57bfb56e14c
 ---
 
 # Copilot CLI run-time tool, skill and agent names, 2026-10-06
@@ -79,7 +79,20 @@ The controls show the method can see a granted tool: `grep` and `read` executed 
 
 ### Alias follow-up conclusion
 
-In Copilot CLI 1.0.92, in non-interactive runs, the aliases `search` and `web` grant no tool: 6 of 6 runs each executed nothing relevant, against 6 of 6 and 3 of 3 for the working controls. `todo` grants no tool of its own either; todo writes go through `sql`, available to every agent. A target that maps Grep and Glob to `search`, WebFetch and WebSearch to `web`, and TodoWrite to `todo` therefore strips those capabilities from Copilot agents. The literal run-time names `grep`, `glob`, `web_fetch` and `web_search` are accepted in `tools` (first probe, plus `grep` here). Not measured: whether `web_fetch` and `web_search` actually execute when named literally (only the first probe's model listing showed them), interactive mode, and any Copilot version other than 1.0.92. The first-probe rows above stand and are superseded on the alias question by this section.
+In Copilot CLI 1.0.92, in non-interactive runs, the aliases `search` and `web` grant no tool: 6 of 6 runs each executed nothing relevant, against 6 of 6 and 3 of 3 for the working controls. `todo` grants no tool of its own either; todo writes go through `sql`, available to every agent. A target that maps Grep and Glob to `search`, WebFetch and WebSearch to `web`, and TodoWrite to `todo` therefore strips those capabilities from Copilot agents. The literal run-time names `grep`, `glob`, `web_fetch` and `web_search` are accepted in `tools` (first probe, plus `grep` here). Not measured: interactive mode and any Copilot version other than 1.0.92. The first-probe rows above stand and are superseded on the alias question by this section.
+
+### Literal-name confirmation
+
+A second round used the same method with agents whose `tools` held the literal run-time names: `glob`, `web_fetch`, `web_search`, and `[grep, glob]` together. Each case ran three times under `claude-sonnet-5` and three under `gpt-5-mini`. No permission prompt or network block appeared under `--allow-all`, so no `--allow-tool` flag was needed.
+
+| Agent `tools` | Tool executed (event stream) | Runs | Verdict |
+| :-- | :-- | :-- | :-- |
+| `glob` | `glob` only | 6 of 6 | Executes |
+| `web_fetch` | `web_fetch` only | 6 of 6 | Executes |
+| `web_search` | `web_search` only | 6 of 6 | Executes |
+| `[grep, glob]` | Both `grep` and `glob` in every run | 6 of 6 | Both available in one agent |
+
+Together with the `grep` control above (6 of 6), the literal names `grep`, `glob`, `web_fetch` and `web_search` all execute from an agent's `tools` list, which makes them the working replacements for the `search` and `web` aliases. Still not measured: interactive mode and other Copilot versions.
 
 ## Not measured
 
