@@ -31,6 +31,14 @@ b"'; run_it; [ "$output" = "a b" ]
 	[ "$output" = "$(printf 't1\nt3')" ]; [[ "$(cat "$STATE/pluginfinity/fx/error.log")" == *"monitor/m.sh: tick failed (exit 3)"* ]]
 }
 
+@test "monitor_every keeps polling under set -eu after a failing tick" {
+	make_root claude fx
+	monitor_body 'set -eu; n=0; tick() { n=$((n+1)); [ "$n" -ne 2 ] || return 3; monitor_notify "t$n"; }; monitor_every 0 tick'
+	run_it PLUGINFINITY_MONITOR_MAX_TICKS=3
+	[ "$status" -eq 0 ]
+	[ "$output" = "$(printf 't1\nt3')" ]; [[ "$(cat "$STATE/pluginfinity/fx/error.log")" == *"monitor/m.sh: tick failed (exit 3)"* ]]
+}
+
 @test "monitor_every exits 0 when stdout closes" {
 	make_root claude fx
 	monitor_body 'tick() { monitor_notify x; }; monitor_every 0 tick'

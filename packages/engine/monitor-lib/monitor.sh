@@ -102,8 +102,7 @@ monitor_every() {
 	_pf_fn=${2:-:}
 	_pf_n=0
 	while :; do
-		"$_pf_fn"
-		_pf_rc=$?
+		if "$_pf_fn"; then _pf_rc=0; else _pf_rc=$?; fi
 		if [ "$_pf_mon_closed" = 1 ]; then
 			monitor_debug "stdout closed; stopping"
 			exit 0
