@@ -49,6 +49,36 @@ lists it.
 - **A built skill `description` may hold at most 1,024 characters.** Copilot folds `when_to_use` into
   it, so a long pair needs a shorter `targets.copilot.description`.
 
+## Tokens and links
+
+A tool, agent, skill or the plugin root is spelled differently on each host. In a skill or agent body,
+write a token, and each build writes that host's spelling:
+
+| Write | Claude Code | Copilot |
+| :-- | :-- | :-- |
+| `\{{tool Read}}` | `Read` | `view` |
+| `\{{tool mcp__plugin_<plugin>_<server>__<tool>}}` | as written | `<server>-<tool>` |
+| `\{{agent <agent>}}` | `<plugin>:<agent>` | `<plugin>:<agent>` |
+| `\{{skill <skill>}}` | `/<plugin>:<skill>` | `/<plugin>:<skill>` |
+| `\{{plugin_root}}` | `${CLAUDE_PLUGIN_ROOT}` | fails the build |
+
+- **Name tools in prose with `\{{tool …}}`.** The Copilot model sees `view`, `bash`, `edit` and
+  `create`, not `Read`, `Bash`, `Edit` and `Write`, and this plugin's MCP tools as `<server>-<tool>`. A
+  tool name written plainly stays Claude's on Copilot. A token writes the bare name, so put the backticks
+  around it yourself.
+- **Name agents with `\{{agent …}}`.** Copilot namespaces agent ids, so a bare `okf-docs` is no agent
+  there. On the command line it is `copilot --agent <plugin>:<agent>`.
+- **Link to another skill's file or to an agent** with an inline link,
+  `[text](pluginfinity://skill/<skill>/<path>)` or `[text](pluginfinity://agent/<agent>)`. Claude Code
+  gets a link under `${CLAUDE_PLUGIN_ROOT}`, Copilot gets prose such as "text (the `<skill>` skill's
+  `<path>`)".
+- **A token or link that cannot be spelled fails the build**, with its file, line and host. Put a passage
+  only one host can spell in a host block: a token in another host's block is never read.
+- **`\{{` keeps a token literal.** Tokens are replaced in code too. A `{{` that does not start
+  `tool`, `agent`, `skill` or `plugin_root`, such as GitHub Actions' `${{ github.sha }}`, is plain text.
+
+The full rules are in [skills and agents](references/components.md#tokens-and-links).
+
 ## Servers and launchers
 
 MCP and LSP servers are declared once in the config, in Claude Code's shape, and a server's launcher is
@@ -140,8 +170,8 @@ Anything that rewrites `builds/` after the build makes it fail:
 ## Go deeper
 
 - [The config](references/config.md): every field, hooks and server overrides, and the target keys.
-- [Skills and agents](references/components.md): frontmatter, `targets` blocks, host blocks and support
-  files.
+- [Skills and agents](references/components.md): frontmatter, `targets` blocks, host blocks, tokens and
+  links, and support files.
 - [Hooks](references/hooks.md): script and command entries, `scripts.invoke`, fallbacks and what ships.
 - [What each host gets](references/targets.md): how every field, tool, model, path and server is
   translated.

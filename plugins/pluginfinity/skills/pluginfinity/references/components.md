@@ -89,11 +89,70 @@ drop it; every marker line is removed from every build. Blocks do not nest. A bl
 close with no open, an unknown id or a marker sharing its line with other text fails. A marker inside
 fenced code or an inline code span is plain text, so a body can show one, as this page does.
 
-## References
+## Tokens and links
 
-`pluginfinity://` links are not built yet. A build refuses one outside code; link with a relative path,
-such as `references/guide.md` or `../other-skill/SKILL.md`, which works on every host because skills sit
-at the same place in each build.
+`SKILL.md`, every other `.md` file in a skill directory and an agent's body go through tokens and links
+after host blocks. Frontmatter, scripts and other files do not.
+
+### Tokens
+
+A token is `{{`, a kind, its argument and `}}` on one line, with any whitespace inside the braces:
+
+| Token | Claude Code | Copilot |
+| :-- | :-- | :-- |
+| `\{{tool <Tool>}}` | the name as written | the run-time name in [what each host gets](targets.md#run-time-names); a tool with none fails |
+| `\{{tool mcp__plugin_<plugin>_<server>__<tool>}}` | as written | `<server>-<tool>`, when the Copilot build declares `<server>` |
+| `\{{tool mcp__<other>__<tool>}}`, another plugin's | as written | fails |
+| `\{{agent <agent>}}` | `<plugin>:<agent>` | `<plugin>:<agent>` |
+| `\{{skill <skill>}}` | `/<plugin>:<skill>` | `/<plugin>:<skill>` |
+| `\{{plugin_root}}` | `${CLAUDE_PLUGIN_ROOT}` | fails: Copilot expands no root in a body |
+
+`<plugin>` is the plugin's Claude Code name: the `claude.name` override, else `name`. A token writes the
+bare string; add backticks yourself, as in `` `\{{tool Read}}` ``.
+
+- **Tokens are replaced everywhere,** fenced and inline code included.
+- **`\{{` before a token keeps it literal** and drops the backslash, which is how this page shows them.
+  Before any other `{{` the backslash stays.
+- **Only the four kinds are tokens.** A `{{` whose first word is something else, such as GitHub Actions'
+  `${{ github.sha }}`, Jinja or Handlebars, is plain text.
+- **These fail the build:** a missing or extra argument, an agent or skill this plugin does not build
+  for that host, a tool that host cannot name, `plugin_root` on Copilot, a token never closed on its
+  line, and a brace inside one.
+
+### Links
+
+Link to another skill, a file in one, or an agent with an inline markdown link:
+
+| Link | Claude Code | Copilot |
+| :-- | :-- | :-- |
+| `[text](pluginfinity://skill/<skill>)` | `[text](${CLAUDE_PLUGIN_ROOT}/skills/<skill>/SKILL.md)` | ``text (the `<skill>` skill)`` |
+| `[text](pluginfinity://skill/<skill>/<path>#anchor)` | `[text](${CLAUDE_PLUGIN_ROOT}/skills/<skill>/<path>#anchor)` | ``text (the `<skill>` skill's `<path>`)`` |
+| `[text](pluginfinity://agent/<agent>)` | ``text (`<plugin>:<agent>`)`` | ``text (`<plugin>:<agent>`)`` |
+
+- **The skill and the file must exist** in the build for that host. A skill link may carry an `#anchor`,
+  which Copilot's prose drops; an agent link takes no path or anchor.
+- **A link inside fenced or inline code is text,** so a page can show one.
+- **Only inline links are built.** Any other `pluginfinity://` outside code fails the build: a reference
+  definition, an autolink, a link with a title, an image, a bare URL, in any case.
+- **A link within the same skill** can stay relative, such as `references/guide.md`; skills sit at the
+  same place in every build.
+
+### When a host cannot spell one
+
+Put the passage in a host block. Host blocks are applied first, so a token in another host's block is
+never read:
+
+```markdown
+<!-- pluginfinity:only claude -->
+Scripts live under `\{{plugin_root}}/scripts/`.
+<!-- /pluginfinity:only -->
+```
+
+### Known limits
+
+- An indented (four-space) code block is not treated as code, so a link there is built.
+- An inline code span across two lines is not recognised.
+- An escaped `\[text](pluginfinity://…)` is still built, and keeps its backslash.
 
 ## Description length
 

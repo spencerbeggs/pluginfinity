@@ -24,8 +24,8 @@ sources:
     title: ServerEnv and the reserved PLUGINFINITY_ prefix
 generated:
   by: okfit/claude-code
-  at: 2026-10-05T18:17:00Z
-  body_sha256: 0bfe9bedbdd739f257abe0143d5b15de9bd0a8d312156381aeb1a32806b5775d
+  at: 2026-10-06T02:15:19Z
+  body_sha256: 4c6e0a21f10b3de73f43daf597ef66a0830d0c52ff1c93a6939537bd88325663
 ---
 
 # Plugin source model
@@ -58,8 +58,11 @@ The first release covers five component kinds: skills, agents, hooks, MCP server
 ## Body constructs
 
 - **Host blocks.** `<!-- pluginfinity:only <id> [<id>…] -->` … `<!-- /pluginfinity:only -->` keeps the enclosed passage for the listed targets and strips it for the rest. Blocks do not nest; an unclosed block or an unknown id fails.
-- **References.** A markdown link destination `pluginfinity://skill/<skill>[/<path>]` or `pluginfinity://agent/<agent>` must name a component, and a file, that exists. Each target rewrites it ([target description](target-description.md)). Both forms pass the repository's markdownlint config. They are not built yet, so a build refuses any such link outside code rather than ship it as text.
-- **Code is text.** A host-block marker or a reference inside fenced code or an inline code span is shown, not acted on.
+- **Tokens.** `{{tool <name>}}`, `{{agent <name>}}`, `{{skill <name>}}` and `{{plugin_root}}`, on one line, write the target's run-time spelling of a tool, an agent id, a skill invocation or the body root ([target description](target-description.md)). They apply to `SKILL.md`, every other `.md` file in a skill directory and agent bodies, after host blocks, and are replaced everywhere, code included. Only a `{{` followed by one of those kinds is a token, so `${{ … }}`, Jinja and Handlebars pass through; `\{{` before a token writes it literally. A token a target cannot spell fails the build for that target, and a host block is the escape hatch.
+- **References.** An inline link `[text](pluginfinity://skill/<skill>[/<path>][#anchor])` or `[text](pluginfinity://agent/<agent>)` must name a component, and a file, that the target builds. Each target builds it in its reference style. Both forms pass the repository's markdownlint config. A skill link may carry an anchor; an agent link may not. Any other `pluginfinity://` outside code, a reference definition, an autolink or a bare URL in any case, fails the build rather than ship unbuilt.
+- **Code is text.** A host-block marker or a reference inside fenced code or an inline code span is shown, not acted on; tokens are the exception. An indented code block is not treated as code.
+
+Why both are built per target, and why explicitly, is in [the decision](../decisions/body-tokens-and-links-are-built-per-target.md).
 
 Whole-file overrides per target are out of scope until a plugin needs them.[^owner-direction]
 

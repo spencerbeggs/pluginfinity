@@ -1,5 +1,6 @@
 # Decision
 
+* [Body tokens and pluginfinity links are built per target](body-tokens-and-links-are-built-per-target.md) - Skill and agent bodies name tools, agents, skills and the plugin root through explicit {{kind name}} tokens, and other components through inline pluginfinity:// links, which each target spells from its own data; anything a target cannot spell fails the build, with host blocks as the escape hatch.
 * [Build notes report what a target drops, degrades or omits](build-notes-report-dropped-fields.md) - Every build and validate reports, at info level and without failing, each frontmatter or server field a target drops or degrades, each tool it cannot name and each hook event it omits, replacing the rule that a dropped field is silent.
 * [Built plugins carry no Node dependencies](plugins-carry-no-node-dependencies.md) - For the first release, a plugin pluginfinity builds is markdown, JSON and bash scripts only, with no Node runtime dependencies to install.
 * [Claude Code's names are the source vocabulary](claude-code-names-are-the-source-vocabulary.md) - Plugin source writes hook events, tool names and skill and agent frontmatter fields with Claude Code's names, and each target maps them; per-host additions go in a targets block.

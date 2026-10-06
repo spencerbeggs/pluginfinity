@@ -56,7 +56,14 @@ Common problems inside `ComponentsInvalid`:
   in its `targets` block.
 - **A host-block problem at line N.** Close the block, use a known target id, or give the marker its own
   line.
-- **A `pluginfinity://` link.** References are not built yet; use a relative link.
+- **A token problem at line N on a host**, such as `\{{tool TodoWrite}} has no spelling on this target`,
+  `\{{plugin_root}}` on Copilot, `this plugin has no agent "x"`, a missing argument or a token never
+  closed on its line. Fix the name, or move the passage into a host block for the hosts that can spell
+  it. For a literal `{{`, write `\{{`.
+- **A `pluginfinity://` problem at line N on a host.** The skill, agent or file does not exist in that
+  host's build, an agent link has a path or `#anchor`, or the link is not an inline `[text](…)` link with
+  no title: a reference definition, an autolink, an image or a bare URL. Write an inline link, or put a
+  sample inside code.
 - **A mistyped `targets.<id>.<field>`.** An override is checked like the base field; fix its value.
 - **`mcpServers.<name>.cwd` on Claude.** Claude ignores an MCP `cwd`; move it under
   `copilot.mcpServers`, or `cd` in the launcher.

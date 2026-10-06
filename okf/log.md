@@ -1,5 +1,12 @@
 # Log
 
+## 2026-10-06
+
+* Updated @pluginfinity/cli
+* Updated Build notes report what a target drops, degrades or omits
+* Updated Copilot CLI run-time tool, skill and agent names, 2026-10-06
+* Updated The pluginfinity command line
+
 ## 2026-10-05
 
 * Updated Hook library live run on Claude Code and Copilot CLI, 2026-10-03

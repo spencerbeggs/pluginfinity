@@ -90,6 +90,34 @@ dropped on Copilot and reported as a `tool-dropped` note: a Claude-only tool suc
 Copilot is unknown, and one of this plugin's that names a server the Copilot build does not declare.
 Claude Code keeps every name as written.
 
+The aliases above come from Copilot's docs. A one-off run showed an agent restricted to `search`, `web`
+or `todo` with no matching tool, which does not settle what those aliases grant, so the table is
+unchanged until that is measured.
+
+## Run-time names
+
+A `{{tool …}}`, `{{agent …}}` or `{{skill …}}` token in a body writes the name the model sees at run
+time, which is not the frontmatter alias. Claude Code writes every name as given. On Copilot:
+
+| Claude Code | Copilot run-time name |
+| :-- | :-- |
+| `Read` | `view` |
+| `Bash` | `bash` |
+| `Edit`, `MultiEdit` | `edit` |
+| `Write` | `create` |
+| `Agent`, `Task` | `task` |
+| `Grep`, `Glob` | `grep`, `glob` |
+| `WebFetch`, `WebSearch` | `web_fetch`, `web_search` |
+| `Skill` | `skill` |
+| `TodoWrite`, `NotebookEdit`, `NotebookRead`, `PowerShell` | none measured: the token fails |
+| `mcp__plugin_<plugin>_<server>__<tool>`, this plugin's own server | `<server>-<tool>` |
+| Any other name, another plugin's MCP tools included | none: the token fails |
+| An agent | `<plugin>:<agent>`, also what `copilot --agent` takes |
+| A skill | `/<plugin>:<skill>` |
+
+These were measured once, under Copilot CLI 1.0.92 in non-interactive runs; the built-in names rest on
+the model's own listing of its tools.
+
 ## Notes
 
 Every field a host drops or degrades, every tool it drops and every hook event it omits is reported as an

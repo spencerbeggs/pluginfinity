@@ -27,8 +27,8 @@ sources:
     title: The COPILOT description
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T23:30:51Z
-  body_sha256: 1da75a99e3a3f7011ca5afecde2b7dd99f5800da051dc2cdac2b4db8417ea70d
+  at: 2026-10-06T02:15:19Z
+  body_sha256: e9e43d245eccfb452bb4cac0e207f85ba9bb514ae6cab1969e16a9dad1c19721
 ---
 
 # @pluginfinity/targets
@@ -41,6 +41,9 @@ generated:
 
 - **The registry.** `TARGETS` lists `claude` (Claude Code) and `copilot` (GitHub Copilot), and `KNOWN_TARGET_IDS` lists their ids in registry order. One id names a target everywhere: the config key, `builds/<id>/` and `--target <id>`.[^registry] Each entry also carries the host's description: `CLAUDE` and `COPILOT`, values of core's `Target` schema.[^claude][^copilot]
 - **The assembled config.** `PluginfinityConfig` joins [core](core.md)'s base fields with one optional key per target. The target keys are written out by name rather than mapped from the registry, so an editor shows each one, and a test pins them to `KNOWN_TARGET_IDS`. `CONFIG_KEYS` is every legal top-level key, and `enabledTargets` returns the targets a config turns on, in registry order.[^config] The [engine](engine.md) decodes against this schema, and the [carrier](pluginfinity.md)'s `defineConfig` is typed against its encoded form. The promise to plugin authors is the [config interface](../interfaces/config.md).
+
+- **Run-time names.** Each description carries the names a model sees at run time, which body tokens write: `tools.runtime`, `agents.id` and `skills.invoke`. Claude Code's are its own names, `mcp__plugin_{plugin}_{server}__{tool}`, `{plugin}:{agent}` and `/{plugin}:{skill}`. Copilot's come from [the run-time names measurement](../measurements/copilot-runtime-names.md): `view`, `bash`, `edit`, `create`, `task`, `grep`, `glob`, `web_fetch`, `web_search` and `skill`, the MCP spelling `{server}-{tool}`, `{plugin}:{agent}` and `/{plugin}:{skill}`, with `TodoWrite`, the notebook tools and `PowerShell` unresolved and any unlisted name unresolved.[^claude][^copilot] The built-in names rest on the model's own listing in one non-interactive run.
+- **Frontmatter aliases are unchanged.** Copilot's `tools.names` still writes the documented aliases (`read`, `edit`, `search`, `execute`, `web`, `todo`, `agent`). The same measurement showed an agent restricted to `search`, `web` or `todo` with no matching tool in one run, which is too weak to change the table. Whether those three aliases grant anything is an open follow-up that needs its own measurement.
 
 Adding a host means a registry entry and a config key here, in one release.
 
