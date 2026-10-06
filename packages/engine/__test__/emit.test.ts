@@ -74,7 +74,7 @@ describe("planEmit and applyEmit", () => {
 			}),
 		);
 
-		it.effect("a file with the right bytes but the wrong mode is changed back to the generated mode", () =>
+		it.effect("a generated file with the right bytes is unchanged whatever its mode on disk", () =>
 			Effect.gen(function* () {
 				const fs = yield* FileSystem.FileSystem;
 				const path = yield* Path.Path;
@@ -82,8 +82,36 @@ describe("planEmit and applyEmit", () => {
 				yield* emit(out, FILES);
 				yield* fs.chmod(path.join(out, "plugin.json"), 0o755);
 				const plan = yield* emit(out, FILES);
-				assert.deepStrictEqual(plan.changed, ["plugin.json"]);
-				assert.strictEqual((yield* fs.stat(path.join(out, "plugin.json"))).mode & 0o777, GENERATED_MODE);
+				assert.isTrue(plan.clean);
+				assert.include(plan.unchanged, "plugin.json");
+			}),
+		);
+
+		it.effect("a copied file whose executable bit flips is changed and rewritten with its source mode", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const out = path.join(yield* writeTree({}), "builds", "claude");
+				const script: ReadonlyArray<EmittedFile> = [{ path: "hooks/run.sh", content: "echo\n", mode: 0o755 }];
+				yield* emit(out, script);
+				yield* fs.chmod(path.join(out, "hooks/run.sh"), 0o644);
+				const plan = yield* emit(out, script);
+				assert.deepStrictEqual(plan.changed, ["hooks/run.sh"]);
+				assert.strictEqual((yield* fs.stat(path.join(out, "hooks/run.sh"))).mode & 0o777, 0o755);
+				const plain: ReadonlyArray<EmittedFile> = [{ path: "hooks/run.sh", content: "echo\n", mode: 0o644 }];
+				assert.deepStrictEqual((yield* planEmit(out, plain)).changed, ["hooks/run.sh"]);
+			}),
+		);
+
+		it.effect("a copied file whose other permission bits differ is unchanged", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const out = path.join(yield* writeTree({}), "builds", "claude");
+				const doc: ReadonlyArray<EmittedFile> = [{ path: "share/a.txt", content: "a\n", mode: 0o644 }];
+				yield* emit(out, doc);
+				yield* fs.chmod(path.join(out, "share/a.txt"), 0o664);
+				assert.isTrue((yield* planEmit(out, doc)).clean);
 			}),
 		);
 
