@@ -1,7 +1,7 @@
 {
 	"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
 	"name": "pluginfinity",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"description": "How to author an agent plugin as one pluginfinity source and build it for Claude Code and GitHub Copilot: the config, skill and agent frontmatter, targets and host blocks, hooks, and every build finding with its fix.",
 	"author": {
 		"name": "C. Spencer Beggs",
