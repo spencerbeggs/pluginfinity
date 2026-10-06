@@ -34,7 +34,7 @@ path the shell would read, such as one holding `$` or a space, single-quoted, an
 entry's `env` field. Running through `bash` suits
 repositories that keep scripts in git without the executable bit. A `command` entry is written as the
 shell string you gave, with the variables as an `export K='V';` prefix on Claude Code. With `"exec"`, the
-command is the quoted path alone, and the build fails if the script is not executable. Under `"exec"` a
+command is the quoted path alone on Copilot, and `env K=V… <path>` on Claude Code when the entry has variables, and the build fails if the script is not executable. Under `"exec"` a
 script path that contains `=` fails the build, because `env` would read it as a variable; a monitor's
 script is exempt.
 
@@ -63,8 +63,8 @@ script opts in by sourcing it first, with a path relative to the script:
 ```
 
 The library needs `jq` on the host's `PATH`; without it the hook is skipped and the reason is logged. It
-also runs `cat`, `mktemp`, `rm`, `date`, `mkdir`, `basename` and `dirname`, so a test that runs a hook
-under a minimal `PATH` must keep all eight reachable. It is Bash 3.2 compatible and writes nothing when
+also runs `cat`, `mktemp`, `rm`, `date`, `mkdir`, `basename`, `dirname` and `grep` (for a regex matcher checked at run time on Copilot), so a test that runs a hook
+under a minimal `PATH` must keep all nine reachable. It is Bash 3.2 compatible and writes nothing when
 sourced. Do not edit a copy under `builds/`: the next build
 overwrites it.
 
@@ -198,7 +198,7 @@ where a failing `preToolUse` hook denies the tool call.
   `set -e` that aborts into the same policy. Without `set -e` the script carries on after it.
 - `hook_fail_closed` on `Stop` or `SubagentStop` still fails open when `stop_hook_active` is `true`, so a
   crashing hook cannot keep blocking in a loop.
-- A failure while the library loads, such as a missing `host.sh`, is a silent exit 0.
+- A failure while the library loads, such as a missing `host.sh`, exits 0 with a line in `error.log` and no `outcome:` debug line.
 - Assign input to a variable before you use it: `cmd=$(hook_input tool_input.command)`, then `case "$cmd" in`.
   A failing `$(...)` inside a command's arguments or a `case` word does not trip `set -e`, so the script
   carries on with an empty value.
@@ -212,8 +212,7 @@ lines, written only when `PLUGINFINITY_DEBUG=1`. A line is
 `fail-closed block` when the library sent the response for a crash. A non-zero exit code is appended, as in
 `outcome: none (exit 3)`. A helper the host cannot honour on the event, such as `hook_deny` on `Stop`, sends `{}` and
 logs `noop`: the outcome is what was sent, not what you asked for. A second response is ignored and the first
-kind stays the outcome. If the library itself fails to load (no `jq`, or a missing `host.sh`), the hook exits
-before any logging and writes no `outcome:` line. Use it to see what a host sends and what your hook answered.
+kind stays the outcome. If the library itself fails to load (no `jq`, or a missing `host.sh`), the hook exits 0, writes one `error.log` line (`host.sh not loadable; hook skipped` or `jq not found; hook skipped`) and writes no `outcome:` line. Use it to see what a host sends and what your hook answered.
 `hook_log` and `hook_debug` append to the logs from your own script. The same files serve the other components:
 see the `plugin-scripts` skill's logging section.
 

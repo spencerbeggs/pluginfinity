@@ -22,7 +22,7 @@ entry of `builds` or `validations` carries a `notes` array of `{ "path", "kind",
 | `hook-omitted` | The host lacks the event and every entry sets `fallback: "omit"` | Nothing, if the hook is optional on that host |
 | `monitor-omitted` | The host has no monitors (Copilot), so the monitor was left out. `name` is the monitor | Nothing, if the monitor is optional. Keep anything the plugin depends on in a hook or skill |
 
-`path` is the source file (`agents/<name>.md`, `skills/<name>/SKILL.md`, or a hook script for the two hook kinds that read one), or `config` for hooks, servers and monitors.
+`path` is the source file (`agents/<name>.md`, `skills/<name>/SKILL.md`, or, for `hook-output-ignored` only, a hook script), or `config` for hooks, servers and monitors.
 
 ## Finding the config
 

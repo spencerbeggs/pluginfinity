@@ -46,7 +46,7 @@ pluginfinity builds one hook script for both hosts. The hook library, sourced at
 - Never vendor the library, never write `hooks.json`, and never edit `builds/`.
 - Branching on `hook_supports` is the sanctioned way to handle a capability one host lacks, such as `if hook_supports block; then hook_block "…"; else hook_context "…"; fi`. Never branch on `hook_host` for that. See [a capability one host lacks](references/recipes.md#a-capability-one-host-lacks).
 - Log with `hook_log` (always, to `error.log`) and `hook_debug` (to `debug.log` when `PLUGINFINITY_DEBUG=1`). `PLUGINFINITY_DEBUG=1` is the one switch for hooks, servers, monitors and skill scripts.
-- The library needs `jq`, `cat`, `mktemp`, `rm`, `date`, `mkdir`, `basename` and `dirname` on `PATH`. Keep them reachable in a test that narrows `PATH`.
+- The library needs `jq`, `cat`, `mktemp`, `rm`, `date`, `mkdir`, `basename`, `dirname` and `grep` on `PATH`. Keep them reachable in a test that narrows `PATH`.
 
 ## Where things live
 
