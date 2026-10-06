@@ -334,21 +334,27 @@ export class HookScriptInvalid extends Schema.TaggedError<HookScriptInvalid>()("
 	/** The script, relative to the plugin root. */
 	script: Schema.String,
 	problem: HookScriptProblem,
+	/** What names the script: `hooks` (the default) or `monitors`. */
+	referencedBy: Schema.optionalKey(Schema.Literals(["hooks", "monitors"])),
 }) {
+	private get kind(): string {
+		return this.referencedBy === "monitors" ? "monitor script" : "hook script";
+	}
+
 	override get message(): string {
 		return this.problem === "missing"
-			? `hook script ${this.script} named in ${this.path} does not exist`
+			? `${this.kind} ${this.script} named in ${this.path} does not exist`
 			: this.problem === "equals-in-path"
-				? `hook script ${this.script} has "=" in its path, and ${this.path} sets scripts.invoke to "exec", where Claude Code runs it after env and env reads it as a variable assignment`
-				: `hook script ${this.script} is not executable, and ${this.path} sets scripts.invoke to "exec"`;
+				? `${this.kind} ${this.script} has "=" in its path, and ${this.path} sets scripts.invoke to "exec", where Claude Code runs it after env and env reads it as a variable assignment`
+				: `${this.kind} ${this.script} is not executable, and ${this.path} sets scripts.invoke to "exec"`;
 	}
 
 	get remediation(): Remediation {
 		return this.problem === "missing"
 			? { hint: `Create ${this.script} under the plugin root, or fix the path in ${this.path}.` }
 			: this.problem === "equals-in-path"
-				? { hint: `Rename ${this.script} without "=", or drop scripts.invoke so hooks run through bash.` }
-				: { hint: `Run \`chmod +x ${this.script}\`, or drop scripts.invoke so hooks run through bash.` };
+				? { hint: `Rename ${this.script} without "=", or drop scripts.invoke so scripts run through bash.` }
+				: { hint: `Run \`chmod +x ${this.script}\`, or drop scripts.invoke so scripts run through bash.` };
 	}
 }
 

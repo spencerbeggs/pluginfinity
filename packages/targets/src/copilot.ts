@@ -167,6 +167,7 @@ export const COPILOT: Target = Target.make({
 		schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
 	},
 	lsp: { placement: inFile("com.github.copilot/lsp.json"), format: "copilot-lsp-json", fields: lspFields },
+	monitors: unresolved("Copilot CLI has no monitors"),
 	references: { style: "prose" },
 	tools: {
 		// Copilot's frontmatter names, measured: an agent restricted to the

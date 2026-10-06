@@ -31,6 +31,7 @@ import { hookCommandFiles, hookScripts, renderHooks, targetHooks } from "./hooks
 import { LIB_DIR, libFiles } from "./lib-files.js";
 import type { LoadedConfig } from "./loader.js";
 import { pluginName, renderManifest, serializeManifest } from "./manifest.js";
+import { renderMonitors, targetMonitors } from "./monitors.js";
 import type { BuildNote } from "./notes.js";
 import { CONFIG_NOTE_PATH, sortNotes } from "./notes.js";
 import type { ConfigSelection, PreparedPlugin } from "./selection.js";
@@ -179,20 +180,25 @@ const checkScript = (
 	config: LoadedConfig,
 	script: string,
 	invoke: "bash" | "exec",
+	referencedBy: "hooks" | "monitors" = "hooks",
 ): Effect.Effect<void, HookScriptInvalid, FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
 		// Claude runs an exec-invoked script as `env K=V... <path>`, and env reads a `=` in the path as an assignment.
 		if (invoke === "exec" && script.includes("=")) {
-			return yield* Effect.fail(new HookScriptInvalid({ path: config.path, script, problem: "equals-in-path" }));
+			return yield* Effect.fail(
+				new HookScriptInvalid({ path: config.path, script, problem: "equals-in-path", referencedBy }),
+			);
 		}
 		const info = yield* fs.stat(path.join(config.root, script)).pipe(Effect.option);
 		if (info._tag === "None" || info.value.type !== "File") {
-			return yield* Effect.fail(new HookScriptInvalid({ path: config.path, script, problem: "missing" }));
+			return yield* Effect.fail(new HookScriptInvalid({ path: config.path, script, problem: "missing", referencedBy }));
 		}
 		if (invoke === "exec" && (info.value.mode & 0o111) === 0) {
-			return yield* Effect.fail(new HookScriptInvalid({ path: config.path, script, problem: "not-executable" }));
+			return yield* Effect.fail(
+				new HookScriptInvalid({ path: config.path, script, problem: "not-executable", referencedBy }),
+			);
 		}
 	});
 
@@ -403,6 +409,19 @@ const planPlugin = (
 			for (const script of hookScripts(events)) yield* checkScript(config, script, invoke);
 			for (const file of hookCommandFiles(events)) yield* checkScript(config, file, "bash");
 		}
+		// The files each target's monitors run, rendered once. Like hook scripts, over every enabled
+		// target for what ships, so a monitor script under hooks/ never rides the hooks directory
+		// to a target without monitors.
+		const monitorFilesOf = (id: KnownTargetId) => {
+			const rendered = renderMonitors(targetOf(id), targetMonitors(id, config.config), invoke);
+			return { rendered, files: [...rendered.scripts, ...rendered.commandFiles] };
+		};
+		const everyMonitorFile = new Set(config.targets.flatMap((id) => monitorFilesOf(id).files));
+		for (const id of prepared.targets) {
+			const { rendered } = monitorFilesOf(id);
+			for (const script of rendered.scripts) yield* checkScript(config, script, invoke, "monitors");
+			for (const file of rendered.commandFiles) yield* checkScript(config, file, "bash", "monitors");
+		}
 		const hooksDir = yield* sourceFiles(config.root, "hooks");
 		const baseListed = yield* listedFiles(config, config.config.files ?? []);
 		const { skills, failures: skillFailures } = yield* readSkills(config.root, KNOWN_TARGET_IDS);
@@ -442,6 +461,9 @@ const planPlugin = (
 			}
 			notes.push(...ignoredOutput(id, target, events, (script) => sources.get(script)));
 			const own = new Set(filesOf(events));
+			const monitored = monitorFilesOf(id);
+			notes.push(...monitored.rendered.notes);
+			const monitorOwn = new Set(monitored.files);
 			const servers = serverFiles(target, id, config.config);
 			const serverFilesShipped: Array<string> = [];
 			for (const file of servers.commands) {
@@ -462,8 +484,10 @@ const planPlugin = (
 			);
 			const shipped = [
 				...new Set([
-					...hooksDir.filter((file) => own.has(file) || !everyScript.has(file)),
-					...[...own].filter((script) => !script.startsWith("hooks/")),
+					...hooksDir.filter(
+						(file) => own.has(file) || monitorOwn.has(file) || !(everyScript.has(file) || everyMonitorFile.has(file)),
+					),
+					...[...own, ...monitorOwn].filter((script) => !script.startsWith("hooks/")),
 					...serverFilesShipped,
 					...baseListed,
 					...targetListed,
@@ -492,7 +516,10 @@ const planPlugin = (
 					),
 				);
 			}
-			generated.push(...libFiles(id, String(manifest.name), ENGINE_VERSION, { monitors: false }));
+			if (monitored.rendered.file !== undefined) generated.push(monitored.rendered.file);
+			generated.push(
+				...libFiles(id, String(manifest.name), ENGINE_VERSION, { monitors: monitored.rendered.file !== undefined }),
+			);
 			generated.push(...rendered.files);
 			notes.push(...rendered.notes);
 			if (rendered.stdio) generated.push(...serverLibFiles());

@@ -232,6 +232,11 @@ export class Target extends Schema.Class<Target>("Target")({
 		schema: Schema.optionalKey(Schema.String),
 	}),
 	lsp: Schema.Struct({ placement: ServerPlacement, format: LspFormat, fields: FieldMap }),
+	/**
+	 * Where the host reads background monitors and how it spells the plugin root
+	 * in their commands, or `unresolved` when the host has no monitors.
+	 */
+	monitors: Schema.Union([Schema.Struct({ path: Schema.String, root: Schema.String }), Unresolved]),
 	references: Schema.Struct({ style: Schema.Literals(["path", "prose"]) }),
 	tools: Schema.Struct({
 		names: Schema.Record(Schema.String, ToolMapping),

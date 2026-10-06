@@ -136,6 +136,7 @@ export const CLAUDE: Target = Target.make({
 	// loads those files by default, so they are reserved: nothing may ship there.
 	mcp: { placement: inManifest("mcpServers", ".mcp.json"), format: "claude-mcp-servers" },
 	lsp: { placement: inManifest("lspServers", ".lsp.json"), format: "claude-lsp-servers", fields: lspFields },
+	monitors: { path: "monitors/monitors.json", root: ROOT },
 	references: { style: "path" },
 	tools: {
 		names: {},

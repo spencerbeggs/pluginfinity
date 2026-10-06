@@ -12,6 +12,7 @@ export const BUILD_NOTE_KINDS = [
 	"hook-matcher-runtime",
 	"hook-output-ignored",
 	"hook-omitted",
+	"monitor-omitted",
 ] as const;
 
 /**
@@ -20,7 +21,8 @@ export const BUILD_NOTE_KINDS = [
  * section), `tool-dropped` a tool it cannot name, moved a
  * `hook-matcher-runtime` matcher the host ignores into the hook library,
  * noted a script that calls a helper whose output the host ignores
- * (`hook-output-ignored`), or `hook-omitted` an event it lacks whose entries all set `fallback: "omit"`.
+ * (`hook-output-ignored`), `hook-omitted` an event it lacks whose entries all set `fallback: "omit"`,
+ * or `monitor-omitted` a monitor on a host that has none.
  *
  * @public
  */

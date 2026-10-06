@@ -21,6 +21,9 @@ import {
 	HOOKED_EXEC,
 	HOOKED_UNSUPPORTED,
 	LSP_UNRESOLVED,
+	MONITORED,
+	MONITORED_COLLIDE,
+	MONITORED_MISSING,
 	NOTED,
 	NOTED_AGENT,
 	NOTED_SKILL,
@@ -1776,6 +1779,81 @@ describe("build with a plugin's own MCP tools", () => {
 				assert.include(copilot, "x:a /x:k mcp-describe");
 				const claude = yield* fs.readFileString(path.join(root, "builds/claude/agents/a.md"));
 				assert.include(claude, "okfit:a /okfit:k mcp__plugin_okfit_mcp__describe");
+			}),
+		);
+	});
+});
+
+describe("build with monitors", () => {
+	const monitoredPlugin = (config: string = MONITORED, extra: Readonly<Record<string, string>> = {}) =>
+		writeTree({
+			"pluginfinity.config.ts": config,
+			"package.json": PACKAGE_JSON,
+			"hooks/mail.sh": "#!/usr/bin/env bash\n",
+			"monitors/issues.mjs": "",
+			...extra,
+		});
+
+	layer(NodeServices.layer)((it) => {
+		it.effect("Claude gets monitors.json, the monitor files and monitor.sh's slot; Copilot gets none of them", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* monitoredPlugin();
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				const claude = builds.find((one) => one.target === "claude");
+				const copilot = builds.find((one) => one.target === "copilot");
+				assert.include(claude?.plan.added ?? [], "monitors/monitors.json");
+				assert.include(claude?.plan.added ?? [], "hooks/mail.sh");
+				assert.include(claude?.plan.added ?? [], "monitors/issues.mjs");
+				// A monitor script under hooks/ does not ride the hooks directory to a target without monitors.
+				assert.isFalse(copilot?.plan.added.some((file) => file.startsWith("monitors/") || file === "hooks/mail.sh"));
+				assert.deepStrictEqual(
+					copilot?.notes.map((note) => [note.kind, note.name]),
+					[
+						["monitor-omitted", "dogfood-mail"],
+						["monitor-omitted", "issues"],
+					],
+				);
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/monitors")));
+				assert.deepStrictEqual(claude?.notes, []);
+			}),
+		);
+
+		it.effect("a missing monitor script is HookScriptInvalid naming monitors", () =>
+			Effect.gen(function* () {
+				const root = yield* monitoredPlugin(MONITORED_MISSING);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookScriptInvalid");
+				if (error._tag !== "HookScriptInvalid") return;
+				assert.deepStrictEqual([error.script, error.problem], ["monitors/missing.sh", "missing"]);
+				assert.include(error.message, "monitors");
+			}),
+		);
+
+		it.effect("a missing file a command monitor names is HookScriptInvalid", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* monitoredPlugin();
+				yield* fs.remove(path.join(root, "monitors/issues.mjs"));
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookScriptInvalid");
+				if (error._tag !== "HookScriptInvalid") return;
+				assert.strictEqual(error.script, "monitors/issues.mjs");
+			}),
+		);
+
+		it.effect("a source monitors/monitors.json is PathConflict generated on Claude", () =>
+			Effect.gen(function* () {
+				const root = yield* monitoredPlugin(MONITORED_COLLIDE, {
+					"monitors/mail.sh": "#!/usr/bin/env bash\n",
+					"monitors/monitors.json": "[]\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.deepStrictEqual([error.file, error.conflict], ["monitors/monitors.json", "generated"]);
 			}),
 		);
 	});

@@ -67,8 +67,10 @@ export const HookFallback = Schema.Literals(["fail", "omit"]);
 /**
  * A path relative to the plugin root: no leading slash, no backslash, no `..`
  * segment.
+ *
+ * @public
  */
-const PluginRelativePath = Schema.String.check(
+export const PluginRelativePath = Schema.String.check(
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are rejected on purpose
 	Schema.isPattern(/^(?![/\\])(?!(?:[\s\S]*\/)?\.\.(?:\/|$))[^\\\u0000-\u001f]+$/, {
 		message:

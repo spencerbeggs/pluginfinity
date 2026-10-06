@@ -80,6 +80,14 @@ export const hookScripts = (events: ReadonlyArray<TargetHookEvent>): ReadonlyArr
 const COMMAND_FILE = /\$\{PLUGIN_ROOT\}\/([^\s"'`;|&<>()$]+)/g;
 
 /**
+ * Every file a command names as `${PLUGIN_ROOT}/<path>`, in order.
+ *
+ * @public
+ */
+export const commandFiles = (command: string): ReadonlyArray<string> =>
+	[...command.matchAll(COMMAND_FILE)].map((match) => match[1] ?? "");
+
+/**
  * Every file the given events' `command` entries name as
  * `${PLUGIN_ROOT}/<path>`, so the build can ship and check them as it does
  * `script` paths.
@@ -89,9 +97,7 @@ const COMMAND_FILE = /\$\{PLUGIN_ROOT\}\/([^\s"'`;|&<>()$]+)/g;
 export const hookCommandFiles = (events: ReadonlyArray<TargetHookEvent>): ReadonlyArray<string> => [
 	...new Set(
 		events.flatMap((event) =>
-			event.entries.flatMap((entry) =>
-				"command" in entry ? [...entry.command.matchAll(COMMAND_FILE)].map((match) => match[1] ?? "") : [],
-			),
+			event.entries.flatMap((entry) => ("command" in entry ? commandFiles(entry.command) : [])),
 		),
 	),
 ];

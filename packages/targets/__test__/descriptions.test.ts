@@ -137,6 +137,14 @@ describe("the copilot description", () => {
 		assert.strictEqual(names?.Agent, "agent");
 	});
 
+	it("Claude reads monitors from monitors/monitors.json and Copilot has none", () => {
+		assert.deepStrictEqual(TARGETS.find((t) => t.id === "claude")?.target.monitors, {
+			path: "monitors/monitors.json",
+			root: `\${CLAUDE_PLUGIN_ROOT}`,
+		});
+		assert.strictEqual(copilot?.monitors && "note" in copilot.monitors, true);
+	});
+
 	it("lists the events whose matcher the host ignores", () => {
 		assert.deepStrictEqual(copilot?.hooks.matcherIgnored, ["SessionStart", "SessionEnd", "SubagentStop"]);
 		assert.deepStrictEqual(TARGETS.find((t) => t.id === "claude")?.target.hooks.matcherIgnored, []);

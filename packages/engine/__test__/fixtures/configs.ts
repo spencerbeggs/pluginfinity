@@ -274,3 +274,29 @@ export const OWN_MCP = `export default {
 /** An agent naming tools of the plugin's own servers. */
 export const OWN_MCP_AGENT =
 	"---\nname: x\ndescription: Does x.\ntools: mcp__plugin_okfit_mcp__describe, mcp__plugin_okfit_cl__only\n---\n\nBody.\n";
+
+export const MONITORED = `export default {
+	name: "monitored",
+	description: "Fixture plugin.",
+	monitors: {
+		"dogfood-mail": { script: "hooks/mail.sh", description: "Mail." },
+		issues: { command: 'node "\${PLUGIN_ROOT}/monitors/issues.mjs"', description: "Issues." },
+	},
+	claude: true,
+	copilot: true,
+};\n`;
+
+export const MONITORED_MISSING = `export default {
+	name: "monitored",
+	description: "Fixture plugin.",
+	monitors: { mail: { script: "monitors/missing.sh", description: "Mail." } },
+	claude: true,
+};\n`;
+
+export const MONITORED_COLLIDE = `export default {
+	name: "monitored",
+	description: "Fixture plugin.",
+	monitors: { mail: { script: "monitors/mail.sh", description: "Mail." } },
+	files: ["monitors/monitors.json"],
+	claude: true,
+};\n`;
