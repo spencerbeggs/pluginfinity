@@ -171,8 +171,11 @@ Logs live in `${XDG_STATE_HOME:-~/.local/state}/pluginfinity/<plugin>/`. `hook-e
 raw input as an `input:` line and, when the hook exits, its result as one `outcome:` line: `block`, `deny`,
 `allow`, `ask`, `context`, `system_message`, `noop`, `raw`, `none` (it sent no response), or `fail-closed deny` /
 `fail-closed block` when the library sent the response for a crash. A non-zero exit code is appended, as in
-`outcome: none (exit 3)`. Use it to see what a host sends and what your hook answered. `hook_log` and `hook_debug` append to the
-logs from your own script.
+`outcome: none (exit 3)`. A helper the host cannot honour on the event, such as `hook_deny` on `Stop`, sends `{}` and
+logs `noop`: the outcome is what was sent, not what you asked for. A second response is ignored and the first
+kind stays the outcome. If the library itself fails to load (no `jq`, or a missing `host.sh`), the hook exits
+before any logging and writes no `outcome:` line. Use it to see what a host sends and what your hook answered.
+`hook_log` and `hook_debug` append to the logs from your own script.
 
 With `PLUGINFINITY_HOOK_DEBUG=1`, prompts and tool inputs are written to a plaintext log. Do not leave it set
 outside a debugging session.

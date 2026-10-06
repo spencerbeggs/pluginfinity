@@ -608,20 +608,61 @@ echo done'
 	[[ "$(debug_log)" == *"outcome: noop"* ]]
 }
 
-@test "with debug on, each response helper names its outcome" {
+@test "with debug on, each response helper names its outcome, in a fresh log per case" {
 	make_plugin claude
+	local log="$BATS_TEST_TMPDIR/state/pluginfinity/fixture/hook-debug.log"
 	hook_script 'hook_deny "x"'
 	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
 	[[ "$(debug_log)" == *"outcome: deny"* ]]
+	rm -f "$log"
 	hook_script 'hook_context "x"'
 	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
 	[[ "$(debug_log)" == *"outcome: context"* ]]
+	[[ "$(debug_log)" != *"outcome: deny"* ]]
+	rm -f "$log"
 	hook_script 'hook_system_message "x"'
 	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
 	[[ "$(debug_log)" == *"outcome: system_message"* ]]
+	[[ "$(debug_log)" != *"outcome: context"* ]]
+	rm -f "$log"
 	hook_script 'hook_raw claude "{\"a\":1}"'
 	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
 	[[ "$(debug_log)" == *"outcome: raw"* ]]
+	[[ "$(debug_log)" != *"outcome: system_message"* ]]
+}
+
+@test "with debug on, hook_allow logs outcome: allow" {
+	make_plugin claude
+	hook_script 'hook_allow'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	[ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = "allow" ]
+	[[ "$(debug_log)" == *"outcome: allow"* ]]
+}
+
+@test "with debug on, hook_ask logs outcome: ask" {
+	make_plugin claude
+	hook_script 'hook_ask "sure?"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	[ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = "ask" ]
+	[[ "$(debug_log)" == *"outcome: ask"* ]]
+}
+
+@test "with debug on, a second response is ignored and the first kind stays the outcome" {
+	make_plugin claude
+	hook_script 'hook_block "first"; hook_noop'
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	[ "$output" = '{"decision":"block","reason":"first"}' ]
+	[[ "$(debug_log)" == *"outcome: block"* ]]
+	[[ "$(debug_log)" != *"outcome: noop"* ]]
+	[ "$(debug_log | grep -c 'outcome:')" -eq 1 ]
+}
+
+@test "with debug on, an unsupported helper logs outcome: noop" {
+	make_plugin claude
+	hook_script 'hook_deny "x"'
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	[ "$output" = "{}" ]
+	[[ "$(debug_log)" == *"outcome: noop"* ]]
 }
 
 @test "with debug on, a hook that emits nothing logs outcome: none, exactly once" {
@@ -641,6 +682,16 @@ exit 7'
 	[ "$status" -eq 0 ]
 	[[ "$output" == *'"permissionDecision":"deny"'* ]]
 	[[ "$(debug_log)" == *"outcome: fail-closed deny (exit 7)"* ]]
+}
+
+@test "with debug on, a fail-closed crash outside PreToolUse logs fail-closed block" {
+	make_plugin claude
+	hook_script 'hook_fail_closed
+exit 7'
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	[ "$status" -eq 0 ]
+	[[ "$output" == *'"decision":"block"'* ]]
+	[[ "$(debug_log)" == *"outcome: fail-closed block (exit 7)"* ]]
 }
 
 @test "with debug on, a fail-open crash logs outcome: none with the exit code" {

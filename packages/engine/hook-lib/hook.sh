@@ -72,8 +72,8 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 # One marker file records that a response went out, and holds its kind for the
-# debug log. It is a file, not a
-# variable, so a response sent from a subshell or a pipeline still counts.
+# debug log. It is a file, not a variable, so a response sent from a subshell
+# or a pipeline still counts.
 _pf_marker=$(mktemp "${TMPDIR:-/tmp}/pluginfinity-emitted.XXXXXX" 2>/dev/null) ||
 	_pf_marker="${TMPDIR:-/tmp}/pluginfinity-emitted.$$"
 : >"$_pf_marker" 2>/dev/null || true
