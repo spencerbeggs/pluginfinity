@@ -178,6 +178,17 @@ hook_project_dir() {
 	printf '%s\n' "$dir"
 }
 
+# cd into hook_project_dir. Writes nothing to stdout; on failure it logs through
+# hook_log and returns non-zero.
+hook_cd_project() {
+	local dir
+	dir=$(hook_project_dir)
+	cd "$dir" 2>/dev/null || {
+		hook_log "hook_cd_project: cannot cd to $dir"
+		return 1
+	}
+}
+
 # Whether the host honours capability $1 on event $2 (default: this event).
 # Mirrors okf/references/{claude-code,copilot-cli}-plugin-format.md.
 hook_supports() {

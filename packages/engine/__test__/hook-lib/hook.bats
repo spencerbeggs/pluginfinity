@@ -150,6 +150,31 @@ load helpers
 	[ "$output" = "rel/dir" ]
 }
 
+@test "hook_cd_project changes into the closest .git directory on copilot" {
+	make_plugin copilot
+	mkdir -p "$BATS_TEST_TMPDIR/repo/.git" "$BATS_TEST_TMPDIR/repo/sub"
+	hook_script 'hook_cd_project; pwd -P'
+	run_script "{\"hook_event_name\":\"Stop\",\"cwd\":\"$BATS_TEST_TMPDIR/repo/sub\"}"
+	[ "$status" -eq 0 ]
+	[ "$output" = "$(cd "$BATS_TEST_TMPDIR/repo" && pwd -P)" ]
+}
+
+@test "hook_cd_project changes into CLAUDE_PROJECT_DIR on claude" {
+	make_plugin claude
+	mkdir -p "$BATS_TEST_TMPDIR/proj"
+	hook_script 'hook_cd_project; pwd -P'
+	run_script "$FIXTURES/stop.json" CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/proj"
+	[ "$output" = "$(cd "$BATS_TEST_TMPDIR/proj" && pwd -P)" ]
+}
+
+@test "hook_cd_project writes nothing to stdout and fails with a log when the cd fails" {
+	make_plugin claude
+	hook_script 'hook_cd_project || echo failed'
+	run_script "$FIXTURES/stop.json" CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/missing"
+	[ "$output" = "failed" ]
+	[[ "$(error_log)" == *"hook_cd_project"* ]]
+}
+
 @test "hook_supports: block on Stop is honoured on both hosts, on PostToolUse only on claude" {
 	make_plugin copilot
 	hook_script 'hook_supports block Stop && echo stop; hook_supports block PostToolUse || echo no-post'
