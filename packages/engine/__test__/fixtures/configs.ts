@@ -134,8 +134,8 @@ export const FILES_COLLIDE = `export default {
 	name: "files-collide",
 	description: "Fixture plugin.",
 	mcpServers: { docs: { type: "http", url: "https://example.com/mcp" } },
-	files: [".mcp.json"],
-	claude: true,
+	files: ["mcp.json"],
+	copilot: true,
 };\n`;
 
 export const FILES_OVERLAP = `export default {

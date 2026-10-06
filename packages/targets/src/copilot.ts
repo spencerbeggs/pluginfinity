@@ -5,6 +5,7 @@ import {
 	absent,
 	degrade,
 	drop,
+	inFile,
 	keep,
 	rename,
 	translate,
@@ -155,12 +156,13 @@ export const COPILOT: Target = Target.make({
 		),
 		ownEvents: [...COPILOT_OWN_EVENTS],
 	},
+	// Agent Plugins 1.0 forbids mcpServers and lspServers in plugin.json, so Copilot's servers stay in files.
 	mcp: {
-		path: "mcp.json",
+		placement: inFile("mcp.json"),
 		format: "agent-plugins-mcp-1.0",
 		schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
 	},
-	lsp: { path: "com.github.copilot/lsp.json", format: "copilot-lsp-json", fields: lspFields },
+	lsp: { placement: inFile("com.github.copilot/lsp.json"), format: "copilot-lsp-json", fields: lspFields },
 	references: { style: "prose" },
 	tools: {
 		// Copilot's frontmatter names, measured: an agent restricted to the

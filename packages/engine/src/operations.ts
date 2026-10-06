@@ -441,17 +441,18 @@ const planPlugin = (
 			const copied: Array<EmittedFile> = [];
 			for (const file of shipped) copied.push(yield* copyFile(config.root, file));
 
-			const manifest = renderManifest(target, id, config.config, version);
+			// Servers first: a target may place them inline in its manifest.
+			const rendered = renderServers(target, id, config.config, pluginName(config.config, id), SERVER_LIB_DIR);
+			if (rendered.issues.length > 0) {
+				const issue = new ComponentInvalid({ path: config.path, target: id, issues: rendered.issues });
+				if (!failures.some((seen) => seen.message === issue.message)) failures.push(issue);
+			}
+			const manifest = renderManifest(target, id, config.config, version, rendered.manifest);
 			const generated: Array<EmittedFile> = [{ path: target.manifest.path, content: serializeManifest(manifest) }];
 			const hooksFile = renderHooks(target, events, invoke);
 			if (hooksFile !== undefined) {
 				generated.push({ path: target.hooks.path, content: hooksFile });
 				generated.push(...hookLibFiles(id, String(manifest.name), ENGINE_VERSION));
-			}
-			const rendered = renderServers(target, id, config.config, String(manifest.name), SERVER_LIB_DIR);
-			if (rendered.issues.length > 0) {
-				const issue = new ComponentInvalid({ path: config.path, target: id, issues: rendered.issues });
-				if (!failures.some((seen) => seen.message === issue.message)) failures.push(issue);
 			}
 			generated.push(...rendered.files);
 			notes.push(...rendered.notes);

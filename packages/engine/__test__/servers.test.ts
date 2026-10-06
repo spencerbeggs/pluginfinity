@@ -16,6 +16,10 @@ const json = (render: ReturnType<typeof renderServers>, path: string) => {
 	return file === undefined ? undefined : JSON.parse(String(file.content));
 };
 
+// A server map the target writes inline in its manifest, under the given key, as the manifest's JSON reads it.
+const inline = (render: ReturnType<typeof renderServers>, key: string) =>
+	JSON.parse(JSON.stringify(render.manifest[key] ?? null));
+
 describe("renderServers: MCP", () => {
 	const config = base({
 		mcpServers: {
@@ -25,9 +29,10 @@ describe("renderServers: MCP", () => {
 		},
 	});
 
-	it("writes .mcp.json for Claude with the root rewritten everywhere and the env injected", () => {
+	it("writes Claude's servers inline under the manifest's mcpServers, with the root rewritten and the env injected", () => {
 		const render = renderServers(CLAUDE, "claude", config, "demo", LIB);
-		assert.deepStrictEqual(json(render, ".mcp.json"), {
+		assert.deepStrictEqual(render.files, []);
+		assert.deepStrictEqual(render.manifest, {
 			mcpServers: {
 				mcp: {
 					command: "sh",
@@ -47,8 +52,10 @@ describe("renderServers: MCP", () => {
 		assert.deepStrictEqual(render.issues, []);
 	});
 
-	it("writes mcp.json for Copilot with $schema, explicit stdio and streamable-http", () => {
-		const out = json(renderServers(COPILOT, "copilot", config, "demo", LIB), "mcp.json");
+	it("writes mcp.json for Copilot with $schema, explicit stdio and streamable-http, and nothing inline", () => {
+		const render = renderServers(COPILOT, "copilot", config, "demo", LIB);
+		assert.deepStrictEqual(render.manifest, {});
+		const out = json(render, "mcp.json");
 		assert.strictEqual(out.$schema, "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json");
 		assert.strictEqual(out.mcpServers.mcp.type, "stdio");
 		assert.strictEqual(out.mcpServers.mcp.args[0], "${PLUGIN_ROOT}/bin/start-mcp.sh");
@@ -66,7 +73,7 @@ describe("renderServers: MCP", () => {
 			LIB,
 		);
 		assert.isFalse(render.stdio);
-		assert.deepStrictEqual(json(render, ".mcp.json").mcpServers.docs, { type: "http", url: "https://e.com/mcp" });
+		assert.deepStrictEqual(inline(render, "mcpServers").docs, { type: "http", url: "https://e.com/mcp" });
 	});
 
 	it("a target override replaces the base server of the same name", () => {
@@ -94,9 +101,10 @@ describe("renderServers: MCP", () => {
 		);
 	});
 
-	it("no servers means no file and not stdio", () => {
+	it("no servers means no file, nothing inline and not stdio", () => {
 		const render = renderServers(CLAUDE, "claude", base({}), "demo", LIB);
 		assert.deepStrictEqual(render.files, []);
+		assert.deepStrictEqual(render.manifest, {});
 		assert.isFalse(render.stdio);
 	});
 });
@@ -112,8 +120,11 @@ describe("renderServers: LSP", () => {
 		},
 	};
 
-	it("writes .lsp.json for Claude as a bare map with every field kept", () => {
-		const out = json(renderServers(CLAUDE, "claude", base({ lspServers: lsp }), "demo", LIB), ".lsp.json");
+	it("writes Claude's LSP servers inline under the manifest's lspServers as a bare map with every field kept", () => {
+		const render = renderServers(CLAUDE, "claude", base({ lspServers: lsp }), "demo", LIB);
+		assert.deepStrictEqual(render.files, []);
+		assert.deepStrictEqual(Object.keys(render.manifest), ["lspServers"]);
+		const out = inline(render, "lspServers");
 		assert.deepStrictEqual(out.okfit.extensionToLanguage, { ".md": "markdown" });
 		assert.strictEqual(out.okfit.diagnostics, true);
 		assert.strictEqual(out.okfit.args[0], "${CLAUDE_PLUGIN_ROOT}/bin/start-lsp.sh");
@@ -222,9 +233,9 @@ describe("renderServers: scoped rewriting", () => {
 			},
 		});
 		const render = renderServers(CLAUDE, "claude", config, "demo", LIB);
-		assert.strictEqual(json(render, ".mcp.json").mcpServers.docs.headers.H, `${R}/h`);
-		assert.strictEqual(json(render, ".lsp.json").x.initializationOptions.path, `${R}/init`);
-		assert.strictEqual(json(render, ".lsp.json").x.settings.path, `${R}/s`);
+		assert.strictEqual(inline(render, "mcpServers").docs.headers.H, `${R}/h`);
+		assert.strictEqual(inline(render, "lspServers").x.initializationOptions.path, `${R}/init`);
+		assert.strictEqual(inline(render, "lspServers").x.settings.path, `${R}/s`);
 	});
 
 	it("a literal Claude MCP cwd is an issue and is left out; Copilot keeps it", () => {
@@ -234,7 +245,7 @@ describe("renderServers: scoped rewriting", () => {
 			claude.issues.map((i) => i.key),
 			["mcpServers.mcp.cwd"],
 		);
-		assert.notProperty(json(claude, ".mcp.json").mcpServers.mcp, "cwd");
+		assert.notProperty(inline(claude, "mcpServers").mcp, "cwd");
 		const copilot = renderServers(COPILOT, "copilot", config, "demo", LIB);
 		assert.deepStrictEqual(copilot.issues, []);
 		assert.strictEqual(json(copilot, "mcp.json").mcpServers.mcp.cwd, "bin");

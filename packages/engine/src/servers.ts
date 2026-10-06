@@ -1,4 +1,4 @@
-import type { FieldMapEntry, Target } from "@pluginfinity/core";
+import type { FieldMapEntry, ServerPlacement, Target } from "@pluginfinity/core";
 import type { KnownTargetId, PluginfinityConfig } from "@pluginfinity/targets";
 import type { EmittedFile } from "./emit.js";
 import { ConfigIssue } from "./errors.js";
@@ -12,14 +12,18 @@ type Origins = ReadonlyArray<readonly [name: string, origin: string, server: Ser
 type Env = Readonly<Record<string, string>>;
 
 /**
- * A target's server config files, the problems that stop it building them,
- * whether any server is a local process that needs the server library, and
- * the server fields the target dropped.
+ * A target's server config files, the server maps it writes inline in its
+ * manifest, the problems that stop it building them, whether any server is a
+ * local process that needs the server library, and the server fields the
+ * target dropped.
  *
  * @public
  */
 export interface ServerRender {
+	/** The server files of a target that places its servers in files. */
 	readonly files: ReadonlyArray<EmittedFile>;
+	/** The server maps of a target that places its servers in its manifest, by manifest key. */
+	readonly manifest: Readonly<Record<string, unknown>>;
 	readonly issues: ReadonlyArray<ConfigIssue>;
 	readonly stdio: boolean;
 	/** Each LSP field dropped, as a `config` note named `<origin>.<server>.<field>`, in the order met. */
@@ -189,7 +193,7 @@ const mcpEntries = ({ servers, env, root, issues }: McpInput, copilot: boolean):
 
 // One encoder per MCP format, total over MCP_FORMATS.
 const MCP_ENCODERS: Record<Target["mcp"]["format"], (input: McpInput) => unknown> = {
-	"claude-mcp-json": (input) => ({ mcpServers: mcpEntries(input, false) }),
+	"claude-mcp-servers": (input) => mcpEntries(input, false),
 	"agent-plugins-mcp-1.0": (input) => ({
 		...(input.target.mcp.schema === undefined ? {} : { $schema: input.target.mcp.schema }),
 		mcpServers: mcpEntries(input, true),
@@ -221,15 +225,28 @@ const lspEntries = ({ target, servers, env, root, issues, dropped }: LspInput): 
 
 // One encoder per LSP format, total over LSP_FORMATS.
 const LSP_ENCODERS: Record<Target["lsp"]["format"], (input: LspInput) => unknown> = {
-	"claude-lsp-json": (input) => lspEntries(input),
+	"claude-lsp-servers": (input) => lspEntries(input),
 	"copilot-lsp-json": (input) => ({ lspServers: lspEntries(input) }),
 };
 
+// Put an encoded server config where the target places it: a file of its own, or a manifest key.
+const place = (
+	placement: ServerPlacement,
+	value: unknown,
+	files: Array<EmittedFile>,
+	manifest: Record<string, unknown>,
+): void => {
+	if (placement._tag === "file") files.push({ path: placement.path, content: serialize(value) });
+	else manifest[placement.key] = value;
+};
+
 /**
- * The target's MCP and LSP config files: base servers with the target's
+ * The target's MCP and LSP configs: base servers with the target's
  * overrides applied by name, `${PLUGIN_ROOT}` rewritten to the target's
  * spelling, LSP fields mapped through the target's field map, and the
- * server-library variables added to every local server's `env`.
+ * server-library variables added to every local server's `env`. Each config
+ * goes where the target places it: a file of its own, or inline under a
+ * manifest key, for `renderManifest` to write.
  *
  * @public
  */
@@ -243,31 +260,28 @@ export const renderServers = (
 	const issues: Array<ConfigIssue> = [];
 	const dropped: Array<string> = [];
 	const files: Array<EmittedFile> = [];
+	const manifest: Record<string, unknown> = {};
 	const mcp = merged(id, config, "mcpServers");
 	const lsp = merged(id, config, "lspServers");
 	if (mcp.length > 0) {
 		const root = rootOf(target.pluginRoot.mcp, "mcpServers", issues);
 		if (root !== undefined) {
 			const env = injectedEnv(id, plugin, root, libDir);
-			files.push({
-				path: target.mcp.path,
-				content: serialize(MCP_ENCODERS[target.mcp.format]({ target, servers: mcp, env, root, issues })),
-			});
+			const value = MCP_ENCODERS[target.mcp.format]({ target, servers: mcp, env, root, issues });
+			place(target.mcp.placement, value, files, manifest);
 		}
 	}
 	if (lsp.length > 0) {
 		const root = rootOf(target.pluginRoot.lsp, "lspServers", issues);
 		if (root !== undefined) {
 			const env = injectedEnv(id, plugin, root, libDir);
-			files.push({
-				path: target.lsp.path,
-				content: serialize(LSP_ENCODERS[target.lsp.format]({ target, servers: lsp, env, root, issues, dropped })),
-			});
+			const value = LSP_ENCODERS[target.lsp.format]({ target, servers: lsp, env, root, issues, dropped });
+			place(target.lsp.placement, value, files, manifest);
 		}
 	}
 	const stdio = mcp.some(([, , server]) => isStdio(server)) || lsp.length > 0;
 	const notes = dropped.map((name) => ({ target: id, path: CONFIG_NOTE_PATH, kind: "dropped" as const, name }));
-	return { files, issues, stdio, notes };
+	return { files, manifest, issues, stdio, notes };
 };
 
 const filesIn = (value: unknown): Array<string> =>

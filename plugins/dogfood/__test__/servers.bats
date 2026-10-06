@@ -33,9 +33,20 @@ run_built() { # host launcher [args...]
 }
 
 @test "the built configs point at the shipped launchers" {
-	grep -q '${CLAUDE_PLUGIN_ROOT}/bin/start-mcp.sh' "$BUILDS/claude/.mcp.json"
+	manifest="$BUILDS/claude/.claude-plugin/plugin.json"
+	grep -q '${CLAUDE_PLUGIN_ROOT}/bin/start-mcp.sh' "$manifest"
 	grep -q '"fileExtensions"' "$BUILDS/copilot/com.github.copilot/lsp.json"
 	[ -f "$BUILDS/claude/share/greeting.txt" ]
-	grep -qF '"PLUGINFINITY_LIB": "${CLAUDE_PLUGIN_ROOT}/lib/pluginfinity"' "$BUILDS/claude/.mcp.json"
+	grep -qF '"PLUGINFINITY_LIB": "${CLAUDE_PLUGIN_ROOT}/lib/pluginfinity"' "$manifest"
 	grep -qF '"PLUGINFINITY_LIB": "${PLUGIN_ROOT}/lib/pluginfinity"' "$BUILDS/copilot/com.github.copilot/lsp.json"
+}
+
+@test "claude carries its servers inline in plugin.json, with no root server file" {
+	manifest="$BUILDS/claude/.claude-plugin/plugin.json"
+	grep -q '"mcpServers": {' "$manifest"
+	grep -q '"lspServers": {' "$manifest"
+	[ ! -e "$BUILDS/claude/.mcp.json" ]
+	[ ! -e "$BUILDS/claude/.lsp.json" ]
+	run ! grep -q '"mcpServers"' "$BUILDS/copilot/plugin.json"
+	[ -f "$BUILDS/copilot/mcp.json" ]
 }
