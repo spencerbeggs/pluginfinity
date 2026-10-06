@@ -23,7 +23,7 @@ An agent `tools` or skill `allowed-tools` name `mcp__plugin_<plugin>_<server>__<
 
 ### Body tokens and pluginfinity links
 
-`renderTokens` rewrites a skill or agent body for one target after host blocks. A `{{tool <name>}}`, `{{agent <name>}}`, `{{skill <name>}}` or `{{plugin_root}}` token is replaced everywhere, code included, with the target's run-time spelling; any other `{{…}}` is text, and `\{{` keeps a token literal. An inline `[text](pluginfinity://skill/<skill>[/<path>][#anchor])` or `[text](pluginfinity://agent/<agent>)` link outside code is built in the target's reference style instead of refused. `SKILL.md`, every other `.md` file in a skill directory and agent bodies are rendered; a token or link a target cannot spell, or any other `pluginfinity://` outside code, is a `ComponentInvalid` on the file, keyed by its source line and naming the target. `renderSkill` fails with a `ComponentsInvalid` when several files of one skill have problems. `TokenContext` and `TokenProblem` are exported.
+`renderTokens` rewrites a skill or agent body for one target after host blocks. A `{{tool <name>}}`, `{{agent <name>}}`, `{{skill <name>}}` or `{{plugin_root}}` token is replaced everywhere, code included, with the target's run-time spelling; any other `{{…}}` is text, and `\{{` keeps a token literal. An inline `[text](pluginfinity://skill/<skill>[/<path>][#anchor])` or `[text](pluginfinity://agent/<agent>)` link outside code is built in the target's reference style instead of refused. `SKILL.md`, every other `.md` file in a skill directory and agent bodies are rendered; a token or link a target cannot spell, or any other `pluginfinity://` outside code, is a `ComponentInvalid` on the file, keyed by its source line and naming the target. `renderSkill` fails with a `ComponentsInvalid` when several files of one skill have problems. `TokenContext` and `TokenProblem` are exported. `TokenContext.plugin` is the plugin's name on the target being built, used for agent ids and skill commands, and `own.plugin` the Claude Code name, used for the plugin's own MCP tools and the `{plugin}` of the run-time MCP template. A token or link issue carries `kind: "token"` on its `ConfigIssue`, and `ComponentInvalid` and `ComponentsInvalid` then hint at a host block or the `\{{` escape instead of a `targets` block.
 
 ### Hook and server library helpers
 
@@ -32,6 +32,7 @@ An agent `tools` or skill `allowed-tools` name `mcp__plugin_<plugin>_<server>__<
 
 ## Bug Fixes
 
+* `planEmit` no longer compares a generated file's mode, and compares a copied file's mode by its executable bit alone, so `build --check` is not stale after a git hook or umask changes other permission bits
 * Hook scripts that only another target's hooks run are now left out of a target's build whichever targets a run selects, so `build --check --target copilot` after a full build is clean
 
 ## Breaking Changes
@@ -39,5 +40,7 @@ An agent `tools` or skill `allowed-tools` name `mcp__plugin_<plugin>_<server>__<
 * `renderSkill` now returns a `RenderedSkill` (`files`, `notes`) and `renderAgent` a `RenderedAgent` (`file`, `notes`); `MappedFrontmatter` gains `drops`, and `targetHooks` returns `omitted`
 * `PlanError` no longer includes `NotImplemented`, and `BuildError` now includes `ShippedFileInvalid`
 * `renderSkill` and `renderAgent` now take a required `TokenContext` in place of the optional own-MCP argument
+* A malformed token of a known kind, such as an unclosed `{{tool Read`, or a `{{ tool }}`-style template variable, is now a `ComponentInvalid` issue; `\{{` keeps it literal
+* `{{tool mcp__<server>__<tool>}}` for a third-party MCP server is a `ComponentInvalid` issue on Copilot
 * The `referenceLines` export is removed; links are built by `renderTokens`
 * `lib/pluginfinity/` is reserved in every target: a shipped source file there fails with `PathConflict`

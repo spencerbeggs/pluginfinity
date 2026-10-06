@@ -51,7 +51,7 @@ A skill or agent body can name a tool, an agent, a skill or the plugin root once
 | `{{skill <skill>}}` | `/<plugin>:<skill>` | `/<plugin>:<skill>` |
 | `{{plugin_root}}` | `${CLAUDE_PLUGIN_ROOT}` | fails the build |
 
-Tokens are replaced everywhere, code included, in `SKILL.md`, every other `.md` file in a skill directory and agent bodies. Only those four kinds are tokens, so GitHub Actions `${{ }}`, Jinja and Handlebars pass through, and `\{{` keeps a token literal. A token a host cannot spell fails the build with its file, line and host; put that passage in a host block.
+In an agent id or skill command `<plugin>` is the plugin's name on that host, so a `copilot.name` override shows on Copilot; in an MCP tool name, as in the `{{tool}}` MCP row, it is the Claude Code name on both hosts. Tokens are replaced everywhere, code included, in `SKILL.md`, every other `.md` file in a skill directory and agent bodies. Only those four kinds are tokens, so GitHub Actions `${{ }}`, Jinja and Handlebars pass through, and `\{{` keeps a token literal. A token a host cannot spell fails the build with its file, line and host, and the finding's hint says to put that passage in a host block or write `\{{`.
 
 Inline `[text](pluginfinity://skill/<skill>[/<path>][#anchor])` and `[text](pluginfinity://agent/<agent>)` links are now built: a link under `${CLAUDE_PLUGIN_ROOT}` on Claude Code, prose on Copilot. Any other `pluginfinity://` outside code still fails the build.
 
@@ -62,6 +62,7 @@ Inline `[text](pluginfinity://skill/<skill>[/<path>][#anchor])` and `[text](plug
 
 ## Bug Fixes
 
+* `build --check` now compares a file's content and, for a file copied from the source, only its executable bit, so a generated file turned executable by a git hook, or a copied file whose other permission bits differ, no longer reports `BuildStale`; a copied file whose executable bit differs from its source still does
 * A hook script only one target runs no longer ships to another target when a run builds that target alone, so `build --check --target <id>` agrees with a full build
 
 ## Breaking Changes
@@ -69,3 +70,6 @@ Inline `[text](pluginfinity://skill/<skill>[/<path>][#anchor])` and `[text](plug
 * `lib/pluginfinity/` is now reserved like `hooks/lib/pluginfinity/`: a shipped source file there fails the build with `PathConflict`
 * A server `env` key starting with `PLUGINFINITY_` now fails as `ConfigInvalid`
 * A body that already holds `{{tool …}}`, `{{agent …}}`, `{{skill …}}` or `{{plugin_root}}` text is now rendered as a token; write `\{{` to keep it literal
+* A template variable that starts with a token kind, such as `{{ tool }}` or `{{ skill.name }}`, is now read as a token and fails the build; write `\{{` to keep it literal
+* A malformed token of a known kind, such as an unclosed `{{tool Read` or `{{agent}}` with no name, now fails the build instead of shipping as text
+* `{{tool mcp__<server>__<tool>}}` naming a third-party MCP server fails the Copilot build: Copilot has no run-time name for another server's tools, so put the passage in a Claude Code host block
