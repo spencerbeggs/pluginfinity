@@ -37,8 +37,8 @@ sources:
     title: The doctor smoke test that runs inside the fixture
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:43:13Z
-  body_sha256: 815c036084bc156a170e33da8438a222eaef319040a3887567811df52cf643b5
+  at: 2026-10-06T23:52:26Z
+  body_sha256: d6e21d6d3aeab2dd5b7cbbbb9297ce795a4735f3a7c4597b0aa62224317c4b51
 ---
 
 # dogfood plugin fixture
@@ -63,7 +63,7 @@ Eight scripts under `hooks/` exercise every feature of the [hook library](../dec
 
 ## Monitors and logging
 
-Two monitors under `monitors/` exercise the [monitor library](../decisions/monitors-are-a-component.md): `heartbeat` notifies once per session, and `skill-watch` starts with `when: on-skill-invoke:hook-eval` and notifies once, so a live run can show whether the bare skill name matches. `__test__/monitors.bats` runs them through the bats helper's `run_monitor`, and `hooks.bats` covers `failClosed`, run-time matchers and the Copilot tool names through `run_hook`. The scripts log through the [shared log library](../decisions/one-logging-standard.md). What a Claude monitor's working directory and environment are, and how `on-skill-invoke` matches, are pending a human live run and are not yet measured.
+Two monitors under `monitors/` exercise the [monitor library](../decisions/monitors-are-a-component.md): `heartbeat` notifies once per session, and `skill-watch` starts with `when: on-skill-invoke:hook-eval` and notifies once, so a live run can show whether the bare skill name matches. `__test__/monitors.bats` runs them through the bats helper's `run_monitor`, and `hooks.bats` covers `failClosed`, run-time matchers and the Copilot tool names through `run_hook`. The scripts log through the [shared log library](../decisions/one-logging-standard.md). A [live run](../measurements/claude-monitor-environment.md) measured a Claude monitor's working directory and environment, and showed a slash-command invocation does not start `skill-watch`; a model Skill-tool dispatch is not yet measured.
 
 ## Live evaluation
 

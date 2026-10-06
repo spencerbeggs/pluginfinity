@@ -36,9 +36,14 @@ source file at that path fails the build. Each command sets `PLUGINFINITY_MONITO
 library logs under. A `script` entry runs through `bash` with the variable as a prefix; a `command` entry
 gets an `export` first.
 
-**Unverified until a live Claude Code run:** the working directory and environment a monitor starts with,
-and whether `on-skill-invoke:<skill>` matches the bare skill name or the `<plugin>:<skill>` form. The
-dogfood plugin's monitors log both, for that check. Do not write a monitor that depends on either.
+**Measured on Claude Code 2.1.292:**
+
+- A monitor starts in the project directory, with the launching shell's environment.
+- `CLAUDE_PROJECT_DIR` is unset, so `monitor_project_dir` falls back to the git toplevel.
+- `CLAUDE_SESSION_ID` is unset, so `monitor_once` scopes its marker by the monitor's parent pid.
+- Invoking the skill as a user slash command does not start an `on-skill-invoke` monitor.
+
+Still unverified: whether a model Skill-tool dispatch starts it, and whether the bare name or `<plugin>:<skill>` matches. Do not depend on `on-skill-invoke` until that is measured.
 
 ## The monitor library
 

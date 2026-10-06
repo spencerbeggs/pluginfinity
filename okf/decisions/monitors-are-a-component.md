@@ -20,13 +20,16 @@ sources:
   - id: monitor-lib
     resource: ../../packages/engine/monitor-lib/monitor.sh
     title: The POSIX sh monitor library
+  - id: claude-monitor-env
+    resource: ../measurements/claude-monitor-environment.md
+    title: Claude Code monitor environment, 2026-10-06
   - id: cc-plugin-format
     resource: ../references/claude-code-plugin-format.md
     title: Claude Code plugin format, monitors
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:45:51Z
-  body_sha256: 59d12056073c6fbcae3acc26b9113362f9772e9b850a1741287cba081ab0575e
+  at: 2026-10-06T23:52:26Z
+  body_sha256: 51fa8dd162319090064fc4b0405a194d325b0adfbfe7d0c7e719cdeb66a63ff1
 ---
 
 # Monitors are a first-class component
@@ -46,7 +49,7 @@ Claude Code runs a plugin's background monitors from `monitors/monitors.json` an
 ## Consequences
 
 - A monitor is built, checked and tested like a hook: `run_monitor` in the bats helper runs a built monitor's command.
-- Two behaviours are not yet measured on a live host: the working directory and environment a Claude monitor starts with, and whether `when: on-skill-invoke:<skill>` matches the bare skill name or `<plugin>:<skill>`. They stay open until a human live run records them as a measurement.
+- A [live run](../measurements/claude-monitor-environment.md) measured a Claude monitor: it starts in the project directory with the launching shell's environment, `CLAUDE_PROJECT_DIR` and `CLAUDE_SESSION_ID` unset, and a slash-command invocation of a skill does not start an `on-skill-invoke` monitor.[^claude-monitor-env] Still open: whether a model Skill-tool dispatch starts one, and whether the bare skill name or `<plugin>:<skill>` matches.
 - A skill's `monitor_notify` call inside a subshell cannot tell the loop that stdout closed, so a monitor calls it directly.
 
 ## Alternatives rejected
@@ -58,3 +61,4 @@ Claude Code runs a plugin's background monitors from `monitors/monitors.json` an
 [^engine-monitors]: `../../packages/engine/src/monitors.ts`
 [^monitor-lib]: `../../packages/engine/monitor-lib/monitor.sh`
 [^cc-plugin-format]: `../references/claude-code-plugin-format.md`
+[^claude-monitor-env]: `../measurements/claude-monitor-environment.md`

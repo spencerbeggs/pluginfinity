@@ -16,6 +16,11 @@
 * Updated pluginfinity first release
 * Updated @pluginfinity/core
 * Added Claude Code's MCP and LSP servers go inline in plugin.json
+* Updated Build notes also report hook matchers, ignored hook output and omitted monitors
+* Updated Facts about a hook entry travel to its script as environment variables
+* Updated Hooks, servers, monitors and scripts share one logging standard
+* Updated pluginfinity carrier package
+* Updated pluginfinity.config.ts
 
 ## 2026-10-05
 
