@@ -27,21 +27,22 @@ sources:
     title: Copilot's run-time names
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T02:15:19Z
-  body_sha256: 421856b0b85faa4e27204ab3af6d4a770681be4c36c28385ee2ffe0a02d134f5
+  at: 2026-10-06T02:28:06Z
+  body_sha256: 4597ba43f529482b9ba59255dd18a4ca4fe1773d8b77162e52be63f3d49b50ca
 ---
 
 # Body tokens and pluginfinity links are built per target
 
 ## Context
 
-okfit's Copilot build still named `mcp__plugin_okfit_mcp__get_concept` in skill prose, where the Copilot model sees `mcp-get_concept`, and `--agent okf-docs` failed on Copilot because it namespaces agent ids as `okfit:okf-docs`.[^okfit-findings-round-2] Frontmatter was already translated per target; prose was not. `pluginfinity://` links were refused outside code, because nothing built them.
+Until now, okfit's Copilot build named `mcp__plugin_okfit_mcp__get_concept` in skill prose, where the Copilot model sees `mcp-get_concept`, and `--agent okf-docs` failed on Copilot because it namespaces agent ids as `okfit:okf-docs`.[^okfit-findings-round-2] Frontmatter was translated per target; prose was not. `pluginfinity://` links were refused outside code, because nothing built them.
 
 ## Decision
 
 - **Explicit tokens.** A body names a host-specific thing with `{{tool <name>}}`, `{{agent <name>}}`, `{{skill <name>}}` or `{{plugin_root}}`, on one line, and each target writes its own bare spelling.[^tokens] Only marked text changes.
 - **Only the four kinds are tokens.** A `{{` whose first word is anything else, such as GitHub Actions' `${{ … }}`, Jinja or Handlebars, is plain text. `\{{` drops its backslash only before a token; elsewhere the backslash stays.[^owner-rulings]
 - **Tokens are replaced everywhere, code included,** so a code sample shows the host's real name. A literal token is written `\{{`.
+- **Each target names ids by its own plugin name.** `{{agent …}}`, `{{skill …}}` and agent links use the plugin's name on that target (its `<target>.name` override, else `name`), because that is the name the host installs it under. A plugin's own MCP tool is written, and its run-time `{plugin}` filled, with the Claude name, which Claude Code namespaces MCP tools with.
 - **Links are built in the same pass.** An inline `[text](pluginfinity://skill/<skill>[/<path>][#anchor])` or `[text](pluginfinity://agent/<agent>)` outside code is built in the target's reference style: a path under the body root, anchor kept, or prose, anchor dropped. An agent link renders the agent's id and takes no anchor. A link in code stays text, as a sample.
 - **Nothing unbuilt ships.** Any other `pluginfinity://` outside code, a reference definition, an autolink, an image, a title, a bare URL, in any case, fails the build.
 - **What cannot be spelled fails.** An unknown agent or skill, a missing file, a missing or extra argument, an unclosed token and a value the target leaves unresolved are each a `ComponentInvalid` on the file, keyed by line and naming the target. A host block is the escape hatch, since a token in another target's block is never read.

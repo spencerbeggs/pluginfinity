@@ -6,6 +6,9 @@
 * Updated Build notes report what a target drops, degrades or omits
 * Updated Copilot CLI run-time tool, skill and agent names, 2026-10-06
 * Updated The pluginfinity command line
+* Updated @pluginfinity/targets
+* Updated Plugin source model
+* Updated Target description
 
 ## 2026-10-05
 

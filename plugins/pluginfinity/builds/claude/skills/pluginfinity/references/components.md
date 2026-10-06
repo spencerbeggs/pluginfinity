@@ -17,9 +17,9 @@ when_to_use: the situations that should trigger it
 
 `description` is required. `name`, when set, must equal the directory name; every build writes it
 either way. Support files are copied to every host: a `.md` file gets the same host-block pass as the
-body, and any other file is copied byte for byte. Files keep their source mode, and `build --check`
-compares modes as well as bytes, so a commit hook that changes a mode on one side fails the check; see
-the `pluginfinity` skill's "Repository hygiene".
+body, and any other file is copied byte for byte. Files keep their source mode. `build --check` compares
+content, and a copied file's executable bit, so only a commit hook that sets or clears the executable bit
+on one side fails the check; see the `pluginfinity` skill's "Repository hygiene".
 
 ## Agents
 
@@ -100,14 +100,16 @@ A token is `{{`, a kind, its argument and `}}` on one line, with any whitespace 
 
 | Token | Claude Code | Copilot |
 | :-- | :-- | :-- |
-| `{{tool <Tool>}}` | the name as written | the run-time name in [what each host gets](targets.md#run-time-names); a tool with none fails |
+| `{{tool <Tool>}}` | the name as written | the run-time name in [what each host gets](targets.md#run-time-names); an unlisted name fails, because Copilot has no run-time name for it |
 | `{{tool mcp__plugin_<plugin>_<server>__<tool>}}` | as written | `<server>-<tool>`, when the Copilot build declares `<server>` |
 | `{{tool mcp__<other>__<tool>}}`, another plugin's | as written | fails |
 | `{{agent <agent>}}` | `<plugin>:<agent>` | `<plugin>:<agent>` |
 | `{{skill <skill>}}` | `/<plugin>:<skill>` | `/<plugin>:<skill>` |
 | `{{plugin_root}}` | `${CLAUDE_PLUGIN_ROOT}` | fails: Copilot expands no root in a body |
 
-`<plugin>` is the plugin's Claude Code name: the `claude.name` override, else `name`. A token writes the
+In an agent id or a skill command, `<plugin>` is the plugin's name on that host: the `claude.name` or
+`copilot.name` override, else `name`. In an MCP tool name it is always the Claude Code name, the
+`claude.name` override, else `name`, on both hosts. A token writes the
 bare string; add backticks yourself, as in `` `{{tool Read}}` ``.
 
 - **Tokens are replaced everywhere,** fenced and inline code included.

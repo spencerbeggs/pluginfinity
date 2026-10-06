@@ -62,6 +62,9 @@ write a token, and each build writes that host's spelling:
 | `{{skill <skill>}}` | `/<plugin>:<skill>` | `/<plugin>:<skill>` |
 | `{{plugin_root}}` | `${CLAUDE_PLUGIN_ROOT}` | fails the build |
 
+In an agent id or skill command `<plugin>` is the plugin's name on that host (`claude.name` or
+`copilot.name`, else `name`); in an MCP tool name it is the Claude Code name on both.
+
 - **Name tools in prose with `{{tool …}}`.** The Copilot model sees `view`, `bash`, `edit` and
   `create`, not `Read`, `Bash`, `Edit` and `Write`, and this plugin's MCP tools as `<server>-<tool>`. A
   tool name written plainly stays Claude's on Copilot. A token writes the bare name, so put the backticks
@@ -150,15 +153,17 @@ what each means.
 
 ## Repository hygiene
 
-`build --check` compares every file in `builds/` with a fresh build, byte for byte and mode for mode.
-Anything that rewrites `builds/` after the build makes it fail:
+`build --check` compares every file in `builds/` with a fresh build: its content byte for byte, and for a
+file copied from the source, its executable bit. Other permission bits are never compared, so a umask or
+a hook that runs `chmod +x` on every script does not fail it. Anything that rewrites `builds/` after the
+build does:
 
 - **Exclude `builds/**` from formatters that write.** Biome `--write` collapses short arrays in built JSON,
   and `markdownlint --fix` rewrites built Markdown. Add `builds/**` to Biome's ignored files and to the
   markdownlint ignores, and to any lint-staged pattern that runs them.
-- **Keep source and build modes in step.** A built file keeps its source file's mode. A commit hook that
-  changes modes, such as lint-staged running `chmod -x` on staged `*.sh`, flips the built copy but not the
-  source, or the other way round. Give the source the mode the hook leaves (`644` for `*.sh` under a
+- **Keep source and build executable bits in step.** A copied file keeps its source file's mode. A commit
+  hook that sets or clears the executable bit, such as lint-staged running `chmod -x` on staged `*.sh`,
+  can flip the built copy but not the source, or the other way round. Give the source the mode the hook leaves (`644` for `*.sh` under a
   `chmod -x` hook, which is fine with the default `scripts.invoke: "bash"`), then rebuild.
 - **Rebuild after `changeset version`.** Every manifest copies `version` from the plugin's `package.json`,
   so after a version bump run `pluginfinity build` and commit `builds/`, for example in the script that

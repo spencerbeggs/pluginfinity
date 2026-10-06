@@ -115,6 +115,9 @@ time, which is not the frontmatter alias. Claude Code writes every name as given
 | An agent | `<plugin>:<agent>`, also what `copilot --agent` takes |
 | A skill | `/<plugin>:<skill>` |
 
+In the agent and skill rows `<plugin>` is the plugin's Copilot name, the `copilot.name` override, else
+`name`.
+
 These were measured once, under Copilot CLI 1.0.92 in non-interactive runs; the built-in names rest on
 the model's own listing of its tools.
 
