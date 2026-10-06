@@ -1,6 +1,13 @@
 import type { KnownTargetId } from "@pluginfinity/targets";
 
 /**
+ * Every note kind, in the order they are sorted and printed.
+ *
+ * @public
+ */
+export const BUILD_NOTE_KINDS = ["dropped", "degraded", "tool-dropped", "hook-omitted"] as const;
+
+/**
  * What a target did to something it could not carry as written: `dropped` a
  * field, `degraded` a field into another form (a description suffix or a body
  * section), `tool-dropped` a tool it cannot name, or `hook-omitted` an event
@@ -8,7 +15,7 @@ import type { KnownTargetId } from "@pluginfinity/targets";
  *
  * @public
  */
-export type BuildNoteKind = "dropped" | "degraded" | "tool-dropped" | "hook-omitted";
+export type BuildNoteKind = (typeof BUILD_NOTE_KINDS)[number];
 
 /**
  * One info-level fact about a build: something the target dropped, degraded
@@ -24,13 +31,6 @@ export interface BuildNote {
 	/** The field, tool or event name, e.g. `color`, `ToolSearch`, `Notification`, `lspServers.md.diagnostics`. */
 	readonly name: string;
 }
-
-/**
- * Every note kind, in the order they are sorted and printed.
- *
- * @public
- */
-export const BUILD_NOTE_KINDS: ReadonlyArray<BuildNoteKind> = ["dropped", "degraded", "tool-dropped", "hook-omitted"];
 
 /** The path of notes about the config: hooks and servers. */
 export const CONFIG_NOTE_PATH = "config";

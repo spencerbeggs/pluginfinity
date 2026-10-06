@@ -232,6 +232,36 @@ describe("mapFrontmatter drops", () => {
 		assert.deepStrictEqual(mapped.drops, []);
 	});
 
+	it("a value the target's table drops for its own default is not a note; a field the map drops is", () => {
+		const inherit = mapFrontmatter(
+			COPILOT,
+			COPILOT.agents.fields,
+			COPILOT.agents.hostFields,
+			{ name: "x", description: "Does x.", model: "inherit" },
+			{},
+		);
+		assert.deepStrictEqual(inherit.drops, []);
+		const skill = mapFrontmatter(
+			COPILOT,
+			COPILOT.skills.fields,
+			COPILOT.skills.hostFields,
+			{ name: "s", description: "Does s.", model: "x" },
+			{},
+		);
+		assert.deepStrictEqual(skill.drops, [{ field: "model", kind: "dropped" }]);
+	});
+
+	it("a tool copilot's table drops, such as Skill, is tool-dropped", () => {
+		const mapped = mapFrontmatter(
+			COPILOT,
+			COPILOT.skills.fields,
+			COPILOT.skills.hostFields,
+			{ name: "s", description: "Does s.", "allowed-tools": "Skill" },
+			{},
+		);
+		assert.deepStrictEqual(mapped.drops, [{ field: "Skill", kind: "tool-dropped" }]);
+	});
+
 	it("claude reports nothing for a skill that sets nothing host-specific", () => {
 		const mapped = mapFrontmatter(
 			CLAUDE,

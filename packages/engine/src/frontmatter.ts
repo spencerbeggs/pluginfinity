@@ -167,7 +167,8 @@ export const mapFrontmatter = (
 					else if (typeof mapped === "string") fields[name] = mapped;
 					else if (mapped._tag === "unresolved") {
 						unresolved.push({ field: `${field}: ${String(value)}`, note: mapped.note });
-					} else dropped(field, "dropped");
+					}
+					// A value the table drops (model: inherit) is the host's default, so nothing is lost: no note.
 					break;
 				}
 				const names: Array<string> = [];

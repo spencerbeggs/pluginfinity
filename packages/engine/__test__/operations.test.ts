@@ -1305,16 +1305,29 @@ describe("build notes", () => {
 		it.effect("build --check returns the same notes as a write", () =>
 			Effect.gen(function* () {
 				const root = yield* notedPlugin();
-				yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+				yield* build({ selection: nearest(root), targets: [], check: false });
 				const builds = yield* build({ selection: nearest(root), targets: ["copilot"], check: true });
 				assert.deepStrictEqual(builds[0]?.notes, EXPECTED);
+			}),
+		);
+
+		it.effect("the hook scripts a target ships do not depend on which targets are selected", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* notedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/hooks/setup.sh")));
+				yield* build({ selection: nearest(root), targets: ["copilot"], check: true });
+				yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/hooks/setup.sh")));
 			}),
 		);
 
 		it.effect("validate reports the same notes", () =>
 			Effect.gen(function* () {
 				const root = yield* notedPlugin();
-				yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+				yield* build({ selection: nearest(root), targets: [], check: false });
 				const validations = yield* validate({ selection: nearest(root), targets: ["copilot"], skipHosts: true });
 				assert.deepStrictEqual(validations[0]?.notes, EXPECTED);
 			}),

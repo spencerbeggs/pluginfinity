@@ -350,7 +350,11 @@ const planPlugin = (
 		// entries name after ${PLUGIN_ROOT}. A command file is only checked for
 		// existence, since the command says how it runs.
 		const filesOf = (events: ReadonlyArray<TargetHookEvent>) => [...hookScripts(events), ...hookCommandFiles(events)];
-		const everyScript = new Set(hooks.flatMap(({ events }) => filesOf(events)));
+		// Over every enabled target, not just the selected ones, so what a target
+		// ships never depends on which targets this run builds.
+		const everyScript = new Set(
+			config.targets.flatMap((id) => filesOf(targetHooks(targetOf(id), id, config.config).events)),
+		);
 		for (const { events } of hooks) {
 			for (const script of hookScripts(events)) yield* checkScript(config, script, invoke);
 			for (const file of hookCommandFiles(events)) yield* checkScript(config, file, "bash");

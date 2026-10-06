@@ -148,7 +148,7 @@ describe("build and validate", () => {
 		it.effect("build --check prints the same notes under its up-to-date line", () =>
 			Effect.gen(function* () {
 				const cwd = yield* writeTree(NOTED_TREE);
-				yield* runCli(["build", "--target", "copilot"], { cwd });
+				yield* runCli(["build"], { cwd });
 				const result = yield* runCli(["build", "--check", "--target", "copilot", "--human"], { cwd });
 				assert.strictEqual(result.code, 0);
 				assert.deepStrictEqual(result.stdout, [
@@ -177,7 +177,7 @@ describe("build and validate", () => {
 		it.effect("validate prints the notes for people and lists them for an agent", () =>
 			Effect.gen(function* () {
 				const cwd = yield* writeTree(NOTED_TREE);
-				yield* runCli(["build", "--target", "copilot"], { cwd });
+				yield* runCli(["build"], { cwd });
 				const human = yield* runCli(["validate", "--no-host", "--target", "copilot", "--human"], { cwd });
 				assert.strictEqual(human.code, 0);
 				assert.deepStrictEqual(human.stdout.slice(1), [
