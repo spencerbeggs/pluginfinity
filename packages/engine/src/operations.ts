@@ -313,9 +313,10 @@ const serverShipped = (
 
 /**
  * What a target's skill and agent bodies may name: the skills and agents it
- * builds, every file of those skills, and the plugin's own MCP servers. The
- * plugin is its Claude name, which Claude Code namespaces MCP tools with and
- * every target's agent id uses, so `plugin` and `own.plugin` are one value.
+ * builds, every file of those skills, and the plugin's own MCP servers. Agent
+ * ids and skill commands use the plugin's name on this target; own MCP tools
+ * are named, and their run-time `{plugin}` filled, by its Claude name, which
+ * Claude Code namespaces MCP tools with.
  */
 const tokenContext = (
 	target: Target,
@@ -324,7 +325,7 @@ const tokenContext = (
 	skills: ReadonlyArray<SourceSkill>,
 	agents: ReadonlyArray<SourceAgent>,
 ): TokenContext => {
-	const plugin = pluginName(config, "claude");
+	const plugin = pluginName(config, id);
 	const built = skills.filter((skill) => skill.frontmatter.targets?.[id] !== false);
 	return {
 		target,
@@ -334,7 +335,7 @@ const tokenContext = (
 		skillFiles: new Set(
 			built.flatMap((skill) => [`${skill.name}/SKILL.md`, ...skill.files.map((file) => `${skill.name}/${file}`)]),
 		),
-		own: { plugin, servers: mcpServerNames(id, config) },
+		own: { plugin: pluginName(config, "claude"), servers: mcpServerNames(id, config) },
 	};
 };
 

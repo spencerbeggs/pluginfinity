@@ -593,6 +593,20 @@ describe("build with hooks", () => {
 			}),
 		);
 
+		it.effect("build --check stays clean when a generated hook library file turns executable on disk", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* hookedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				for (const file of hookLibFiles("claude", "hooked", ENGINE_VERSION)) {
+					yield* fs.chmod(path.join(root, "builds/claude", file.path), 0o755);
+				}
+				const check = yield* build({ selection: nearest(root), targets: [], check: true });
+				assert.isTrue(check.every((entry) => entry.plan.clean));
+			}),
+		);
+
 		it.effect("a copied script keeps its source mode", () =>
 			Effect.gen(function* () {
 				const fs = yield* FileSystem.FileSystem;
@@ -833,7 +847,7 @@ describe("build with skills", () => {
 				);
 				assert.strictEqual(
 					yield* read(root, "builds/copilot/skills/alpha/references/guide.md"),
-					"Use view. See x (the `beta` skill's `references/x.md`) and /valid-claude:beta.\n",
+					"Use view. See x (the `beta` skill's `references/x.md`) and /valid-plugin:beta.\n",
 				);
 			}),
 		);
@@ -1257,7 +1271,7 @@ describe("build with agents", () => {
 				}),
 		);
 
-		it.effect("an agent body renders an {{agent}} token as the plugin's agent id on both targets", () =>
+		it.effect("an agent body renders an {{agent}} token as the agent id under each target's plugin name", () =>
 			Effect.gen(function* () {
 				const root = yield* agentPlugin({
 					"agents/helper.md": "---\nname: helper\ndescription: Helps.\n---\nHand off to {{agent other}}.\n",
@@ -1267,7 +1281,7 @@ describe("build with agents", () => {
 				assert.include(yield* read(root, "builds/claude/agents/helper.md"), "Hand off to valid-claude:other.");
 				assert.include(
 					yield* read(root, "builds/copilot/com.github.copilot/agents/helper.agent.md"),
-					"Hand off to valid-claude:other.",
+					"Hand off to valid-plugin:other.",
 				);
 			}),
 		);
@@ -1284,6 +1298,26 @@ describe("build with agents", () => {
 					[["copilot", ["line 6"]]],
 				);
 				assert.match(error.components[0]?.path ?? "", /agents\/helper\.md$/);
+			}),
+		);
+
+		it.effect("a token problem's remediation points at host blocks and the escape, not a targets block", () =>
+			Effect.gen(function* () {
+				const root = yield* agentPlugin({
+					"agents/helper.md": "---\nname: helper\ndescription: Helps.\n---\n\nUse {{tool TodoWrite}}.\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				if (error._tag !== "ComponentsInvalid") throw new Error(`expected ComponentsInvalid, got ${error._tag}`);
+				const [component] = error.components;
+				assert.deepStrictEqual(
+					component?.issues.map((found) => found.kind),
+					["token"],
+				);
+				const hint = component?.remediation.hint ?? "";
+				assert.include(hint, "<!-- pluginfinity:only claude -->");
+				assert.include(hint, "\\{{");
+				assert.notInclude(hint, "targets.copilot");
+				assert.include(error.remediation.hint, "<!-- pluginfinity:only claude -->");
 			}),
 		);
 
@@ -1548,6 +1582,27 @@ describe("build with a plugin's own MCP tools", () => {
 					assert.include(claude, "mcp__plugin_okfit_cl__only");
 					assert.deepStrictEqual(builds.find((one) => one.target === "claude")?.notes, []);
 				}),
+		);
+
+		it.effect("names agent ids and skill commands by each target's own plugin name, own MCP tools by Claude's", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": OWN_MCP.replace("copilot: true", 'copilot: { name: "x" }'),
+					"package.json": PACKAGE_JSON,
+					"agents/a.md":
+						"---\nname: a\ndescription: Does a.\n---\n\n{{agent a}} {{skill k}} {{tool mcp__plugin_okfit_mcp__describe}}\n",
+					"skills/k/SKILL.md": "---\nname: k\ndescription: Does k.\n---\n\nBody.\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const copilot = yield* fs.readFileString(
+					path.join(root, "builds/copilot/com.github.copilot/agents/a.agent.md"),
+				);
+				assert.include(copilot, "x:a /x:k mcp-describe");
+				const claude = yield* fs.readFileString(path.join(root, "builds/claude/agents/a.md"));
+				assert.include(claude, "okfit:a /okfit:k mcp__plugin_okfit_mcp__describe");
+			}),
 		);
 	});
 });

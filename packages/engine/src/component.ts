@@ -18,6 +18,7 @@ export const issue = (key: string, message: string): ConfigIssue => ConfigIssue.
  * Token problems as issues keyed by their source file line: `lines` maps each
  * line of the rendered text to its line in the source text (see
  * `mapHostBlocks`), and the source text starts `offset` lines into the file.
+ * Each is marked a token issue, so its remediation names the token fixes.
  *
  * @internal
  */
@@ -26,7 +27,13 @@ export const lineIssues = (
 	lines: ReadonlyArray<number>,
 	offset: number,
 ): Array<ConfigIssue> =>
-	found.map((problem) => issue(`line ${(lines[problem.line - 1] ?? problem.line) + offset}`, problem.message));
+	found.map((problem) =>
+		ConfigIssue.make({
+			key: `line ${(lines[problem.line - 1] ?? problem.line) + offset}`,
+			message: problem.message,
+			kind: "token",
+		}),
+	);
 
 /**
  * A `ComponentInvalid` for `path`, optionally specific to one target.

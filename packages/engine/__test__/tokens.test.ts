@@ -45,6 +45,17 @@ describe("renderTokens: tools", () => {
 		assert.include(problem?.message, "mcp__plugin_other_srv__do");
 	});
 
+	it("names ids by the target's plugin name and own MCP tools by the Claude name", () => {
+		const ctx = tokenContext(COPILOT, { plugin: "x" });
+		assert.strictEqual(text(renderTokens("{{agent reviewer}} {{skill alpha}}", ctx)), "x:reviewer /x:alpha");
+		assert.strictEqual(text(renderTokens("{{tool mcp__plugin_demo_mcp__get_concept}}", ctx)), "mcp-get_concept");
+		const claudeCtx = tokenContext(CLAUDE, { plugin: "x" });
+		assert.strictEqual(
+			text(renderTokens("{{tool mcp__plugin_demo_mcp__get_concept}}", claudeCtx)),
+			"mcp__plugin_demo_mcp__get_concept",
+		);
+	});
+
 	it("fails an own MCP tool on Copilot when the server is not declared", () => {
 		assert.lengthOf(problems(renderTokens("{{tool mcp__plugin_demo_nope__x}}", copilot)), 1);
 	});
@@ -312,6 +323,24 @@ describe("renderTokens: links", () => {
 				assert.include(problem?.message, quoted);
 				assert.include(problem?.message, "only inline links");
 			}
+		}
+	});
+
+	it("fails a stray pluginfinity:// glued to a built link, on both targets", () => {
+		for (const ctx of [claude, copilot]) {
+			const [problem, ...rest] = problems(renderTokens("[a](pluginfinity://skill/alpha)pluginfinity://bogus", ctx));
+			assert.strictEqual(problem?.line, 1);
+			assert.include(problem?.message, "pluginfinity://bogus");
+			assert.lengthOf(rest, 0);
+		}
+	});
+
+	it("fails a titled link glued to a built link by a slash, on both targets", () => {
+		const body = 'See [a](pluginfinity://skill/alpha)/[b](pluginfinity://skill/nope "t")';
+		for (const ctx of [claude, copilot]) {
+			const found = problems(renderTokens(body, ctx));
+			assert.isAtLeast(found.length, 1);
+			assert.isTrue(found.some((p) => p.message.includes("pluginfinity://skill/nope")));
 		}
 	});
 

@@ -10,7 +10,13 @@ export class ConfigIssue extends Schema.Class<ConfigIssue>("ConfigIssue")({
 	/** The dotted key path inside the config, `""` for the config as a whole. */
 	key: Schema.String,
 	message: Schema.String,
+	/** `"token"` for a body token or `pluginfinity://` link that cannot be built. */
+	kind: Schema.optionalKey(Schema.Literal("token")),
 }) {}
+
+/** How to clear a token or link problem: keep the passage from the target, or keep the braces literal. */
+const TOKEN_HINT =
+	"use a host block (<!-- pluginfinity:only claude -->) around the passage, or write `\\{{` to keep it literal";
 
 /**
  * The upward walk reached a `.git` directory or the filesystem root without
@@ -423,11 +429,15 @@ export class ComponentInvalid extends Schema.TaggedError<ComponentInvalid>()("Co
 	}
 
 	get remediation(): Remediation {
-		return this.target === undefined
-			? { hint: `Correct the listed problems in ${this.path}.` }
-			: {
-					hint: `Correct the listed problems in ${this.path}, or set the field for ${this.target} in its \`targets.${this.target}\` block.`,
-				};
+		const tokens = this.issues.filter((issue) => issue.kind === "token").length;
+		if (tokens > 0 && tokens === this.issues.length) {
+			return { hint: `For a token or link ${this.target ?? "a target"} cannot build, ${TOKEN_HINT}.` };
+		}
+		const field =
+			this.target === undefined
+				? `Correct the listed problems in ${this.path}`
+				: `Correct the listed problems in ${this.path}, or set the field for ${this.target} in its \`targets.${this.target}\` block`;
+		return { hint: tokens > 0 ? `${field}; for a token or link, ${TOKEN_HINT}.` : `${field}.` };
 	}
 }
 
@@ -452,7 +462,9 @@ export class ComponentsInvalid extends Schema.TaggedError<ComponentsInvalid>()("
 
 	get remediation(): Remediation {
 		return {
-			hint: "Correct each listed file; a field one host cannot take can be set in that host's `targets` block.",
+			hint: this.components.some((component) => component.issues.some((issue) => issue.kind === "token"))
+				? `Correct each listed file; a field one host cannot take can be set in that host's \`targets\` block, and for a token or link one host cannot build, ${TOKEN_HINT}.`
+				: "Correct each listed file; a field one host cannot take can be set in that host's `targets` block.",
 		};
 	}
 }

@@ -13,8 +13,8 @@ export interface TokenContext {
 	/** The target being built. */
 	readonly target: Target;
 	/**
-	 * The plugin's Claude name: the `claude.name` override, else `name`. It
-	 * must equal `own.plugin` when `own` is set; build one from the other.
+	 * The plugin's name on this target: its `<target>.name` override, else
+	 * `name`. Agent ids and skill commands are spelled with it.
 	 */
 	readonly plugin: string;
 	/** The plugin's skill names. */
@@ -23,7 +23,13 @@ export interface TokenContext {
 	readonly agents: ReadonlySet<string>;
 	/** Every file under a skill directory, as `<skill>/<path>`, `SKILL.md` included. */
 	readonly skillFiles: ReadonlySet<string>;
-	/** The plugin's own MCP servers on this target, if it declares any; `own.plugin` must equal `plugin`. */
+	/**
+	 * The plugin's own MCP servers on this target, if it declares any.
+	 * `own.plugin` is the plugin's Claude name, which Claude Code namespaces
+	 * MCP tools with: a body names an own tool by that name on every target,
+	 * and the run-time MCP template's `{plugin}` is filled from it, so it can
+	 * differ from `plugin` when the target renames the plugin.
+	 */
 	readonly own: OwnMcp | undefined;
 }
 
@@ -41,9 +47,16 @@ const KINDS = new Set(["tool", "agent", "skill", "plugin_root"]);
 /** The first word after `{{`: up to whitespace or a brace. */
 const KIND = /^\s*([^\s{}]+)/;
 const LINK = /(!?)\[([^[\]]*)\]\(\s*<?pluginfinity:\/\/([^\s<>()]*)>?\s*\)/g;
-/** A `pluginfinity://` occurrence in any case, with the text around it up to whitespace. */
-const LEFTOVER = /\S*?pluginfinity:\/\/\S*/gi;
+/** Every `pluginfinity://` occurrence, in any case. */
+const SCHEMES = /pluginfinity:\/\//gi;
 const SCHEME = /pluginfinity:\/\//i;
+/** The run of non-whitespace around position `at`, to quote a stray occurrence. */
+const around = (line: string, at: number): string => {
+	let start = at;
+	while (start > 0 && !/\s/.test(line[start - 1] ?? "")) start -= 1;
+	const end = line.slice(at).search(/\s/);
+	return line.slice(start, end === -1 ? line.length : at + end);
+};
 
 const article = (word: string): string => (/^[aeiou]/.test(word) ? `an ${word}` : `a ${word}`);
 
@@ -60,7 +73,9 @@ const tool = (name: string, raw: string, ctx: TokenContext): Spelled => {
 	const listed = Object.hasOwn(runtime.names, name) ? runtime.names[name] : undefined;
 	if (listed !== undefined) return spelling(listed, raw);
 	const split = ctx.own === undefined ? undefined : splitOwnMcp(name, ctx.own);
-	if (split !== undefined) return { value: fill(runtime.mcp, { plugin: ctx.plugin, ...split }) };
+	if (split !== undefined && ctx.own !== undefined) {
+		return { value: fill(runtime.mcp, { plugin: ctx.own.plugin, ...split }) };
+	}
 	if (runtime.unlisted === "keep") return { value: name };
 	return {
 		problem: name.startsWith("mcp__")
@@ -189,11 +204,13 @@ const links = (line: string, ctx: TokenContext, problems: Array<string>): string
 		problems.push(spelled.problem);
 		return raw;
 	});
-	for (const match of line.matchAll(LEFTOVER)) {
-		const at = match.index + match[0].search(SCHEME);
+	// Every occurrence is checked on its own, so a stray one glued to a built
+	// link (no whitespace between) is still caught.
+	for (const match of line.matchAll(SCHEMES)) {
+		const at = match.index;
 		if (inCode(at) || handled.some(([start, end]) => at >= start && at < end)) continue;
 		problems.push(
-			`${match[0]}: only inline links [text](pluginfinity://skill/<skill>[/<path>][#anchor]) and [text](pluginfinity://agent/<agent>) are built, with no title`,
+			`${around(line, at)}: only inline links [text](pluginfinity://skill/<skill>[/<path>][#anchor]) and [text](pluginfinity://agent/<agent>) are built, with no title`,
 		);
 	}
 	return out;
