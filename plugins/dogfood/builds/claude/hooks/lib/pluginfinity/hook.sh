@@ -63,14 +63,31 @@ trap _pf_early_exit EXIT
 if [ -t 0 ]; then
 	_pf_input='{}'
 else
-	_pf_input=$(cat) || _pf_input='{}'
+	_pf_input=$(cat) || _pf_input=''
 fi
-[ -n "$_pf_input" ] || _pf_input='{}'
 
 if ! command -v jq >/dev/null 2>&1; then
 	hook_log "jq not found; hook skipped"
 	exit 0
 fi
+
+# Whether stdin held a JSON object. Anything else reads as {} from here on, so
+# hook_input never sees garbage; hook_require_input turns it into a no-op.
+_pf_input_ok=0
+if jq -e 'type == "object"' >/dev/null 2>&1 <<<"$_pf_input"; then
+	_pf_input_ok=1
+else
+	_pf_input='{}'
+fi
+
+# Return when stdin was a JSON object; otherwise log it, answer with a no-op
+# and end the script.
+hook_require_input() {
+	[ "$_pf_input_ok" = 1 ] && return 0
+	hook_log "malformed or empty JSON on stdin; skipping"
+	hook_noop
+	exit 0
+}
 
 # One marker file records that a response went out, and holds its kind for the
 # debug log. It is a file, not a variable, so a response sent from a subshell
@@ -151,12 +168,12 @@ hook_fail_closed() { _pf_fail_closed=1; }
 
 # The event's Claude name: PLUGINFINITY_EVENT (set on every Copilot entry by
 # the build), else the input's hook_event_name.
+# Prints nothing and returns 1 when neither is available.
 hook_event() {
-	if [ -n "${PLUGINFINITY_EVENT:-}" ]; then
-		printf '%s\n' "$PLUGINFINITY_EVENT"
-	else
-		hook_input hook_event_name
-	fi
+	local ev=${PLUGINFINITY_EVENT:-}
+	[ -n "$ev" ] || ev=$(hook_input hook_event_name)
+	[ -n "$ev" ] || return 1
+	printf '%s\n' "$ev"
 }
 _pf_event=$(hook_event 2>/dev/null) || _pf_event=""
 

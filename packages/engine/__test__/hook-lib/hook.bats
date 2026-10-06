@@ -468,14 +468,16 @@ echo done'
 	[ "$output" = '{"permissionDecision":"allow"}' ]
 }
 
-@test "invalid input JSON fails open" {
+@test "invalid input JSON reads as an empty object, and hook_require_input fails open" {
 	make_plugin copilot
-	# An assignment, so set -e sees the failure; a failing $(…) inside a
-	# command's arguments would not abort the script.
-	hook_script 'name=$(hook_input tool_name); hook_deny "$name"'
+	hook_script 'name=$(hook_input tool_name); echo "[$name]"'
 	run_script 'not json'
 	[ "$status" -eq 0 ]
-	[ -z "$output" ]
+	[ "$output" = "[]" ]
+	hook_script 'hook_require_input; hook_deny "no"'
+	run_script 'not json'
+	[ "$status" -eq 0 ]
+	[ "$output" = '{}' ]
 	[ -z "$stderr" ]
 }
 
@@ -715,4 +717,27 @@ exit 7'
 	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_FAIL_CLOSED=1
 	[ "$status" -eq 0 ]
 	[ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = deny ]
+}
+
+# --- require input / event ---
+
+@test "hook_require_input passes an object through" {
+	make_plugin claude; hook_script 'hook_require_input; echo body'
+	run_script "$FIXTURES/pretooluse.bash.json"; [ "$output" = body ]
+}
+@test "hook_require_input no-ops on an empty payload and logs it" {
+	make_plugin claude; hook_script 'hook_require_input; echo body'
+	run_script ''; [ "$output" = '{}' ]; [[ "$(error_log)" == *"malformed or empty JSON"* ]]
+}
+@test "hook_require_input no-ops on a JSON array" {
+	make_plugin copilot; hook_script 'hook_require_input; echo body'
+	run_script '[1,2]'; [ "$output" = '{}' ]
+}
+@test "hook_event answers from PLUGINFINITY_EVENT on Claude when the payload is garbage" {
+	make_plugin claude; hook_script 'hook_event'
+	run_script 'not json' PLUGINFINITY_EVENT=SessionStart; [ "$output" = SessionStart ]
+}
+@test "hook_event with no event anywhere prints nothing and returns 1" {
+	make_plugin claude; hook_script 'hook_event || echo "rc=$?"'
+	run_script 'not json'; [ "$output" = "rc=1" ]
 }
