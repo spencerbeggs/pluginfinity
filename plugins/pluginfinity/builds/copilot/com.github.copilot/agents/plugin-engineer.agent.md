@@ -4,9 +4,9 @@ description: Use when writing, testing or migrating hooks or plugin scripts in a
 tools:
   - read
   - edit
-  - search
+  - glob
+  - grep
   - execute
-  - todo
 ---
 
 # Plugin engineer

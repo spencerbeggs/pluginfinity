@@ -163,10 +163,15 @@ export const COPILOT: Target = Target.make({
 	lsp: { path: "com.github.copilot/lsp.json", format: "copilot-lsp-json", fields: lspFields },
 	references: { style: "prose" },
 	tools: {
-		// Copilot's primary aliases for the Claude Code tools it documents a
-		// compatible alias for. Skill has no alias and is dropped, as is any
-		// other Claude-only name (ToolSearch, SendMessage, the Task tools) and
-		// another plugin's MCP tool, whose server name on Copilot is unknown.
+		// Copilot's frontmatter names, measured: an agent restricted to the
+		// documented aliases `search`, `web` or `todo` executed no tool (0/6 each,
+		// two models), while the literal `grep`, `glob`, `web_fetch` and
+		// `web_search` executed 6/6 each (okf/measurements/copilot-runtime-names.md,
+		// "Alias follow-up"). The aliases that are documented and not contradicted
+		// (agent, execute, read, edit) stay. Skill and TodoWrite have no working
+		// name and are dropped, as is any other Claude-only name (ToolSearch,
+		// SendMessage, the Task tools) and another plugin's MCP tool, whose server
+		// name on Copilot is unknown.
 		names: {
 			Agent: "agent",
 			Task: "agent",
@@ -178,11 +183,11 @@ export const COPILOT: Target = Target.make({
 			MultiEdit: "edit",
 			Write: "edit",
 			NotebookEdit: "edit",
-			Grep: "search",
-			Glob: "search",
-			WebFetch: "web",
-			WebSearch: "web",
-			TodoWrite: "todo",
+			Grep: "grep",
+			Glob: "glob",
+			WebFetch: "web_fetch",
+			WebSearch: "web_search",
+			TodoWrite: drop,
 			Skill: drop,
 		},
 		mcp: "{server}/{tool}",

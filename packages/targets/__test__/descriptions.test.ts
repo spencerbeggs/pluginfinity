@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { AGENT_FIELDS, CLAUDE_HOOK_EVENTS, LSP_FIELDS, SKILL_FIELDS, Target, rename } from "@pluginfinity/core";
+import { AGENT_FIELDS, CLAUDE_HOOK_EVENTS, LSP_FIELDS, SKILL_FIELDS, Target, drop, rename } from "@pluginfinity/core";
 import { Effect, Schema } from "effect";
 import { COPILOT_OWN_EVENTS, TARGETS } from "../src/index.js";
 
@@ -88,6 +88,19 @@ describe("the copilot description", () => {
 	it("emits Agent Plugins 1.0 with its pinned schema", () => {
 		assert.strictEqual(copilot?.manifest.format, "agent-plugins-1.0");
 		assert.strictEqual(copilot?.manifest.schema, "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json");
+	});
+
+	it("grants Grep, Glob, WebFetch and WebSearch by their literal names and drops TodoWrite (measured)", () => {
+		const names = copilot?.tools.names;
+		assert.strictEqual(names?.Grep, "grep");
+		assert.strictEqual(names?.Glob, "glob");
+		assert.strictEqual(names?.WebFetch, "web_fetch");
+		assert.strictEqual(names?.WebSearch, "web_search");
+		assert.deepStrictEqual(names?.TodoWrite, drop);
+		assert.strictEqual(names?.Bash, "execute");
+		assert.strictEqual(names?.Read, "read");
+		assert.strictEqual(names?.Edit, "edit");
+		assert.strictEqual(names?.Agent, "agent");
 	});
 
 	it("keeps its own events out of the Claude event table", () => {

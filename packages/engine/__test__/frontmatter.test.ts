@@ -117,6 +117,18 @@ describe("unlisted tools", () => {
 		assert.deepStrictEqual(mapped.fields.tools, ["read", "docs/search"]);
 	});
 
+	it("copilot grants Grep, Glob, WebFetch and WebSearch by name and drops TodoWrite with a note", () => {
+		const mapped = mapFrontmatter(
+			COPILOT,
+			COPILOT.agents.fields,
+			COPILOT.agents.hostFields,
+			{ name: "a", description: "x", tools: ["Grep", "Glob", "WebFetch", "WebSearch", "TodoWrite"] },
+			{},
+		);
+		assert.deepStrictEqual(mapped.fields.tools, ["grep", "glob", "web_fetch", "web_search"]);
+		assert.deepStrictEqual(mapped.drops, [{ field: "TodoWrite", kind: "tool-dropped" }]);
+	});
+
 	it("claude keeps every tool name", () => {
 		const mapped = mapFrontmatter(
 			CLAUDE,

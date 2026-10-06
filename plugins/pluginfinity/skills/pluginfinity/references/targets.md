@@ -62,16 +62,18 @@ Copilot-only agent fields go in `targets.copilot`: `target`, `metadata`, `models
 
 ## Tools
 
-On Copilot each Claude Code tool name becomes its documented alias, with duplicates removed:
+On Copilot each Claude Code tool name becomes the name Copilot grants, with duplicates removed:
 
 | Claude Code | Copilot |
 | :-- | :-- |
 | `Read`, `NotebookRead` | `read` |
 | `Edit`, `MultiEdit`, `Write`, `NotebookEdit` | `edit` |
-| `Grep`, `Glob` | `search` |
+| `Grep` | `grep` |
+| `Glob` | `glob` |
 | `Bash`, `PowerShell` | `execute` |
-| `WebFetch`, `WebSearch` | `web` |
-| `TodoWrite` | `todo` |
+| `WebFetch` | `web_fetch` |
+| `WebSearch` | `web_search` |
+| `TodoWrite` | Dropped; no name grants it |
 | `Agent`, `Task` | `agent` |
 | `Skill` | Dropped; Copilot has no alias |
 | `mcp__<server>__<tool>` | `<server>/<tool>` |
@@ -90,9 +92,10 @@ dropped on Copilot and reported as a `tool-dropped` note: a Claude-only tool suc
 Copilot is unknown, and one of this plugin's that names a server the Copilot build does not declare.
 Claude Code keeps every name as written.
 
-The aliases above come from Copilot's docs. A one-off run showed an agent restricted to `search`, `web`
-or `todo` with no matching tool, which does not settle what those aliases grant, so the table is
-unchanged until that is measured.
+Measured on Copilot CLI: an agent restricted to the documented aliases `search`, `web` or `todo` executed
+no tool (0 of 6 runs each, two models), while the literal `grep`, `glob`, `web_fetch` and `web_search`
+executed in every run. So those four are written by name, and `TodoWrite` is dropped with a `tool-dropped`
+note. `read`, `edit`, `execute` and `agent` are the documented aliases and are kept.
 
 ## Run-time names
 
