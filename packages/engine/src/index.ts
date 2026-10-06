@@ -71,7 +71,7 @@ export type { LoadedConfig } from "./loader.js";
 export { ConfigLoader } from "./loader.js";
 export type { Manifest } from "./manifest.js";
 export { renderManifest, serializeManifest } from "./manifest.js";
-export type { RenderedMonitors } from "./monitors.js";
+export type { MonitorMap, RenderedMonitors } from "./monitors.js";
 export { renderMonitors, targetMonitors } from "./monitors.js";
 export type { BuildNote, BuildNoteKind } from "./notes.js";
 export { BUILD_NOTE_KINDS } from "./notes.js";

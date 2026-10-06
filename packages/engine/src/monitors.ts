@@ -4,7 +4,12 @@ import { commandFiles, hookCommand, shellEnvPrefix } from "./hooks.js";
 import type { BuildNote } from "./notes.js";
 import { CONFIG_NOTE_PATH } from "./notes.js";
 
-type MonitorMap = Readonly<Record<string, MonitorEntry>>;
+/**
+ * Monitors by name.
+ *
+ * @public
+ */
+export type MonitorMap = Readonly<Record<string, MonitorEntry>>;
 
 /**
  * The monitors a target builds: the base `monitors` with the target's own
@@ -17,7 +22,11 @@ export const targetMonitors = (id: KnownTargetId, config: PluginfinityConfig): M
 	return { ...config.monitors, ...(typeof setting === "object" ? setting.monitors : undefined) };
 };
 
-/** What a target builds of its monitors, before the build checks and ships the files. */
+/**
+ * What a target builds of its monitors, before the build checks and ships the files.
+ *
+ * @public
+ */
 export interface RenderedMonitors {
 	/** The monitors file, or none when the target has no monitors or the plugin sets none. */
 	readonly file?: { readonly path: string; readonly content: string };
