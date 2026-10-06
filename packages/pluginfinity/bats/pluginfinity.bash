@@ -48,6 +48,74 @@ run_hook() {
 	esac
 }
 
+# _pf_host_env <target> <root>: set the _pf_env array to the env -i arguments
+# every host gives a plugin process (hook-only variables are added by run_hook).
+_pf_host_env() {
+	_pf_env=(PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" XDG_STATE_HOME="$BATS_TEST_TMPDIR/state")
+	case "$1" in
+	claude) _pf_env+=(CLAUDE_PLUGIN_ROOT="$2" CLAUDE_PROJECT_DIR="${HOOK_PROJECT_DIR:-$BATS_TEST_TMPDIR}") ;;
+	copilot) _pf_env+=(PLUGIN_ROOT="$2") ;;
+	*)
+		echo "unknown target $1" >&2
+		return 1
+		;;
+	esac
+}
+
+# run_script <target> <path> [--stdin <file>] [args...]
+# Runs `bash builds/<target>/<path> args...` under env -i with the host's
+# environment: a skill script or a server launcher. Stdin is /dev/null unless
+# --stdin is given. Sets $status, $output and $stderr.
+run_script() {
+	local target=$1 script=$2 stdin=/dev/null
+	shift 2
+	if [ "${1:-}" = "--stdin" ]; then
+		stdin=$2
+		shift 2
+	fi
+	local root="$PLUGIN_DIR/builds/$target"
+	if [ ! -f "$root/$script" ]; then
+		echo "run_script: $root/$script not found; run pluginfinity build" >&2
+		return 1
+	fi
+	_pf_host_env "$target" "$root" || {
+		echo "run_script: unknown target $target" >&2
+		return 1
+	}
+	if [ "$target" = copilot ]; then
+		# Copilot runs from the plugin root.
+		run --separate-stderr env -i "${_pf_env[@]}" bash -c 'cd "$1" && shift && exec bash "$@"' _ "$root" "$root/$script" "$@" <"$stdin"
+	else
+		run --separate-stderr env -i "${_pf_env[@]}" bash "$root/$script" "$@" <"$stdin"
+	fi
+}
+
+# run_monitor <target> <name> [--ticks <n>] [VAR=value...]
+# Runs the monitor's command from builds/claude/monitors/monitors.json under
+# bash -c with CLAUDE_PLUGIN_ROOT set, stdin /dev/null and
+# PLUGINFINITY_MONITOR_MAX_TICKS bounded (default 1). Sets $status, $output and
+# $stderr.
+run_monitor() {
+	local target=$1 name=$2 ticks=1
+	shift 2
+	if [ "$target" != claude ]; then
+		echo "run_monitor: $target has no monitors" >&2
+		return 1
+	fi
+	if [ "${1:-}" = "--ticks" ]; then
+		ticks=$2
+		shift 2
+	fi
+	local root="$PLUGIN_DIR/builds/claude" command
+	command=$(jq -r --arg n "$name" '[.[] | select(.name == $n)][0].command // empty' "$root/monitors/monitors.json" 2>/dev/null)
+	if [ -z "$command" ]; then
+		echo "run_monitor: no monitor $name" >&2
+		return 1
+	fi
+	_pf_host_env claude "$root"
+	run --separate-stderr env -i "${_pf_env[@]}" PLUGINFINITY_MONITOR_MAX_TICKS="$ticks" "$@" bash -c "$command" </dev/null
+}
+
 # assert_hook_exit <n>
 assert_hook_exit() {
 	[ "$status" -eq "$1" ] || {
