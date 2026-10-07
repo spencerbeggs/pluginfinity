@@ -94,3 +94,30 @@ setup() {
 		[ "$output" = $'PFDOG_COLOR=red\nPFDOG_SHAPE=triangle\nPFDOG_LEVEL=1' ]
 	done
 }
+
+@test "--session-env seeds under the caller's own XDG_STATE_HOME, on both targets" {
+	local target own="$BATS_TEST_TMPDIR/own-state"
+	for target in claude copilot; do
+		run_hook "$target" hooks/env-reader.sh posttooluse.env.json --session-env "$BATS_TEST_TMPDIR/session.env" \
+			XDG_STATE_HOME="$own"
+		[[ "$output" == *"PFDOG_COLOR=red"* ]]
+		run_script "$target" skills/env-probe/scripts/print-env.sh --session-env "$BATS_TEST_TMPDIR/session.env" \
+			--env XDG_STATE_HOME="$BATS_TEST_TMPDIR/ignored" --env XDG_STATE_HOME="$own"
+		[ "$output" = $'PFDOG_COLOR=red\nPFDOG_SHAPE=triangle\nPFDOG_LEVEL=1' ]
+	done
+	[ ! -e "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/session" ]
+	[ ! -e "$BATS_TEST_TMPDIR/ignored" ]
+}
+
+@test "an unseeded SessionStart hook with its own XDG_STATE_HOME does not wait, on both targets" {
+	local target start own="$BATS_TEST_TMPDIR/own-state"
+	for target in claude copilot; do
+		start=$(date +%s)
+		run_hook "$target" hooks/session-start.sh sessionstart.startup.json XDG_STATE_HOME="$own"
+		assert_hook_exit 0
+		[ $(($(date +%s) - start)) -le 1 ]
+	done
+	[ -e "$own/pluginfinity/pluginfinity-dogfood/session/s/done" ]
+	run grep -q "env runner had not finished" "$own/pluginfinity/pluginfinity-dogfood/error.log"
+	[ "$status" -ne 0 ]
+}

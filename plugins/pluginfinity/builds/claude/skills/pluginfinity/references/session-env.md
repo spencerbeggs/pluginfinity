@@ -252,6 +252,10 @@ touches the user's sessions.
   `NAME=value` or `export NAME=value` lines, parsed and not sourced. `run_hook` seeds the fixture's
   `session_id`; `run_script` and `run_monitor` seed session `test-session` and point the project they run in at
   it (for a Claude Code script outside `skills/`, the project its `CLAUDE_PROJECT_DIR` names).
+- **Seeds follow the run's state directory.** A call that passes its own `XDG_STATE_HOME` (a trailing
+  `XDG_STATE_HOME=…` on `run_hook` or `run_monitor`, `--env XDG_STATE_HOME=…` on `run_script`, the last one
+  winning) gets its seeded values, pointer and done marker there; otherwise they go under
+  `$BATS_TEST_TMPDIR/state`.
 - **An unseeded `SessionStart` hook does not wait.** `run_hook` writes the runner's done marker for the
   fixture's session, so the hook resolves live at once; pass `--env-wait` to keep the 3 second wait and test it.
 - **`--env-file <file>`** on `run_script` puts a file's lines in the script's environment, as the exports a

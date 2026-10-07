@@ -23,4 +23,5 @@
 * `run_monitor --timeout <seconds>` (default 30) kills the monitor's process group and sets `$status` to 124, so a monitor that never reaches its tick count fails the test instead of hanging bats.
 * New `--session-env <file>` on `run_hook`, `run_script` and `run_monitor` seeds the session values a reader sees, as if SessionStart had run, for plugins that declare `env`. On Claude Code a script outside `skills/` is seeded for the project its `CLAUDE_PROJECT_DIR` names.
 * `run_hook` writes the env runner's done marker for an unseeded `SessionStart` hook, so it resolves at once instead of waiting 3 s; `--env-wait` keeps the wait.
+* `--session-env` and the done marker go under the state dir the script gets: a caller's own `XDG_STATE_HOME` (trailing on `run_hook` and `run_monitor`, `--env` on `run_script`, last one wins), else `$BATS_TEST_TMPDIR/state`.
 * `run_script` picks the interpreter by extension (`.mjs`, `.cjs` and `.js` run under `node`, anything else under `bash`) and takes `--interpreter <cmd>` to override it.

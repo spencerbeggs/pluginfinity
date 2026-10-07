@@ -280,3 +280,12 @@ ENV
 	[ "$status" -eq 1 ]
 	[[ "$stderr" == *"above 0, got '00'"* ]]
 }
+
+@test "run_monitor --session-env seeds under the caller's own XDG_STATE_HOME" {
+	printf 'FX_A=seeded\n' >"$BATS_TEST_TMPDIR/session.env"
+	run_monitor claude envmon --session-env "$BATS_TEST_TMPDIR/session.env"
+	[ "$output" = "FX_A=seeded" ]
+	run_monitor claude envmon --session-env "$BATS_TEST_TMPDIR/session.env" XDG_STATE_HOME="$BATS_TEST_TMPDIR/own"
+	[ "$output" = "FX_A=seeded" ]
+	[ -e "$BATS_TEST_TMPDIR/own/pluginfinity/fixture/session/test-session/env" ]
+}

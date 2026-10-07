@@ -6,6 +6,13 @@
 #   load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 #
 # Tests run against builds/<target>/, so run `pluginfinity build` first.
+#
+# Every run gets XDG_STATE_HOME=$BATS_TEST_TMPDIR/state unless the call passes
+# its own (a trailing XDG_STATE_HOME=... on run_hook or run_monitor, or
+# --env XDG_STATE_HOME=... on run_script; the last one wins, as env applies
+# them). The session env the helper seeds (--session-env, the project pointer
+# and run_hook's SessionStart done marker) goes under that same state dir, so
+# the script reads what was seeded.
 
 bats_require_minimum_version 1.5.0
 
@@ -20,13 +27,27 @@ _pf_project_dir() {
 	printf '%s\n' "$BATS_TEST_TMPDIR/project"
 }
 
+# _pf_state_dir [VAR=value...]: print the state dir a run with these
+# assignments gets: the value of the last XDG_STATE_HOME=..., else
+# $BATS_TEST_TMPDIR/state.
+_pf_state_dir() {
+	local dir="$BATS_TEST_TMPDIR/state" arg
+	for arg in "$@"; do
+		case "$arg" in
+		XDG_STATE_HOME=*) dir=${arg#XDG_STATE_HOME=} ;;
+		esac
+	done
+	printf '%s\n' "$dir"
+}
+
 # _pf_seed_session_env <target> <env-file> <session id> [<project dir>]: write
 # the session env library's own state under the test's state dir, so a reader
 # sees the values without SessionStart having run. The file's NAME=value and
 # `export NAME=value` lines are parsed, not sourced. It writes
 # session/<id>/env and, with a project dir, the project pointer a script with no
 # session id uses (the dir walked up to the nearest .git, as the library does).
-# The plugin's name comes from the build's host.sh.
+# The plugin's name comes from the build's host.sh. The state dir is
+# $_pf_state when set (see _pf_state_dir), else $BATS_TEST_TMPDIR/state.
 _pf_seed_session_env() {
 	local target=$1 file=$2 sid=$3 proj=${4:-} root="$PLUGIN_DIR/builds/$1" plugin base dir pair p
 	local filevars=()
@@ -39,7 +60,7 @@ _pf_seed_session_env() {
 		echo "--session-env: $root/lib/pluginfinity/host.sh not found; run pluginfinity build" >&2
 		return 1
 	fi
-	base="$BATS_TEST_TMPDIR/state/pluginfinity/$plugin"
+	base="${_pf_state:-$BATS_TEST_TMPDIR/state}/pluginfinity/$plugin"
 	dir="$base/session/$sid"
 	mkdir -p "$dir"
 	_pf_read_env_file "$file"
@@ -76,7 +97,7 @@ _pf_valid_session_id() {
 }
 
 # _pf_mark_env_done <target> <session id>: write the env runner's done marker
-# for <session id> under the test's state dir, so a SessionStart reader with no
+# for <session id> under the run's state dir ($_pf_state, else the test's), so a SessionStart reader with no
 # values file resolves live at once instead of waiting up to 3 s for a runner
 # the test never starts. Nothing happens for an invalid id or a build with no
 # env.sh.
@@ -86,8 +107,9 @@ _pf_mark_env_done() {
 	_pf_valid_session_id "$2" || return 0
 	plugin=$(sed -n "s/^PLUGINFINITY_PLUGIN='\\(.*\\)'$/\\1/p" "$root/lib/pluginfinity/host.sh" 2>/dev/null | head -n 1)
 	[ -n "$plugin" ] || return 0
-	mkdir -p "$BATS_TEST_TMPDIR/state/pluginfinity/$plugin/session/$2"
-	: >"$BATS_TEST_TMPDIR/state/pluginfinity/$plugin/session/$2/done"
+	local dir="${_pf_state:-$BATS_TEST_TMPDIR/state}/pluginfinity/$plugin/session/$2"
+	mkdir -p "$dir"
+	: >"$dir/done"
 }
 
 # run_hook <target> <script> <fixture> [--matcher <m>] [--session-env <file>] [--env-wait] [VAR=value...]
@@ -191,7 +213,12 @@ run_hook() {
 	if [ "$count" -gt 1 ] && [ "$has_matcher" -eq 0 ]; then
 		echo "run_hook: $count entries run $script; using the first (pass --matcher)" >&2
 	fi
-	local sid
+	local entry_env=() line
+	while IFS= read -r line; do
+		entry_env+=("$line")
+	done < <(jq -r '.[0].env | to_entries[] | "\(.key)=\(.value)"' <<<"$picked")
+	local sid _pf_state
+	_pf_state=$(_pf_state_dir ${entry_env[@]+"${entry_env[@]}"} "$@")
 	sid=$(jq -r '.session_id // .sessionId // empty' "$fixture")
 	if [ -n "$session_env" ]; then
 		_pf_seed_session_env "$target" "$session_env" "${sid:-test-session}" || return 1
@@ -199,10 +226,6 @@ run_hook() {
 		[ "$(jq -r '.[0].event | ascii_downcase' <<<"$picked")" = sessionstart ]; then
 		_pf_mark_env_done "$target" "$sid"
 	fi
-	local entry_env=() line
-	while IFS= read -r line; do
-		entry_env+=("$line")
-	done < <(jq -r '.[0].env | to_entries[] | "\(.key)=\(.value)"' <<<"$picked")
 	case "$target" in
 	claude)
 		run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
@@ -376,6 +399,8 @@ run_script() {
 		if [ "$target" = claude ] && [ -z "$kind" ]; then
 			seed_proj=${HOOK_PROJECT_DIR:-$(_pf_project_dir)}
 		fi
+		local _pf_state
+		_pf_state=$(_pf_state_dir ${filevars[@]+"${filevars[@]}"} ${vars[@]+"${vars[@]}"})
 		_pf_seed_session_env "$target" "$session_env" test-session "$seed_proj" || return 1
 	fi
 	if [ -n "$cwd" ]; then
@@ -487,6 +512,8 @@ run_monitor() {
 	[ -n "$cwd" ] || cwd=$(_pf_project_dir)
 	mkdir -p "$cwd"
 	if [ -n "$session_env" ]; then
+		local _pf_state
+		_pf_state=$(_pf_state_dir "$@")
 		_pf_seed_session_env claude "$session_env" test-session "$cwd" || return 1
 	fi
 	run --separate-stderr _pf_run_bounded "$timeout" "$name" \

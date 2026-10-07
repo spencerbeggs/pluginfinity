@@ -61,6 +61,19 @@ while :; do sleep 4343; done
 `;
 
 const CAT = "#!/usr/bin/env bash\ncat\necho done\n";
+const ENVMON = `#!/usr/bin/env bash
+_pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"
+. "$_pf_lib_dir/monitor.sh"
+. "$_pf_lib_dir/env.sh"
+tick() { monitor_notify "FX_A=${"$"}FX_A"; }
+monitor_every 1 tick
+`;
+// The session env library with its declarations block filled in for one name, FX_A, as a build writes it.
+const envLib = (): string =>
+	readFileSync(fileURLToPath(new URL("../../engine/env-lib/env.sh", import.meta.url)), "utf8").replace(
+		/(# >>> pluginfinity env declarations[^\n]*\n)[\s\S]*?(# <<< pluginfinity env declarations)/,
+		"$1_pf_env_names='FX_A'\n_pf_env_default_FX_A='default'\n_pf_env_setup=''\n_pf_env_setup_timeout=10\n$2",
+	);
 const MONITOR = `#!/usr/bin/env bash
 _pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"
 . "$_pf_lib_dir/monitor.sh"
@@ -192,6 +205,9 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 		}
 		writeFileSync(join(claude, "monitors", "m.sh"), MONITOR);
 		writeFileSync(join(claude, "monitors", "show.sh"), SHOWMON);
+		writeFileSync(join(claude, "monitors", "envmon.sh"), ENVMON);
+		writeFileSync(join(claudeLib, "env.sh"), envLib());
+		writeFileSync(join(claudeLib, "host.sh"), "PLUGINFINITY_HOST=claude\nPLUGINFINITY_PLUGIN='fixture'\n");
 		writeFileSync(join(claude, "monitors", "hang.sh"), HANG);
 		writeFileSync(join(claude, "monitors", "stubborn.sh"), STUBBORN);
 		writeFileSync(
@@ -201,6 +217,7 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 				{ name: "show", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/show.sh"', description: "fixture" },
 				{ name: "hang", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/hang.sh"', description: "fixture" },
 				{ name: "stubborn", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/stubborn.sh"', description: "fixture" },
+				{ name: "envmon", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/envmon.sh"', description: "fixture" },
 			]),
 		);
 		const result = spawnSync("bats", ["--tap", join(plugin, "__test__")], {
