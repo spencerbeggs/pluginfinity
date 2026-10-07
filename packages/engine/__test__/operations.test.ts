@@ -720,6 +720,26 @@ describe("build with hooks", () => {
 		});
 
 	layer(NodeServices.layer)((it) => {
+		it.effect("hook_has lists a skill or agent only on the hosts that build it", () =>
+			Effect.gen(function* () {
+				const root = yield* hookedPlugin(HOOKED, {
+					"skills/everyone/SKILL.md": "---\ndescription: x\n---\nBody.\n",
+					"skills/claude-only/SKILL.md": "---\ndescription: x\ntargets:\n  copilot: false\n---\nBody.\n",
+					"agents/everyone.md": "---\nname: everyone\ndescription: x\n---\n",
+					"agents/claude-helper.md": "---\nname: claude-helper\ndescription: x\ntargets:\n  copilot: false\n---\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const claude = yield* fs.readFileString(path.join(root, "builds/claude/hooks/lib/pluginfinity/tools.sh"));
+				const copilot = yield* fs.readFileString(path.join(root, "builds/copilot/hooks/lib/pluginfinity/tools.sh"));
+				assert.include(claude, "_PF_HAS_SKILLS='claude-only everyone'");
+				assert.include(claude, "_PF_HAS_AGENTS='claude-helper everyone'");
+				assert.include(copilot, "_PF_HAS_SKILLS='everyone'");
+				assert.include(copilot, "_PF_HAS_AGENTS='everyone'");
+			}),
+		);
+
 		it.effect("each target gets its hooks file, its own scripts and the shared helpers, not the other's script", () =>
 			Effect.gen(function* () {
 				const root = yield* hookedPlugin();

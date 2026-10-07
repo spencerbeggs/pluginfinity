@@ -53,6 +53,10 @@ describe("renderTokens: code-span tool token", () => {
 		assert.strictEqual(text(renderTokens("{{tool `Read` | look}}", copilot)), "`view`");
 	});
 
+	it("reports a code span jammed against the kind instead of passing it through", () => {
+		assert.isAbove(problems(renderTokens("{{tool`Read`}}", claude)).length, 0);
+	});
+
 	it("leaves the line's other code spans untouched", () => {
 		assert.strictEqual(
 			text(renderTokens("`a` then {{tool `Read`}} then `b {{tool Read}}`", copilot)),

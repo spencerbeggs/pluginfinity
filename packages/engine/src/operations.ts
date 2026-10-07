@@ -326,6 +326,10 @@ const serverShipped = (
 		return files;
 	});
 
+/** The skills or agents a target builds: those whose `targets` do not switch it off. */
+const builtFor = <T extends SourceSkill | SourceAgent>(items: ReadonlyArray<T>, id: KnownTargetId): ReadonlyArray<T> =>
+	items.filter((item) => item.frontmatter.targets?.[id] !== false);
+
 /**
  * What a target's skill and agent bodies may name: the skills and agents it
  * builds, every file of those skills, and the plugin's own MCP servers. Agent
@@ -341,12 +345,12 @@ const tokenContext = (
 	agents: ReadonlyArray<SourceAgent>,
 ): TokenContext => {
 	const plugin = pluginName(config, id);
-	const built = skills.filter((skill) => skill.frontmatter.targets?.[id] !== false);
+	const built = builtFor(skills, id);
 	return {
 		target,
 		plugin,
 		skills: new Set(built.map((skill) => skill.name)),
-		agents: new Set(agents.filter((agent) => agent.frontmatter.targets?.[id] !== false).map((agent) => agent.name)),
+		agents: new Set(builtFor(agents, id).map((agent) => agent.name)),
 		skillFiles: new Set(
 			built.flatMap((skill) => [`${skill.name}/SKILL.md`, ...skill.files.map((file) => `${skill.name}/${file}`)]),
 		),
@@ -426,9 +430,7 @@ const planPlugin = (
 			config.targets.map((id) => {
 				const rendered = renderMonitors(targetOf(id), id, targetMonitors(id, config.config), invoke, {
 					plugin: pluginName(config.config, id),
-					skills: new Set(
-						skills.filter((skill) => skill.frontmatter.targets?.[id] !== false).map((skill) => skill.name),
-					),
+					skills: new Set(builtFor(skills, id).map((skill) => skill.name)),
 				});
 				return [id, { rendered, files: [...rendered.scripts, ...rendered.commandFiles] }] as const;
 			}),
@@ -537,8 +539,8 @@ const planPlugin = (
 						String(manifest.name),
 						ENGINE_VERSION,
 						renderToolMap(target, pluginName(config.config, "claude"), [...mcpServerNames(id, config.config)], {
-							skills: skills.filter((skill) => skill.frontmatter.targets?.[id] !== false).map((skill) => skill.name),
-							agents: agents.filter((agent) => agent.frontmatter.targets?.[id] !== false).map((agent) => agent.name),
+							skills: builtFor(skills, id).map((skill) => skill.name),
+							agents: builtFor(agents, id).map((agent) => agent.name),
 							monitors: Object.keys(targetMonitors(id, config.config)),
 						}),
 					),

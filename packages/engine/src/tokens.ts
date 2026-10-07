@@ -44,8 +44,8 @@ export interface TokenProblem {
 }
 
 const KINDS = new Set(["tool", "agent", "skill", "plugin_root"]);
-/** The first word after `{{`: up to whitespace or a brace. */
-const KIND = /^\s*([^\s{}|]+)/;
+/** The first word after `{{`: up to whitespace, a brace, a pipe or a backtick. */
+const KIND = /^\s*([^\s{}`|]+)/;
 const LINK = /(!?)\[([^[\]]*)\]\(\s*<?pluginfinity:\/\/([^\s<>()]*)>?\s*\)/g;
 /** Every `pluginfinity://` occurrence, in any case. */
 const SCHEMES = /pluginfinity:\/\//gi;
