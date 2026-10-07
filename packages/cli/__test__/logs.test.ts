@@ -278,9 +278,12 @@ describe("pluginfinity logs", () => {
 						Effect.gen(function* () {
 							const fs = yield* FileSystem.FileSystem;
 							const path = yield* Path.Path;
+							// Append, never rewrite: a rewrite truncates first, and a poll between the
+							// truncate and the write reads a rotation and prints the whole file again.
 							yield* fs.writeFileString(
 								path.join(root, "state/pluginfinity/both-targets/error.log"),
-								`${STATE_TREE["state/pluginfinity/both-targets/error.log"]}2026-10-06T10:00:09Z [claude] hook/late.sh: appended\n`,
+								"2026-10-06T10:00:09Z [claude] hook/late.sh: appended\n",
+								{ flag: "a" },
 							);
 						}).pipe(Effect.orDie, Effect.provide(Path.layer)),
 					(lines) => lines.includes("2026-10-06T10:00:09Z [claude] hook/late.sh: appended"),
@@ -306,7 +309,8 @@ describe("pluginfinity logs", () => {
 							const fs = yield* FileSystem.FileSystem;
 							yield* fs.writeFileString(
 								`${root}/state/pluginfinity/both-targets/error.log`,
-								`${STATE_TREE["state/pluginfinity/both-targets/error.log"]}2026-10-06T10:00:09Z [claude] hook/late.sh: appended\n`,
+								"2026-10-06T10:00:09Z [claude] hook/late.sh: appended\n",
+								{ flag: "a" },
 							);
 						}).pipe(Effect.orDie),
 					(lines) => lines.length >= 2,
