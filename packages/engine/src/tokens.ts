@@ -275,12 +275,26 @@ const links = (line: string, ctx: TokenContext, problems: Array<string>): string
  * or report every one it cannot render.
  *
  * @remarks
- * A token is `{{tool <name>}}`, `{{tool <name> | <fallback>}}`,
- * `{{agent <name>}}`, `{{skill <name>}}` or `{{plugin_root}}`, with
- * whitespace allowed inside the braces, on one line. A tool token may wrap its
- * name in exactly one pair of backticks, ``{{tool `Name`}}`` or
- * ``{{tool `Name` | <fallback>}}``: it then renders as a code span, `` `spelling` ``,
- * where the tool spells, and as the fallback in plain text where it does not;
+ * A token is one of the following, with whitespace allowed inside the braces,
+ * on one line:
+ *
+ * ```text
+ * {{tool <name>}}
+ * {{tool <name> | <fallback>}}
+ * {{agent <name>}}
+ * {{skill <name>}}
+ * {{plugin_root}}
+ * ```
+ *
+ * A tool token may wrap its name in exactly one pair of backticks:
+ *
+ * ```text
+ * {{tool `Name`}}
+ * {{tool `Name` | <fallback>}}
+ * ```
+ *
+ * It then renders as a code span of the spelling where the tool spells, and as
+ * the fallback in plain text where it does not;
  * unbalanced or doubled backticks, and backticks on any other kind, are
  * problems. Only a tool token takes
  * a `|` fallback: literal prose, trimmed, that replaces the token on a target
