@@ -94,10 +94,12 @@ monitor still runs and the logging functions do nothing.
   subshell, which cannot tell `monitor_every` that stdout closed, so the loop would never stop.
 - **A monitor never exits non-zero for an error inside one poll.** The library logs it and the loop goes on.
 - **Print nothing else to stdout.** A stray line is a notification.
-- **`PLUGINFINITY_MONITOR_MAX_TICKS=<n>` is a contract every monitor honours: stop after `n` polls.** The
-  monitor library does it in `monitor_every`. A monitor that does not use the library, such as a `command`
-  that runs `node`, must read the variable itself and exit after `n` polls, or `run_monitor` never returns. Only
-  a test sets it; never set it in a plugin.
+- **`PLUGINFINITY_MONITOR_MAX_TICKS=<n>` is a contract every monitor honours: stop after `n` checks, however
+  triggered** (a poll, a startup sweep, or one handled event). `n` is a positive integer. The monitor library
+  does it in `monitor_every`, which logs any other value (`abc`, `0`, `-1`) once and ignores it, so the monitor
+  runs unbounded. A monitor that does not use the library, such as a `command` that runs `node`, or one that
+  reacts to events instead of polling, must read the variable itself and exit after `n` checks, or
+  `run_monitor` runs to its `--timeout`. Only a test sets it; never set it in a plugin.
 
 ## Test one
 
@@ -106,7 +108,8 @@ monitor's command from the built `monitors.json` under `bash -c`, bounded to `n`
 `PLUGINFINITY_MONITOR_MAX_TICKS`, and sets `$status`, `$output` and `$stderr`. `--timeout` (default 30) is a
 wall-clock bound: after that many seconds the monitor's whole process group is killed, `$status` is 124 and
 stderr says `run_monitor: <name> timed out after <s>s`, so a monitor that never reaches its tick count fails the
-test instead of hanging bats, and nothing is left running. It starts in `--cwd` (default `$BATS_TEST_TMPDIR/project`, created),
+test instead of hanging bats, and nothing is left running. A monitor that waits between polls needs a timeout longer than
+`(n - 1)` intervals. It starts in `--cwd` (default `$BATS_TEST_TMPDIR/project`, created),
 substitutes `${CLAUDE_PLUGIN_ROOT}` into the command text, and gives the monitor the environment Claude Code
 does: none of `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` or `CLAUDE_SESSION_ID`, and
 `CLAUDE_CODE_SESSION_ID=test-session`, which is the same for every call in a test, so `monitor_once` dedupes across calls (pass `CLAUDE_CODE_SESSION_ID=other` to start a new session). `HOOK_PROJECT_DIR` and the caller's working directory do not apply: use `--cwd`. Only `claude` has monitors: another target, or a missing monitor,

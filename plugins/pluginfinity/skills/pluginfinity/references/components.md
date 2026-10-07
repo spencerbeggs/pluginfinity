@@ -113,6 +113,24 @@ Use the fifteen skills in this plugin.
 <!-- /pluginfinity:only -->
 ```
 
+Leading whitespace before a marker is allowed, and the whole line is removed. Inside a Markdown list item,
+indent the markers to the item's content column (three spaces under `1.`, two under `-`): a marker at column
+0 ends the list, so `markdownlint --fix` (which lint-staged runs) renumbers the items after it and dedents their
+sub-bullets without a word. Wrapping a whole item in a block instead repeats the number and trips MD029
+(ordered list item prefix). To vary one item's text, put a block of indented lines inside the item.
+
+```markdown
+1. Install the plugin.
+2. Reload it.
+   <!-- pluginfinity:only claude -->
+   Run `/reload-plugins`.
+   <!-- /pluginfinity:only -->
+   <!-- pluginfinity:only copilot -->
+   Restart the session.
+   <!-- /pluginfinity:only -->
+3. Check that it loaded.
+```
+
 The opening marker lists one or more target ids. A host the block lists keeps the passage; the others
 drop it; every marker line is removed from every build. Blocks do not nest. A block that never closes, a
 close with no open, an unknown id or a marker sharing its line with other text fails. A marker inside

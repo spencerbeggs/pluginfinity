@@ -21,6 +21,26 @@ describe("applyHostBlocks", () => {
 		});
 	});
 
+	it("strips markers indented to a list item's content column and keeps the item's own indentation", () => {
+		const text = [
+			"1. First.",
+			"2. Second.",
+			"   <!-- pluginfinity:only claude -->",
+			"   Claude detail.",
+			"   <!-- /pluginfinity:only -->",
+			"   <!-- pluginfinity:only copilot -->",
+			"   Copilot detail.",
+			"   <!-- /pluginfinity:only -->",
+			"3. Third.",
+		].join("\n");
+		assert.deepStrictEqual(applyHostBlocks(text, "claude", KNOWN), {
+			text: ["1. First.", "2. Second.", "   Claude detail.", "3. Third."].join("\n"),
+		});
+		assert.deepStrictEqual(applyHostBlocks(text, "copilot", KNOWN), {
+			text: ["1. First.", "2. Second.", "   Copilot detail.", "3. Third."].join("\n"),
+		});
+	});
+
 	it("drops a block's passage for an unlisted target", () => {
 		assert.deepStrictEqual(applyHostBlocks(BODY, "copilot", KNOWN), {
 			text: ["Shared.", "Both, listed.", "End."].join("\n"),
