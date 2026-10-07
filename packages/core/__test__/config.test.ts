@@ -111,6 +111,7 @@ describe("BaseConfigFields", () => {
 			"lspServers",
 			"monitors",
 			"files",
+			"env",
 		]);
 	});
 });

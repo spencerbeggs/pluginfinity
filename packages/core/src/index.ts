@@ -17,6 +17,7 @@ export {
 	ShippedPath,
 	makeTargetSetting,
 } from "./config.js";
+export { EnvConfig, EnvVar, EnvVarName } from "./env.js";
 export type { AgentField, SkillField } from "./frontmatter.js";
 export {
 	AGENT_FIELDS,

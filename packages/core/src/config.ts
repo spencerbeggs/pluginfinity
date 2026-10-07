@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { EnvConfig } from "./env.js";
 import { Hooks } from "./hooks.js";
 import { LspServers } from "./lsp.js";
 import { McpServers } from "./mcp.js";
@@ -77,6 +78,8 @@ export const BaseConfigFields = {
 	monitors: Schema.optionalKey(Monitors),
 	/** Extra files and directories (ending in `/`) shipped to every target. */
 	files: Schema.optionalKey(Schema.Array(ShippedPath)),
+	/** Session variables the plugin keeps, resolved once at SessionStart; plugin-wide, with no per-target override. */
+	env: Schema.optionalKey(EnvConfig),
 } as const;
 
 /**
