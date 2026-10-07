@@ -207,4 +207,9 @@ export const readLogFrom = (
 		if (size === from) return { lines: [], offset: from };
 		const { lines, length } = completeLines((yield* fs.readFile(path)).subarray(from));
 		return { lines, offset: from + length };
-	});
+	}).pipe(
+		// A rotation can remove the file between the checks and the read: that is an empty read, not the end of a follow.
+		Effect.catch((error) =>
+			error.reason._tag === "NotFound" ? Effect.succeed({ lines: [], offset: 0 }) : Effect.fail(error),
+		),
+	);

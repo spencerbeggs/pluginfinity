@@ -7,6 +7,7 @@ import { Console, Context, Effect, FileSystem, Option } from "effect";
 import { Command, Flag } from "effect/cli";
 import { reportFindings } from "../render/config-error.js";
 import { entryJson, logsJson, logsLines, sectionHeader } from "../render/logs.js";
+import { checkPluginName } from "./name.js";
 import type { LaunchFacts } from "./shared.js";
 
 /**
@@ -46,7 +47,6 @@ const follow = (
 ) =>
 	Effect.gen(function* () {
 		const offsets = new Map(tails.map((tail) => [tail.path, tail.offset]));
-		control.onStart();
 		yield* Effect.forever(
 			Effect.gen(function* () {
 				for (const tail of tails) {
@@ -93,14 +93,16 @@ export const logsCommand = (launch: LaunchFacts) =>
 				const audience = yield* Audience;
 				const human = audience.kind === "human";
 				const file: LogFileName = input.debug ? "debug.log" : "error.log";
-				const plugins = yield* resolvePlugins(launch, input.plugin);
+				// A name becomes a path segment under the state directory, so it must be a plugin name.
+				const explicit = yield* Effect.forEach(input.plugin, (name) => checkPluginName("--plugin", name));
+				const plugins = yield* resolvePlugins(launch, explicit);
 				const root = yield* logRoot(launch.stateHome);
 				const rootExists = yield* fs.exists(root);
 				const tails: Array<LogTail> = [];
 				for (const plugin of plugins) {
 					tails.push(yield* readLog({ stateHome: launch.stateHome, plugin, file, lines: input.lines }));
 				}
-				const view = { root, rootExists, tails };
+				const view = { root, rootExists, tails, limit: input.lines };
 
 				if (!input.follow) {
 					if (human) {
@@ -113,6 +115,9 @@ export const logsCommand = (launch: LaunchFacts) =>
 
 				// Following: the tail first, then each appended line as it lands. An agent
 				// reads one JSON object per line; a person sees a header whenever the file changes.
+				const control = yield* CurrentFollow;
+				// Before the tail prints, so an interrupt during it also ends with exit 0.
+				control.onStart();
 				let shown: string | undefined;
 				if (human) {
 					for (const line of logsLines(view)) yield* Console.log(line);
@@ -123,7 +128,7 @@ export const logsCommand = (launch: LaunchFacts) =>
 						for (const line of tail.lines) yield* Console.log(entryJson(parseLogLine(line, tail.plugin, tail.file)));
 					}
 				}
-				yield* follow(tails, yield* CurrentFollow, (tail, line) =>
+				yield* follow(tails, control, (tail, line) =>
 					Effect.gen(function* () {
 						if (!human) return yield* Console.log(entryJson(parseLogLine(line, tail.plugin, tail.file)));
 						if (shown !== tail.path) {

@@ -12,6 +12,8 @@ export interface LogsView {
 	/** Whether `root` exists. */
 	readonly rootExists: boolean;
 	readonly tails: ReadonlyArray<LogTail>;
+	/** The `--lines` asked for; zero shows no body for a file. */
+	readonly limit: number;
 }
 
 /** The header that opens a file's section. */
@@ -37,7 +39,13 @@ export const logsLines = (view: LogsView): ReadonlyArray<string> => {
 		`Logs in ${view.root}`,
 		...view.tails.flatMap((tail) => [
 			sectionHeader(tail.plugin, tail.file),
-			...(!tail.present ? [absentLine(tail.file)] : tail.lines.length === 0 ? ["  (no entries)"] : tail.lines),
+			...(!tail.present
+				? [absentLine(tail.file)]
+				: tail.lines.length === 0
+					? view.limit === 0
+						? []
+						: ["  (no entries)"]
+					: tail.lines),
 		]),
 	];
 };
@@ -56,7 +64,7 @@ export const logsJson = (view: LogsView, distribution: unknown): string =>
 		distribution,
 		ok: true,
 		directory: view.root,
-		found: isFound(view),
+		found: view.tails.some((tail) => tail.present),
 		files: view.tails.map((tail) => ({ plugin: tail.plugin, file: tail.file, path: tail.path, present: tail.present })),
 		entries: tailEntries(view.tails),
 	});

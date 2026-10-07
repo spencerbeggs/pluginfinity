@@ -38,8 +38,8 @@ sources:
     title: The usage-error and NotImplemented exit-code cases
 generated:
   by: okfit/claude-code
-  at: 2026-10-07T03:22:43Z
-  body_sha256: 65ad2d163723d21cebbed7757f52cf5c06aadabb6133c9422c7290acba0711bf
+  at: 2026-10-07T03:37:59Z
+  body_sha256: 2a25b6e945a3b93eb76a0efe1b843c2d73336652eba37ce3b4087d91752f9638
 ---
 
 # The pluginfinity command line
@@ -71,7 +71,7 @@ The root command shares `--human`, `--agent` and `--ci` with every subcommand an
 
 - **0**: success. `doctor` exits 0 even when a check fails, unless `--strict` is given. `logs` exits 0 when there is nothing to show, including a state directory that does not exist or a plugin that has not logged: a query that matches nothing succeeds, and a missing log means nothing was logged.
 - **1**: a finding. Every config failure (`ConfigNotFound`, `ConfigAmbiguous`, `ConfigLoadFailed`, `ConfigInvalid`, `UnknownTarget`, `TargetNotEnabled`) is reported as a finding and exits 1.[^render-config-error] So is every build failure (`PackageVersionMissing`, `HookEventUnsupported`, `HookScriptInvalid`, `ShippedFileInvalid`, `PathConflict`, `ComponentsInvalid`, `BuildStale`, `HostRejected`), a stub's `NotImplemented`, and `doctor --strict` when a `required` check fails.
-- **64**: a usage error. Examples are a negative `--lines`, an unknown flag, an unknown `--target`, `--layout` or `--pm` value, `--config` with `--all`, a `[path]` that does not exist, and a plugin name that is not kebab-case.[^commands-test]
+- **64**: a usage error. Examples are a negative `--lines`, a `--plugin` that is not a kebab-case plugin name, an unknown flag, an unknown `--target`, `--layout` or `--pm` value, `--config` with `--all`, a `[path]` that does not exist, and a plugin name that is not kebab-case.[^commands-test]
 
 ## Output and audiences
 
@@ -79,7 +79,7 @@ The audience decides the output form. It comes from `--human`, `--agent` or `--c
 
 - **For people**, a finding is a `✗` line and a hint on stderr, `build` and `validate` print one `✓` line per target followed by one indented line per component with notes, `· <path>: <kind> <names>; <kind> <names>` (kinds in the order `dropped`, `degraded`, `tool-dropped`, `hook-matcher-runtime`, `hook-output-ignored`, `hook-omitted`, `monitor-omitted`, names joined by `,`, the `config` line last), and `doctor` prints a checklist grouped into Runtime, Hosts, Tools and Config.[^render-build][^render-doctor]
 - **For agents and CI**, a finding, a doctor report, or a build or validate result is one JSON object on stdout. It carries `engine_version`, `distribution` and `ok`, plus `error` (`tag`, `path`, `message`, `remediation`), `checks` (`id`, `status`, `severity`, `version`, `path`, `remediation`), `builds` (`config`, `target`, `out`, `added`, `changed`, `removed`, `notes`) or `validations` (`config`, `target`, `out`, `host`, `notes`), where each note is `{path, kind, name}`. Notes are info only and never change the exit code.
-- `logs` for agents and CI prints one JSON object with `engine_version`, `distribution`, `ok`, `directory`, `found`, `files` (`plugin`, `file`, `path`, `present`) and `entries`, each `{ts, host, component, script, message, plugin, file}`, or `{raw, plugin, file}` for a line that does not follow the standard. With `--follow` it prints no wrapper: one entry object per line, the tail first. For people it prints `Logs in <directory>`, then a `==> <plugin>/<file> <==` section of raw lines per file (the header repeats in `--follow` when the file changes); with no log directory it prints `No logs yet: <directory> does not exist.` and how logs get written.[^render-logs]
+- `logs` for agents and CI prints one JSON object with `engine_version`, `distribution`, `ok`, `directory`, `found` (true when any selected file exists), `files` (`plugin`, `file`, `path`, `present`) and `entries`, each `{ts, host, component, script, message, plugin, file}`, or `{raw, plugin, file}` for a line that does not follow the standard. With `--follow` it prints no wrapper: one entry object per line, the tail first. For people it prints `Logs in <directory>`, then a `==> <plugin>/<file> <==` section of raw lines per file (the header repeats in `--follow` when the file changes); with no log directory it prints `No logs yet: <directory> does not exist.` and how logs get written.[^render-logs]
 - stdout carries only that structured output. A usage error's help goes to stderr with the error, and `--help` alone goes to stdout. A `NotImplemented` failure is reported on stderr for every audience.
 
 `--version` prints `pluginfinity v<version>` and, when the bin was launched through the carrier, `via pluginfinity <version>`.

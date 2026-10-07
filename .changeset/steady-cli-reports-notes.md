@@ -5,6 +5,7 @@
 ## Breaking Changes
 
 * `build`, `build --check` and `validate` follow the engine's new contract: a source `monitors/monitors.json` and a hook script path containing `=` under `scripts.invoke: "exec"` now fail. Migrate per the engine release notes; there is no compatibility shim.
+* `LaunchFacts` and `ProgramDeps` gained a required `stateHome`, the XDG state directory `logs` reads; a caller of `run` or `program` must pass it.
 
 ## Features
 

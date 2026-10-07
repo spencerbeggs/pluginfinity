@@ -112,6 +112,36 @@ describe("pluginfinity logs", () => {
 			}),
 		);
 
+		it.effect("--plugin must be a plugin name, never a path", () =>
+			Effect.gen(function* () {
+				const root = yield* tree();
+				const result = yield* runCli(["logs", "--plugin", "../../x"], { cwd: root, stateHome: `${root}/state` });
+				assert.strictEqual(result.code, 64);
+			}),
+		);
+
+		it.effect("--lines 0 prints headers with no body and no '(no entries)'", () =>
+			Effect.gen(function* () {
+				const root = yield* tree();
+				const result = yield* runCli(["logs", "--human", "--lines", "0"], {
+					cwd: `${root}/plugin`,
+					stateHome: `${root}/state`,
+				});
+				assert.deepStrictEqual(result.stdout.slice(1), ["==> both-targets/error.log <=="]);
+			}),
+		);
+
+		it.effect("JSON found is false when no selected file exists", () =>
+			Effect.gen(function* () {
+				const root = yield* tree();
+				const result = yield* runCli(["logs", "--agent", "--plugin", "quiet"], {
+					cwd: root,
+					stateHome: `${root}/state`,
+				});
+				assert.strictEqual(JSON.parse(result.stdout[0] ?? "").found, false);
+			}),
+		);
+
 		it.effect("a negative --lines is a usage error", () =>
 			Effect.gen(function* () {
 				const root = yield* tree();
@@ -212,6 +242,7 @@ describe("pluginfinity logs", () => {
 			args: ReadonlyArray<string>,
 			appended: (root: string) => Effect.Effect<void, never, FileSystem.FileSystem>,
 			until: (lines: ReadonlyArray<string>) => boolean,
+			tailed: (line: string) => boolean,
 		) =>
 			Effect.gen(function* () {
 				const root = yield* tree();
@@ -223,16 +254,18 @@ describe("pluginfinity logs", () => {
 						follow: { stop: Deferred.await(stop), interval: "10 millis" },
 					}),
 				);
-				// Let the tail print, append, then wait until the appended line is out.
-				yield* Effect.sleep("100 millis");
+				// Wait (bounded) until the tail has printed, so the append is a real follow; then until the appended line is out.
+				const waitFor = (done: (lines: ReadonlyArray<string>) => boolean) =>
+					Effect.gen(function* () {
+						for (let tries = 0; tries < 300; tries++) {
+							if (done((yield* TestConsole.logLines).map(String))) return;
+							yield* Effect.sleep("10 millis");
+						}
+						assert.fail("the expected output never appeared");
+					});
+				yield* waitFor((lines) => lines.some(tailed));
 				yield* appended(root);
-				for (
-					let tries = 0;
-					tries < 200 && !until(yield* TestConsole.logLines.pipe(Effect.map((l) => l.map(String))));
-					tries++
-				) {
-					yield* Effect.sleep("10 millis");
-				}
+				yield* waitFor(until);
 				yield* Deferred.succeed(stop, undefined);
 				return yield* Fiber.join(run);
 			}).pipe(Effect.provide(TestConsole.layer));
@@ -251,6 +284,7 @@ describe("pluginfinity logs", () => {
 							);
 						}).pipe(Effect.orDie, Effect.provide(Path.layer)),
 					(lines) => lines.includes("2026-10-06T10:00:09Z [claude] hook/late.sh: appended"),
+					(line) => line === "2026-10-06T10:00:02Z [copilot] server/start.sh: third",
 				);
 				assert.strictEqual(result.code, 0);
 				assert.deepStrictEqual(result.stdout.slice(1), [
@@ -276,6 +310,7 @@ describe("pluginfinity logs", () => {
 							);
 						}).pipe(Effect.orDie),
 					(lines) => lines.length >= 2,
+					(line) => line.includes('"message":"third"'),
 				);
 				assert.strictEqual(result.code, 0);
 				const messages = result.stdout.map((line) => JSON.parse(line).message);
