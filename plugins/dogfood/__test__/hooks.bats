@@ -141,3 +141,28 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 	run_hook copilot hooks/post-read.sh "$fx"
 	assert_hook_json .additionalContext "pluginfinity-dogfood: the Read tool is called view on copilot"
 }
+
+@test "SessionStart appends PF_ENV_PROBE to CLAUDE_ENV_FILE and logs the probe, quietly" {
+	envfile="$BATS_TEST_TMPDIR/envfile"
+	run_hook claude hooks/session-start.sh sessionstart.startup.json PLUGINFINITY_DEBUG=1 CLAUDE_ENV_FILE="$envfile"
+	assert_hook_json .hookSpecificOutput.additionalContext "pluginfinity-dogfood is loaded on claude (startup)"
+	[ "$(cat "$envfile")" = "export PF_ENV_PROBE='s'" ]
+	log="$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/debug.log"
+	grep -qF "probe: env-file set=yes path=$envfile" "$log"
+	grep -qF "probe: copilot-hook-env names=" "$log"
+	grep -qF "probe: env-file dir=$BATS_TEST_TMPDIR base=envfile session_in_path=" "$log"
+	grep -qF "probe: env-dir files=" "$log"
+	[ "$(cat "$BATS_TEST_TMPDIR/pf-dogfood-hook.sh")" = "export PF_DIR_PROBE='s'" ]
+}
+
+@test "SessionStart logs env-file set=no on copilot and writes nothing" {
+	run_hook copilot hooks/session-start.sh sessionstart.startup.json PLUGINFINITY_DEBUG=1
+	assert_hook_json .additionalContext "pluginfinity-dogfood is loaded on copilot (startup)"
+	grep -qF "probe: env-file set=no path=unset" "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/debug.log"
+}
+
+@test "every other hook logs an env-reach probe line and keeps its answer" {
+	run_hook claude hooks/pre-tool-use.sh pretooluse.allow.json PLUGINFINITY_DEBUG=1 PF_ENV_PROBE=seen
+	assert_hook_noop
+	grep -qF "probe: env-reach event=PreToolUse PF_ENV_PROBE=seen PF_DIR_PROBE=unset session=" "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/debug.log"
+}

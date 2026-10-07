@@ -50,7 +50,7 @@ JSON
 		[ "$(printf '%s\n' "${lines[0]}" | jq -c '[.id, .result.protocolVersion, .result.serverInfo.name, (.result.capabilities | keys)]')" = '[1,"2025-03-26","dogfood",["tools"]]' ]
 		[ "$(printf '%s\n' "${lines[1]}" | jq -c '[.id, [.result.tools[].name]]')" = '[2,["ping"]]' ]
 		[ "$(printf '%s\n' "${lines[2]}" | jq -r '.id, .result.content[0].text')" = "3
-pong from $host, project $PROJECT" ]
+pong from $host, project $PROJECT, pwd=$PROJECT" ]
 		[ "$(printf '%s\n' "${lines[3]}" | jq -c '[.id, .result]')" = '[4,{}]' ]
 		[ "$(printf '%s\n' "${lines[4]}" | jq -c '[.id, .error.code]')" = '[5,-32601]' ]
 	done
@@ -63,7 +63,7 @@ pong from $host, project $PROJECT" ]
 		sh "$BUILDS/copilot/bin/start-mcp.sh" <<'JSON'
 {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ping"}}
 JSON
-	[ "$(printf '%s\n' "$output" | jq -r '.result.content[0].text')" = "pong from copilot, project none" ]
+	[ "$(printf '%s\n' "$output" | jq -r '.result.content[0].text')" = "pong from copilot, project none, pwd=$(cd "$BUILDS/copilot" && pwd -P)" ]
 }
 
 run_mcp_input() { # input (claude host)
@@ -78,7 +78,7 @@ run_mcp_input() { # input (claude host)
 {"jsonrpc":"2.0","id":2,"method":"tools/list"}'
 	[ "$status" -eq 0 ]
 	[ "${#lines[@]}" -eq 2 ]
-	[ "$(printf '%s\n' "${lines[0]}" | jq -r '.result.content[0].text')" = "pong from claude, project $PROJECT" ]
+	[ "$(printf '%s\n' "${lines[0]}" | jq -r '.result.content[0].text')" = "pong from claude, project $PROJECT, pwd=$PROJECT" ]
 	[ "$(printf '%s\n' "${lines[1]}" | jq -c '[.id, .result.tools[0].name]')" = '[2,"ping"]' ]
 }
 
@@ -97,6 +97,36 @@ run_mcp_input() { # input (claude host)
 		PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_LIB="$BUILDS/claude/lib/pluginfinity" \
 		sh -c "printf '%s' '{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"ping\"}' | sh '$BUILDS/claude/bin/start-mcp.sh'"
 	[ "$(printf '%s\n' "$output" | jq -c '.id')" = 7 ]
+}
+
+@test "the MCP server requests roots after initialized and logs the response" {
+	for host in claude copilot; do
+		cd "$PROJECT"
+		run --separate-stderr env -i PATH="$STUB_PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST="$host" \
+			PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_LIB="$BUILDS/$host/lib/pluginfinity" \
+			XDG_STATE_HOME="$BATS_TEST_TMPDIR/state-$host" PLUGINFINITY_DEBUG=1 \
+			sh "$BUILDS/$host/bin/start-mcp.sh" <<'JSON'
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{"roots":{"listChanged":true}},"clientInfo":{"name":"rc","version":"9"}}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":"pf-roots","result":{"roots":[{"uri":"file:///work/proj","name":"proj"}]}}
+{"jsonrpc":"2.0","id":2,"method":"ping"}
+JSON
+		[ "$status" -eq 0 ]
+		# initialize answer, the server's own roots/list request, then the ping answer: nothing for the roots response.
+		[ "${#lines[@]}" -eq 3 ]
+		[ "$(printf '%s\n' "${lines[0]}" | jq -c '.id')" = 1 ]
+		[ "${lines[1]}" = '{"jsonrpc":"2.0","id":"pf-roots","method":"roots/list"}' ]
+		[ "$(printf '%s\n' "${lines[2]}" | jq -c '[.id, .result]')" = '[2,{}]' ]
+		log="$BATS_TEST_TMPDIR/state-$host/pluginfinity/pluginfinity-dogfood/debug.log"
+		grep -qF 'probe: mcp-init client=rc/9 caps={"roots":{"listChanged":true}} pwd='"$PROJECT"' oldpwd=' "$log"
+		grep -qF 'probe: mcp-roots {"result":{"roots":[{"uri":"file:///work/proj","name":"proj"}]}}' "$log"
+	done
+}
+
+@test "the MCP server asks for no roots when the client advertises none" {
+	mcp_session claude
+	[ "${#lines[@]}" -eq 5 ]
+	run ! grep -q pf-roots <<<"$output"
 }
 
 @test "the LSP launcher passes --stdio through" {
