@@ -6,7 +6,6 @@ setup() {
 	mkdir -p "$BATS_TEST_TMPDIR/project/.git" "$BATS_TEST_TMPDIR/project/node_modules/.bin"
 	PROJECT=$(cd "$BATS_TEST_TMPDIR/project" && pwd -P)
 	printf '#!/bin/sh\necho "mcp $*"\n' >"$PROJECT/node_modules/.bin/dogfood-mcp"
-	printf '#!/bin/sh\necho "lsp $*"\n' >"$PROJECT/node_modules/.bin/dogfood-lsp"
 	chmod +x "$PROJECT/node_modules/.bin/"*
 	# No test may reach a real package manager: every runner is a stub that fails loudly.
 	mkdir -p "$BATS_TEST_TMPDIR/stub"
@@ -99,9 +98,46 @@ run_mcp_input() { # input (claude host)
 	[ "$(printf '%s\n' "$output" | jq -c '.id')" = 7 ]
 }
 
-@test "the LSP launcher passes --stdio through" {
-	run_built copilot start-lsp.sh --stdio
-	[ "$output" = "lsp --stdio" ]
+# lsp_bodies: the JSON bodies of the framed output, one per line (jq reads the concatenated stream).
+lsp_bodies() {
+	printf '%s' "$output" | tr -d '\r' | sed 's/Content-Length: [0-9]*//g' | jq -c .
+}
+
+# frame <json>: one Content-Length framed LSP message.
+frame() {
+	printf 'Content-Length: %s\r\n\r\n%s' "$(printf '%s' "$1" | wc -c | tr -d ' ')" "$1"
+}
+
+@test "the LSP stub answers initialize, shutdown and exit over framed stdio on both hosts" {
+	for host in claude copilot; do
+		cd "$PROJECT"
+		{
+			frame '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}'
+			frame '{"jsonrpc":"2.0","method":"initialized","params":{}}'
+			frame '{"jsonrpc":"2.0","id":2,"method":"shutdown"}'
+			frame '{"jsonrpc":"2.0","method":"exit"}'
+		} >"$BATS_TEST_TMPDIR/lsp-in"
+		run --separate-stderr env -i PATH="$STUB_PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST="$host" \
+			PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_LIB="$BUILDS/$host/lib/pluginfinity" \
+			sh "$BUILDS/$host/bin/start-lsp.sh" --stdio <"$BATS_TEST_TMPDIR/lsp-in"
+		[ "$status" -eq 0 ]
+		# Two framed responses, nothing for the notifications.
+		[ "$(printf '%s' "$output" | grep -o 'Content-Length: ' | wc -l | tr -d ' ')" -eq 2 ]
+		[ "$(lsp_bodies | jq -c '[.id, .result.capabilities.textDocumentSync, .result.serverInfo.name]' | head -1)" = '[1,1,"dogfood"]' ]
+		[ "$(lsp_bodies | jq -c '[.id, .result]' | tail -1)" = '[2,null]' ]
+	done
+}
+
+@test "the LSP stub exits cleanly when stdin closes and answers an unknown request with -32601" {
+	cd "$PROJECT"
+	{
+		frame '{"jsonrpc":"2.0","id":3,"method":"textDocument/hover"}'
+	} >"$BATS_TEST_TMPDIR/lsp-in"
+	run --separate-stderr env -i PATH="$STUB_PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST=claude \
+		PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_LIB="$BUILDS/claude/lib/pluginfinity" \
+		sh "$BUILDS/claude/bin/start-lsp.sh" --stdio <"$BATS_TEST_TMPDIR/lsp-in"
+	[ "$status" -eq 0 ]
+	[ "$(lsp_bodies | jq -c '[.id, .error.code]')" = '[3,-32601]' ]
 }
 
 @test "the built configs point at the shipped launchers" {

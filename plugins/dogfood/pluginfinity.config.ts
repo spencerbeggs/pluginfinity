@@ -48,7 +48,7 @@ export default defineConfig({
 			when: "on-skill-invoke:hook-eval",
 		},
 	},
-	files: ["share/", "bin/dogfood-mcp.sh"],
+	files: ["share/", "bin/dogfood-mcp.sh", "bin/dogfood-lsp.sh"],
 	claude: true,
 	copilot: { files: ["copilot-only/"] },
 });
