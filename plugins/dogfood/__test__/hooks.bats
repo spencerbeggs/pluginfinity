@@ -57,11 +57,11 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 @test "Stop blocks once when the marker file exists" {
 	mkdir -p "$BATS_TEST_TMPDIR/proj/.git"
 	touch "$BATS_TEST_TMPDIR/proj/.pf-dogfood-block"
-	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/proj" run_hook claude hooks/stop.sh "$(hook_fixture Stop '{"stop_hook_active":false}')"
+	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/proj" run_hook claude hooks/stop.sh "$(hook_fixture Stop "{\"stop_hook_active\":false,\"cwd\":\"$BATS_TEST_TMPDIR/proj\"}")"
 	assert_hook_json .decision block
 	run_hook copilot hooks/stop.sh "$(hook_fixture Stop "{\"stop_hook_active\":false,\"cwd\":\"$BATS_TEST_TMPDIR/proj\"}")"
 	assert_hook_json .decision block
-	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/proj" run_hook claude hooks/stop.sh "$(hook_fixture Stop '{"stop_hook_active":true}')"
+	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/proj" run_hook claude hooks/stop.sh "$(hook_fixture Stop "{\"stop_hook_active\":true,\"cwd\":\"$BATS_TEST_TMPDIR/proj\"}")"
 	assert_hook_noop
 }
 

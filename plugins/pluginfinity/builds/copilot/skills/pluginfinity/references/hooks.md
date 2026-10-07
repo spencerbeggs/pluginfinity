@@ -77,7 +77,7 @@ overwrites it.
 | `hook_event` | The event name, in Claude Code's spelling, from `PLUGINFINITY_EVENT` or else the input's `hook_event_name`. Prints nothing and returns 1 when neither is known |
 | `hook_host` | `claude` or `copilot` |
 | `hook_plugin_root` | The build root the script runs from |
-| `hook_project_dir` | Where this call runs: the closest directory at or above the input's `cwd` that holds `.git`, else `CLAUDE_PROJECT_DIR` on Claude Code, else the same walk from `$PWD`, else `$PWD` |
+| `hook_project_dir` | Where this call runs: the closest directory at or above the input's `cwd` that holds `.git`, else that `cwd` itself; with no `cwd`, `CLAUDE_PROJECT_DIR` on Claude Code, else `$PWD` walked up to `.git` on Claude Code, else `$PWD` as is (never walked on Copilot, where it is the plugin root) |
 | `hook_session_dir` | The session's project: `CLAUDE_PROJECT_DIR` on Claude Code when set, else `hook_project_dir`. In a git worktree the two differ |
 | `hook_cd_project` | Changes into `hook_project_dir`. Prints nothing; when it cannot, it logs the reason with `hook_log` and returns 1 |
 | `hook_tool_name <claude-name>` | The host's run-time spelling of a Claude Code tool name, such as `view` for `Read` on Copilot, or nothing and return 1 when the host has none. Name this plugin's own MCP tools `mcp__plugin_<plugin>_<server>__<tool>`. Read from the build's generated `tools.sh` |

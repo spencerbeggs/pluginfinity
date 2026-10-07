@@ -210,22 +210,31 @@ _pf_git_root() {
 	return 1
 }
 
-# Where this call runs: the input's cwd walked up to the nearest .git, else
-# CLAUDE_PROJECT_DIR (Claude), else $PWD walked up the same way, else $PWD.
+# Where this call runs: the input's cwd walked up to the nearest .git, else the
+# cwd itself; with no cwd, CLAUDE_PROJECT_DIR (Claude), else $PWD walked up to
+# .git (Claude), else $PWD as is. On Copilot $PWD is always the plugin root, so
+# it is never walked: that would find the repo holding the plugin.
 hook_project_dir() {
 	local dir root
 	dir=$(hook_input cwd)
-	if [ -n "$dir" ] && root=$(_pf_git_root "$dir"); then
-		printf '%s\n' "$root"
+	# A relative cwd means nothing outside the host's own process; ignore it.
+	if [ -n "$dir" ] && [ "${dir#/}" != "$dir" ]; then
+		if root=$(_pf_git_root "$dir"); then
+			printf '%s\n' "$root"
+		else
+			printf '%s\n' "$dir"
+		fi
 		return 0
 	fi
-	if [ "$PLUGINFINITY_HOST" = claude ] && [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
-		printf '%s\n' "$CLAUDE_PROJECT_DIR"
-		return 0
-	fi
-	if root=$(_pf_git_root "$PWD"); then
-		printf '%s\n' "$root"
-		return 0
+	if [ "$PLUGINFINITY_HOST" = claude ]; then
+		if [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
+			printf '%s\n' "$CLAUDE_PROJECT_DIR"
+			return 0
+		fi
+		if root=$(_pf_git_root "$PWD"); then
+			printf '%s\n' "$root"
+			return 0
+		fi
 	fi
 	printf '%s\n' "$PWD"
 }

@@ -122,7 +122,7 @@ load helpers
 @test "hook_project_dir is CLAUDE_PROJECT_DIR on claude" {
 	make_plugin claude
 	hook_script 'hook_project_dir'
-	run_script "$FIXTURES/stop.json" CLAUDE_PROJECT_DIR=/somewhere
+	run_script '{"hook_event_name":"Stop"}' CLAUDE_PROJECT_DIR=/somewhere
 	[ "$output" = "/somewhere" ]
 }
 
@@ -140,6 +140,25 @@ load helpers
 	hook_script 'cd "$BATS_TEST_TMPDIR/loose" && hook_project_dir'
 	run_script "{\"hook_event_name\":\"Stop\",\"cwd\":\"$BATS_TEST_TMPDIR/loose\"}" BATS_TEST_TMPDIR="$BATS_TEST_TMPDIR"
 	[ "$output" = "$BATS_TEST_TMPDIR/loose" ]
+}
+
+@test "hook_project_dir answers a non-git cwd on both hosts even with CLAUDE_PROJECT_DIR set" {
+	local host
+	for host in claude copilot; do
+		make_plugin "$host"
+		mkdir -p "$BATS_TEST_TMPDIR/loose/sub" "$BATS_TEST_TMPDIR/other"
+		hook_script 'hook_project_dir'
+		run_script "{\"hook_event_name\":\"Stop\",\"cwd\":\"$BATS_TEST_TMPDIR/loose/sub\"}" CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/other"
+		[ "$output" = "$BATS_TEST_TMPDIR/loose/sub" ]
+	done
+}
+
+@test "hook_project_dir on copilot with no cwd answers PWD and never walks to the repo root" {
+	make_plugin copilot
+	mkdir -p "$BATS_TEST_TMPDIR/repo/.git" "$BATS_TEST_TMPDIR/repo/a/b"
+	hook_script 'cd "$BATS_TEST_TMPDIR/repo/a/b" && hook_project_dir'
+	run_script '{"hook_event_name":"Stop"}' BATS_TEST_TMPDIR="$BATS_TEST_TMPDIR"
+	[ "$output" = "$BATS_TEST_TMPDIR/repo/a/b" ]
 }
 
 @test "hook_project_dir terminates on a relative cwd" {
@@ -164,7 +183,7 @@ load helpers
 	make_plugin claude
 	mkdir -p "$BATS_TEST_TMPDIR/proj"
 	hook_script 'hook_cd_project; pwd -P'
-	run_script "$FIXTURES/stop.json" CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/proj"
+	run_script '{"hook_event_name":"Stop"}' CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/proj"
 	[ "$output" = "$(cd "$BATS_TEST_TMPDIR/proj" && pwd -P)" ]
 }
 
@@ -172,7 +191,7 @@ load helpers
 	make_plugin claude
 	mkdir -p "$BATS_TEST_TMPDIR/work/proj" "$BATS_TEST_TMPDIR/elsewhere/proj"
 	hook_script 'cd "$WORK" && hook_cd_project; pwd -P'
-	run_script "$FIXTURES/stop.json" CLAUDE_PROJECT_DIR=proj WORK="$BATS_TEST_TMPDIR/work" CDPATH="$BATS_TEST_TMPDIR/elsewhere"
+	run_script '{"hook_event_name":"Stop"}' CLAUDE_PROJECT_DIR=proj WORK="$BATS_TEST_TMPDIR/work" CDPATH="$BATS_TEST_TMPDIR/elsewhere"
 	[ "$status" -eq 0 ]
 	[ "$output" = "$(cd "$BATS_TEST_TMPDIR/work/proj" && pwd -P)" ]
 }
@@ -180,7 +199,7 @@ load helpers
 @test "hook_cd_project writes nothing to stdout and fails with a log when the cd fails" {
 	make_plugin claude
 	hook_script 'hook_cd_project || echo failed'
-	run_script "$FIXTURES/stop.json" CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/missing"
+	run_script '{"hook_event_name":"Stop"}' CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/missing"
 	[ "$output" = "failed" ]
 	[[ "$(error_log)" == *"hook_cd_project"* ]]
 }
