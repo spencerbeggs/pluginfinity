@@ -162,7 +162,7 @@ Call `_gh pr view`, never bare `gh pr view`. The fallback to `GH_TOKEN` and `GIT
 
 A value decided once per session, such as a detected package manager or a switch in the project's `.env`, is the
 plugin's session env: declared under `env` in the config, resolved when the session starts, and set by hooks
-with `hook_env_set`. Every hook that sources `hook.sh` sees the values with no call; a plain `command` entry does not. A skill script or a monitor sources `env.sh`, one
+with `hook_env_set`. Every hook that sources `hook.sh` sees the values with no call; a plain `command` entry does not. A skill script or a monitor sources `env.sh` in
 two lines, which set every declared name in its shell. Build the path from an absolute directory, before any
 `cd`: a relative `$0` stops resolving after one. The directive keeps shellcheck's SC1091 quiet:
 

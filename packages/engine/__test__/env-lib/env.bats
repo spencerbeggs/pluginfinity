@@ -634,7 +634,9 @@ reader_bg() {
 	make_root claude fx A
 	session_start s1 "$PROJECT"
 	mkdir "$STATE/pluginfinity/fx/session/s1/lock"
-	date +%s >"$STATE/pluginfinity/fx/session/s1/lock/at"
+	# Stamped an hour ahead: a loaded machine can stretch the ~5 s retry past
+	# the 10 s stale bound, and a stale lock is removed rather than logged.
+	echo $(($(date +%s) + 3600)) >"$STATE/pluginfinity/fx/session/s1/lock/at"
 	manual 'env_load s1 "$PWD"; _pf_env_set A v'
 	read_in "$PROJECT"
 	[ "$status" -eq 0 ]
