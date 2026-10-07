@@ -97,3 +97,38 @@ b"'; run_it; [ "$output" = "a b" ]
 	run_it PLUGINFINITY_MONITOR_MAX_TICKS=1
 	[ "$output" = x ]; [[ "$(cat "$STATE/pluginfinity/fx/error.log")" == *"interval 'abc'"* ]]
 }
+
+# A monitor that stops itself after four polls, so an ignored bound cannot hang the suite.
+bounded_body() {
+	monitor_body 'n=0; tick() { n=$((n+1)); monitor_notify "t$n"; [ "$n" -lt 4 ] || exit 0; }; monitor_every 0 tick'
+}
+
+@test "PLUGINFINITY_MONITOR_MAX_TICKS=2 stops monitor_every after two checks" {
+	make_root claude fx; bounded_body
+	run_it PLUGINFINITY_MONITOR_MAX_TICKS=2
+	[ "$status" -eq 0 ]
+	[ "$output" = "$(printf 't1\nt2')" ]
+}
+
+@test "a non-numeric PLUGINFINITY_MONITOR_MAX_TICKS is ignored and logged, not an error loop" {
+	make_root claude fx; bounded_body
+	run_it PLUGINFINITY_MONITOR_MAX_TICKS=abc
+	[ "$status" -eq 0 ]
+	[ "$output" = "$(printf 't1\nt2\nt3\nt4')" ]
+	[[ "$(cat "$STATE/pluginfinity/fx/error.log")" == *"monitor/m.sh: monitor_every: PLUGINFINITY_MONITOR_MAX_TICKS 'abc' is not a positive integer; ignoring it"* ]]
+	[ "$(grep -c "is not a positive integer" "$STATE/pluginfinity/fx/error.log")" -eq 1 ]
+}
+
+@test "PLUGINFINITY_MONITOR_MAX_TICKS=0 is ignored and logged" {
+	make_root claude fx; bounded_body
+	run_it PLUGINFINITY_MONITOR_MAX_TICKS=0
+	[ "$output" = "$(printf 't1\nt2\nt3\nt4')" ]
+	[[ "$(cat "$STATE/pluginfinity/fx/error.log")" == *"MAX_TICKS '0' is not a positive integer"* ]]
+}
+
+@test "PLUGINFINITY_MONITOR_MAX_TICKS=-1 is ignored and logged" {
+	make_root claude fx; bounded_body
+	run_it PLUGINFINITY_MONITOR_MAX_TICKS=-1
+	[ "$output" = "$(printf 't1\nt2\nt3\nt4')" ]
+	[[ "$(cat "$STATE/pluginfinity/fx/error.log")" == *"MAX_TICKS '-1' is not a positive integer"* ]]
+}

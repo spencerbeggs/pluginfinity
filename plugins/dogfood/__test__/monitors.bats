@@ -4,7 +4,7 @@
 load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 
 @test "the heartbeat notifies once and logs where it started" {
-	run_monitor claude heartbeat --ticks 2 PLUGINFINITY_DEBUG=1 PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_HOST=claude
+	run_monitor claude heartbeat --ticks 2 --timeout 90 PLUGINFINITY_DEBUG=1 PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_HOST=claude
 	assert_hook_exit 0
 	[ "$output" = "pluginfinity-dogfood heartbeat: heartbeat is alive" ]
 	grep -q "monitor/heartbeat.sh: env: PWD=" "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/debug.log"

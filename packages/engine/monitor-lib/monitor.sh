@@ -15,7 +15,9 @@
 # $(...) or a pipeline subshell; call it directly from the polled function.
 #
 # PLUGINFINITY_MONITOR_MAX_TICKS=<n> is a contract every monitor honours: stop
-# after n polls. monitor_every does it for you; a monitor that does not use it,
+# after n checks, however triggered (a poll, a startup sweep, or one handled
+# event). n is a positive integer; monitor_every logs any other value once and
+# ignores it (unbounded). monitor_every does it for you; a monitor that does not use it,
 # such as a node `command` monitor, must honour it itself, because the bats
 # helper's run_monitor sets it to bound a test. Do not set it in a plugin.
 
@@ -102,6 +104,22 @@ monitor_every() {
 		;;
 	esac
 	_pf_fn=${2:-:}
+	# PLUGINFINITY_MONITOR_MAX_TICKS is a positive integer; anything else is
+	# logged once and treated as unset, so a test mistake never loops on an error.
+	_pf_max=${PLUGINFINITY_MONITOR_MAX_TICKS:-}
+	case "$_pf_max" in
+	'') ;;
+	*[!0-9]*)
+		monitor_log "monitor_every: PLUGINFINITY_MONITOR_MAX_TICKS '$_pf_max' is not a positive integer; ignoring it"
+		_pf_max=
+		;;
+	*)
+		if [ "$_pf_max" -le 0 ] 2>/dev/null; then
+			monitor_log "monitor_every: PLUGINFINITY_MONITOR_MAX_TICKS '$_pf_max' is not a positive integer; ignoring it"
+			_pf_max=
+		fi
+		;;
+	esac
 	_pf_n=0
 	while :; do
 		if "$_pf_fn"; then _pf_rc=0; else _pf_rc=$?; fi
@@ -113,7 +131,7 @@ monitor_every() {
 			monitor_log "$_pf_fn failed (exit $_pf_rc)"
 		fi
 		_pf_n=$((_pf_n + 1))
-		if [ -n "${PLUGINFINITY_MONITOR_MAX_TICKS:-}" ] && [ "$_pf_n" -ge "$PLUGINFINITY_MONITOR_MAX_TICKS" ]; then
+		if [ -n "$_pf_max" ] && [ "$_pf_n" -ge "$_pf_max" ]; then
 			return 0
 		fi
 		sleep "$_pf_iv"
