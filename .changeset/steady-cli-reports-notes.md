@@ -9,5 +9,5 @@
 
 ## Features
 
-* `build` reports the new `hook-matcher-runtime`, `hook-output-ignored` and `monitor-omitted` notes.
+* `build` reports the new `hook-matcher-runtime`, `hook-output-ignored` and `monitor-omitted` notes, and `env-shell-unsupported`, `env-wait-timeout`, `hook-matcher-widened` and `hook-matcher-regex`.
 * `logs` is new: `pluginfinity logs [--plugin <name>] [--debug] [--follow] [--lines <n>]` shows the logs plugins write under `${XDG_STATE_HOME:-$HOME/.local/state}/pluginfinity/<plugin>/`, the config's plugin names by default and every plugin outside one, with `--follow` to keep reading and JSON for agents and CI.

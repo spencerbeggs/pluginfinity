@@ -6,7 +6,9 @@ tags:
   - portability
 status: draft
 stale_after: 2027-01-07T00:00:00Z
-justifies: ../decisions/server-launchers-ship-by-discovery-and-files.md
+justifies:
+  - ../decisions/server-launchers-ship-by-discovery-and-files.md
+  - ../decisions/session-env-is-declared-and-resolved-once.md
 sources:
   - id: probe-runs
     resource: conversation with the repository owner

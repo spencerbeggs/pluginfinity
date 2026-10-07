@@ -27,8 +27,8 @@ sources:
     title: The COPILOT description
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:43:13Z
-  body_sha256: 5ae5fab3a50c0e311b6d566936705cff2d67403904be173f9dfcc05b567eec55
+  at: 2026-10-07T06:53:05Z
+  body_sha256: ad63e75eeb6a0bf76511867b531d7dbc3aad57593f2cdbfc1c157fe739cd6a59
 ---
 
 # @pluginfinity/targets
@@ -46,6 +46,7 @@ generated:
 - **Frontmatter names follow the measurement.** Copilot's `tools.names` writes `grep`, `glob`, `web_fetch` and `web_search` by their literal names, because agents restricted to the documented aliases `search`, `web` or `todo` executed no tool (0/6 each, two models) while the literal names executed 6/6 ([alias follow-up](../measurements/copilot-runtime-names.md)). `TodoWrite` is dropped with a `tool-dropped` note, as is `Skill`; `read`, `edit`, `execute` and `agent` stay as documented.
 
 - **Hook facts.** Each description's `hooks` part lists `matcherIgnored`, the Claude events whose matcher the host ignores (Copilot: `SessionStart`, `SessionEnd`, `SubagentStop`; Claude Code: none), and `output`, the events where the host honours a hook's `context` and `system_message` (Copilot honours no system message). The `output` lists mirror `hook_supports` in the engine's hook library, and a test pins the two together. See [the entry-env decision](../decisions/entry-facts-travel-as-env.md).
+- **Session env and skill directories.** Claude Code's `hooks.envShell` is `SessionStart`, `Setup`, `CwdChanged` and `FileChanged` (where `CLAUDE_ENV_FILE` exists) and Copilot's is empty, so a Copilot plugin that declares `env` gets an `env-shell-unsupported` note. Claude Code's `skills.dirSpelling` is `${CLAUDE_SKILL_DIR}` for the own skill and `${CLAUDE_PLUGIN_ROOT}/skills/{skill}` for another or from an agent; Copilot's is the placeholder `<skill base directory>`, `<skill base directory>/../{skill}` for another, and unresolved from an agent ([decision](../decisions/skill-dir-token-names-a-skills-directory.md)).
 - **Monitors.** Claude Code's `monitors` placement is `monitors/monitors.json` with the `${CLAUDE_PLUGIN_ROOT}` spelling; Copilot's is unresolved, because Copilot CLI has no monitors ([decision](../decisions/monitors-are-a-component.md)). The assembled config also takes a target-level `files` and `monitors`.
 
 Adding a host means a registry entry and a config key here, in one release.

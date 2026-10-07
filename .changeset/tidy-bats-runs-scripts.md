@@ -10,6 +10,8 @@
 * One test project, `$BATS_TEST_TMPDIR/project`, is the default for `hook_fixture`'s `cwd`, `HOOK_PROJECT_DIR` (so `CLAUDE_PROJECT_DIR` for `run_hook` and for skill scripts on Claude), a skill script's directory and `run_monitor`'s. It was `$BATS_TEST_TMPDIR` itself for hooks.
 * `run_script` gives a `skills/` script the environment the agent's Bash tool gives one: on Claude Code `CLAUDE_CODE_SESSION_ID=test-session` and no `CLAUDE_PLUGIN_ROOT` or `CLAUDE_PROJECT_DIR` (`HOOK_PROJECT_DIR` no longer reaches it), on Copilot no `PLUGIN_ROOT`. A launcher keeps the plugin variables. Update tests that read the plugin variables in a skill script.
 * `run_monitor` for a missing monitor now sets `$status` to 1.
+* `run_monitor` is bounded by `--timeout` (default 30 seconds) and exits with status 124 when it runs out, so a test that runs a long `--ticks` count needs a larger `--timeout`. `--timeout 0` is rejected.
+* `PLUGINFINITY_MONITOR_MAX_TICKS=0` now means unbounded, not zero ticks, so a test must not rely on it to stop a monitor.
 
 ## Features
 
@@ -19,4 +21,5 @@
 * `run_script --env-file <file>` adds a file's `NAME=value` or `export NAME=value` lines to a script's environment, parsed and not sourced, to model `CLAUDE_ENV_FILE` exports.
 * `run_monitor` starts in the project directory without the plugin variables Claude does not set and with `CLAUDE_CODE_SESSION_ID=test-session`.
 * `run_monitor --timeout <seconds>` (default 30) kills the monitor's process group and sets `$status` to 124, so a monitor that never reaches its tick count fails the test instead of hanging bats.
+* New `--session-env <file>` on `run_hook`, `run_script` and `run_monitor` seeds the session values a reader sees, as if SessionStart had run, for plugins that declare `env`.
 * `run_script` picks the interpreter by extension (`.mjs`, `.cjs` and `.js` run under `node`, anything else under `bash`) and takes `--interpreter <cmd>` to override it.

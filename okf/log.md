@@ -12,6 +12,9 @@
 * Updated dogfood plugin fixture
 * Updated pluginfinity carrier package
 * Updated pluginfinity.config.ts
+* Updated Host runtime probes, 2026-10-07
+* Updated Plugin MCP and LSP server environment on Claude Code and Copilot, 2026-10-05
+* Updated Server launchers ship by discovery and files, beside an injected server library
 
 ## 2026-10-06
 

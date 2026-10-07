@@ -24,8 +24,8 @@ sources:
     title: ServerEnv and the reserved PLUGINFINITY_ prefix
 generated:
   by: okfit/claude-code
-  at: 2026-10-07T00:21:16Z
-  body_sha256: 23ccc8bb906521a3d0765edbe3db1cc426c2399fc0cff822614654958beabf17
+  at: 2026-10-07T06:53:05Z
+  body_sha256: cd490bae2c58769b035a400d813045bfd60e6b7059e8dd6d58a2e532baa7ec2e
 ---
 
 # Plugin source model
@@ -36,7 +36,7 @@ This is the agreed design for Phase 1 of [the roadmap](../roadmaps/pluginfinity-
 
 ```text
 plugins/<name>/
-  pluginfinity.config.ts      name, metadata, targets, hooks, mcpServers, lspServers, files, scripts
+  pluginfinity.config.ts      name, metadata, targets, hooks, monitors, env, mcpServers, lspServers, files, scripts
   skills/<skill>/SKILL.md      plus any scripts/, references/, assets/
   agents/<agent>.md
   hooks/                      shipped whole; scripts referenced from the config
@@ -92,6 +92,7 @@ export default defineConfig({
 - **A hook entry** has exactly one of `script` (a path from the plugin root) or `command` (a string whose one placeholder is `${PLUGIN_ROOT}`), and optional `matcher`, `args` (with `script` only), `timeout` in seconds and `fallback`. HTTP and prompt hook types are out of scope.
 - **`failClosed`** on a hook entry makes a script that fails before answering deny or block instead of failing open. The build hands the event, the fail policy and, where the host ignores the matcher, the matcher to the script as environment variables ([decision](../decisions/entry-facts-travel-as-env.md)).
 - **`monitors`** keys kebab-case names to a `script` or `command` entry with a `description` and an optional `when` (`"always"` or `on-skill-invoke:<skill>`, the bare skill name that the build qualifies with the plugin name on Claude). A host with no monitors drops them with a note, and a source `monitors/monitors.json` is a build error.
+- **`env`** declares session variables: `vars` (name to `{default?, description?}`), an optional `prefix` and an optional plugin-relative `setup` script ([decision](../decisions/session-env-is-declared-and-resolved-once.md)). It is plugin-wide and decoded by core's `EnvConfig`; names that the env library owns are rejected.
 - **Files a `command` names** as `${PLUGIN_ROOT}/<path>` ship and are checked like `script` paths.
 - **The `hooks/` directory** ships whole to every target, so a script can source helpers the config never names, except scripts that only another target's hooks run. Test data belongs outside it. A script outside `hooks/` ships to the targets that run it.
 - **`fallback`** says what a target that lacks the event does: `"fail"` (the default) or `"omit"`.

@@ -32,8 +32,8 @@ sources:
     title: The plugin-engineer build test
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:43:13Z
-  body_sha256: 53c8b935608c3c933a41f3585f8d2a20cb30d64e3709b762e491301c3a2520b7
+  at: 2026-10-07T06:53:05Z
+  body_sha256: 417bff1e98be9a725ed63f1e00807eddf2b31143fa902342377fcc2efadd2a3b
 ---
 
 # pluginfinity companion plugin
@@ -60,11 +60,13 @@ The hooks reference covers more than declaring hooks: the [hook library](../deci
 
 On Claude Code it preloads five skills through its `skills:` list: `pluginfinity`, `hook-authoring`, `hook-events`, `plugin-scripts` and `migrating-hooks`. Copilot cannot preload skills, so a `pluginfinity:only copilot` block adds a "Read first" section that tells the agent to read the same five before acting. The build test requires the preload list and no read-first block on Claude, and the read-first block on Copilot.[^plugin-engineer-test]
 
+The `pluginfinity` skill's `references/session-env.md` teaches [session env](../decisions/session-env-is-declared-and-resolved-once.md): the `env` block, the precedence chain, readers, `hook_env_set`, the setup contract, testing and a migration recipe. Its other references cover `{{skill_dir}}`, the SessionStart matcher widening, `pluginfinity logs` and the new build notes, and the agent applies them when a plugin needs per-session values.
+
 The four skills beside the `pluginfinity` skill are:
 
 - `hook-authoring`: the bats-first loop and the script rules the library depends on, with a `references/recipes.md` of five recipes (command guard, startup context, post-edit reaction, stop gate, subagent context).
 - `hook-events`: which event to pick, what each host honours, the input each sends, and the measured host differences, with a `references/events.md`.
-- `plugin-scripts`: scripts a plugin ships outside hooks, such as a skill's `scripts/`: finding the plugin root and data directory per host, calling CLIs without leaking credentials, persistent state, the session-env pattern and bats testing.
+- `plugin-scripts`: scripts a plugin ships outside hooks, such as a skill's `scripts/`: finding the plugin root and data directory per host, calling CLIs without leaking credentials, persistent state, declared session env (sourcing `env.sh`), `{{skill_dir}}` and bats testing with `run_script` and `run_monitor`.
 - `migrating-hooks`: inventories a plugin-bot-era plugin, maps every old helper to its library equivalent in one table, and verifies the result on both hosts.
 
 `hook-authoring` and `plugin-scripts` declare `paths` globs. On Claude those only limit when the skill may be activated automatically; opening a matching file does not load it ([measured](../measurements/hook-library-live-2026-10-03.md)). Copilot has no `paths`, so the build writes the globs into the skill description. The agent body says to read the right skill before touching a hook or script rather than relying on `paths`.

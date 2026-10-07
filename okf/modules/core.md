@@ -36,8 +36,8 @@ sources:
     title: The Target class and its entries
 generated:
   by: okfit/claude-code
-  at: 2026-10-07T00:21:16Z
-  body_sha256: efda88467c683a727b027cdcbf624ebe07fb453e2fa3e3aab6d6b3da0ffe49e9
+  at: 2026-10-07T06:53:05Z
+  body_sha256: c5ebff7b040c590a533e693e66bc714994ff65d42ff3615c3fe291bdc39db54b
 ---
 
 # @pluginfinity/core
@@ -61,6 +61,8 @@ The plugin-wide half of the [config](../interfaces/config.md):[^config]
 - `SkillFrontmatter` and `AgentFrontmatter` in Claude Code's field names, with `SKILL_FIELDS` and `AGENT_FIELDS`, the lists every target's field maps must cover.[^frontmatter]
 - `Target`, a `Schema.Class` for the [target description](../models/target-description.md), validated at construction by `Target.make`, with an `lsp` part (a `placement`, a format from `LSP_FORMATS`, and a field map) beside `mcp` and a `pluginRoot.lsp` spelling. A placement is a `ServerPlacement`: `InFile` (a plugin-relative `path`) or `InManifest` (a manifest `key` and the file it `reserves`), built with `inFile` and `inManifest`; its field-map entries (`Keep`, `Rename`, `Translate`, `Degrade`, `Drop`, `Unresolved`) and `Absent` are `Schema.TaggedClass`es, built with the `keep`, `rename`, `translate`, `degrade`, `drop`, `unresolved` and `absent` constructors.[^target]
 - `makeTargetSetting`, which builds a target key's value from that target's hooks schema. A target's setting may also carry its own `files` and `monitors`.
+- `EnvConfig`, `EnvVar` and `EnvVarName`: the `env` block (`vars`, `prefix`, `setup`), with names matching `^[A-Z_][A-Z0-9_]*$`, the reserved names (`PATH`, `IFS`, `HOME`, `PWD`, `PLUGINFINITY_*`, `_PF_*`) rejected, a default that is one line, and every name checked against the prefix ([decision](../decisions/session-env-is-declared-and-resolved-once.md)). `BaseConfigFields` carries it as `env`.
+- In `Target`, `skills.dirSpelling` (`own`, `other`, `agent`) is how `{{skill_dir}}` is spelled, and `hooks.envShell` lists the Claude events from which the host passes a hook's exports to the model's shell.
 - In `Target`, the `hooks` part also holds `matcherIgnored` (the Claude events whose matcher the host ignores) and `output` (the events where the host honours a hook's `context` and `system_message`), and a `monitors` part is a `{path, root}` placement or `unresolved`.
 
 Core does not know which targets exist. [`@pluginfinity/targets`](targets.md) joins these base fields with one key per known target into `PluginfinityConfig`, which the [carrier](pluginfinity.md) exposes through `defineConfig`.

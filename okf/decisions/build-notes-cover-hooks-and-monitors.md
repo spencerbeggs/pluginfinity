@@ -23,8 +23,8 @@ sources:
     title: Where monitor-omitted notes are raised
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:45:51Z
-  body_sha256: 03e8d9eb45e14e4a5e62aa11fe21e9a5494ba122a6a4206ab72e20bd0473bf1a
+  at: 2026-10-07T06:53:05Z
+  body_sha256: 79f886c6652b39f0a5f58557f2abcfddffcce49fa8ebf8bae9e9b163af8e9a17
 ---
 
 # Build notes also report hook matchers, ignored hook output and omitted monitors
@@ -47,6 +47,7 @@ Everything in the earlier decision still holds: a note is `{target, path, kind, 
 
 - Authors see matcher moves and ignored output on the first build for each host.
 - `hook-output-ignored` can miss a helper called through a variable or a sourced file, so a clean build is not proof that every output lands.
+- Four more kinds followed with [session env](session-env-is-declared-and-resolved-once.md): `env-shell-unsupported`, `env-wait-timeout`, `hook-matcher-widened` and `hook-matcher-regex`, so the kinds are now eleven.
 - Both the `build` and `validate` human lines and their JSON `notes` arrays carry the new kinds, with no change to exit codes.
 
 [^design]: the round-1 plan and rulings of the implementing agent session, 2026-10-06
