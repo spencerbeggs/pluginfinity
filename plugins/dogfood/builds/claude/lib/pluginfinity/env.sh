@@ -51,11 +51,13 @@
 #   _pf_env_component the log component (hook|script|monitor); guessed if unset.
 #   env_load [<session id> [<project dir>]]
 #                     apply the chain into the current shell and export every
-#                     declared name. With no session id, the project pointer
-#                     for <project dir> (default: CLAUDE_PROJECT_DIR or $PWD,
-#                     walked up to the nearest .git) names the session. An
-#                     invalid session id (empty, ., /, .., a backslash, a control character)
-#                     is logged and nothing is read. Always returns 0.
+#                     declared name. With no session id, CLAUDE_CODE_SESSION_ID
+#                     names the session when it is a valid id whose values file
+#                     exists; otherwise the project pointer for <project dir>
+#                     (default: CLAUDE_PROJECT_DIR or $PWD, walked up to the
+#                     nearest .git) does. An invalid session id (empty, ., /,
+#                     .., a backslash, a control character) is logged and
+#                     nothing is read. Always returns 0.
 #   env_reload        env_load again with the arguments the last one got.
 #   _pf_env_set NAME VALUE
 #                     rank-6 write: under the lock, update the session values
@@ -455,6 +457,14 @@ env_load() {
 		else
 			_pf_env_log "invalid session id; session values not read"
 		fi
+	elif [ -n "${CLAUDE_CODE_SESSION_ID:-}" ] && _pf_env_valid_id "$CLAUDE_CODE_SESSION_ID" &&
+		[ -e "$(_pf_env_values_path "$CLAUDE_CODE_SESSION_ID")" ]; then
+		# Claude gives a skill script and a monitor CLAUDE_CODE_SESSION_ID, so prefer
+		# its own session over the pointer, which names the project's latest one.
+		# Whether it equals the hook session_id is unmeasured: only an id whose
+		# values file exists is used, else the pointer, as before. Copilot sets no
+		# such variable for a script, so it always takes the pointer.
+		_pf_env_sid=$CLAUDE_CODE_SESSION_ID
 	elif _pf_e_s=$(_pf_env_pointer_read "$_pf_env_proj"); then
 		_pf_env_sid=$_pf_e_s
 	fi

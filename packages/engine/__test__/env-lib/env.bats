@@ -211,6 +211,37 @@ load helpers
 	[ "$output" = other-project ]
 }
 
+@test "CLAUDE_CODE_SESSION_ID names the script's own session over the project pointer" {
+	make_root claude fx A
+	session_start A "$PROJECT" A=from-a
+	session_start B "$PROJECT" A=from-b
+	reader 'printf "%s\n" "$A"'
+	read_in "$PROJECT" CLAUDE_CODE_SESSION_ID=A
+	[ "$status" -eq 0 ] && [ "$output" = from-a ] && [ -z "$stderr" ]
+}
+
+@test "an unknown CLAUDE_CODE_SESSION_ID falls back to the project pointer" {
+	make_root claude fx A
+	session_start A "$PROJECT" A=from-a
+	session_start B "$PROJECT" A=from-b
+	reader 'printf "%s\n" "$A"'
+	read_in "$PROJECT" CLAUDE_CODE_SESSION_ID=unknown
+	[ "$output" = from-b ]
+	[ ! -e "$STATE/pluginfinity/fx/session/unknown" ]
+}
+
+@test "an invalid CLAUDE_CODE_SESSION_ID falls back to the pointer and writes nothing" {
+	make_root claude fx A
+	session_start A "$PROJECT" A=from-a
+	session_start B "$PROJECT" A=from-b
+	before=$(cd "$STATE" && find . | sort)
+	reader 'printf "%s\n" "$A"'
+	read_in "$PROJECT" CLAUDE_CODE_SESSION_ID=../x
+	[ "$output" = from-b ]
+	[ "$(cd "$STATE" && find . | sort)" = "$before" ]
+	[ ! -e "$STATE/pluginfinity/x" ]
+}
+
 @test "the session file outranks the reader's own ambient value (resolve once)" {
 	SETUP=scripts/setup.sh make_root claude fx A
 	setup_script 'echo A=setup'
