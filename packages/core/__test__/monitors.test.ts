@@ -33,6 +33,7 @@ describe("MonitorEntry", () => {
 		["an empty description", { script: "monitors/x.sh", description: "" }],
 		["a bad when", { script: "monitors/x.sh", description: "X.", when: "sometimes" }],
 		["an empty skill in when", { script: "monitors/x.sh", description: "X.", when: "on-skill-invoke:" }],
+		["a qualified skill in when", { script: "monitors/x.sh", description: "X.", when: "on-skill-invoke:a:b" }],
 		["a script outside the plugin", { script: "../x.sh", description: "X." }],
 		["an unknown key", { script: "monitors/x.sh", description: "X.", timeout: 5 }],
 	];

@@ -417,12 +417,19 @@ const planPlugin = (
 			for (const script of hookScripts(events)) yield* checkScript(config, script, invoke);
 			for (const file of hookCommandFiles(events)) yield* checkScript(config, file, "bash");
 		}
+		const { skills, failures: skillFailures } = yield* readSkills(config.root, KNOWN_TARGET_IDS);
+		const { agents, failures: agentFailures } = yield* readAgents(config.root, KNOWN_TARGET_IDS);
 		// The files each target's monitors run, rendered once. Like hook scripts, over every enabled
 		// target for what ships, so a monitor script under hooks/ never rides the hooks directory
 		// to a target without monitors.
 		const monitorsOf = new Map(
 			config.targets.map((id) => {
-				const rendered = renderMonitors(targetOf(id), id, targetMonitors(id, config.config), invoke);
+				const rendered = renderMonitors(targetOf(id), id, targetMonitors(id, config.config), invoke, {
+					plugin: pluginName(config.config, id),
+					skills: new Set(
+						skills.filter((skill) => skill.frontmatter.targets?.[id] !== false).map((skill) => skill.name),
+					),
+				});
 				return [id, { rendered, files: [...rendered.scripts, ...rendered.commandFiles] }] as const;
 			}),
 		);
@@ -439,8 +446,6 @@ const planPlugin = (
 		}
 		const hooksDir = yield* sourceFiles(config.root, "hooks");
 		const baseListed = yield* listedFiles(config, config.config.files ?? []);
-		const { skills, failures: skillFailures } = yield* readSkills(config.root, KNOWN_TARGET_IDS);
-		const { agents, failures: agentFailures } = yield* readAgents(config.root, KNOWN_TARGET_IDS);
 		// Every component problem in the plugin, so one build reports them all.
 		const failures: Array<ComponentInvalid> = [...skillFailures, ...agentFailures];
 		// A problem that names no target recurs for every target; keep one.
@@ -478,6 +483,10 @@ const planPlugin = (
 			const own = new Set(filesOf(events));
 			const monitored = monitorFilesOf(id);
 			notes.push(...monitored.rendered.notes);
+			if (monitored.rendered.issues.length > 0) {
+				const issue = new ComponentInvalid({ path: config.path, target: id, issues: monitored.rendered.issues });
+				if (!failures.some((seen) => seen.message === issue.message)) failures.push(issue);
+			}
 			const monitorOwn = new Set(monitored.files);
 			const servers = serverFiles(target, id, config.config);
 			const serverFilesShipped: Array<string> = [];

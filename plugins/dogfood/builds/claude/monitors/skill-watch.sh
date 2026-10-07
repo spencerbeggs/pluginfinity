@@ -1,6 +1,6 @@
 #!/bin/sh
 # Starts when the hook-eval skill is invoked (when: on-skill-invoke:hook-eval) and
-# notifies once. The live check shows whether the bare skill name matches.
+# notifies once. The build writes the plugin-qualified skill name Claude matches.
 set -eu
 _pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"
 . "$_pf_lib_dir/monitor.sh"

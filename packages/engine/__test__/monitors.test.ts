@@ -3,6 +3,8 @@ import { CLAUDE, COPILOT, PluginfinityConfig } from "@pluginfinity/targets";
 import { Schema } from "effect";
 import { renderMonitors, targetMonitors } from "../src/monitors.js";
 
+const ctx = { plugin: "m", skills: new Set(["tsdoc", "hook-eval"]) };
+
 describe("renderMonitors", () => {
 	it("Claude renders script and command monitors with the root spelled and the name exported", () => {
 		const out = renderMonitors(
@@ -17,6 +19,7 @@ describe("renderMonitors", () => {
 				},
 			},
 			"bash",
+			ctx,
 		);
 		assert.deepStrictEqual(JSON.parse(out.file?.content ?? "[]"), [
 			{
@@ -28,7 +31,7 @@ describe("renderMonitors", () => {
 				name: "issues",
 				command: `export PLUGINFINITY_MONITOR='issues'; node "\${CLAUDE_PLUGIN_ROOT}/monitors/issues.mjs"`,
 				description: "Issues.",
-				when: "on-skill-invoke:tsdoc",
+				when: "on-skill-invoke:m:tsdoc",
 			},
 		]);
 		assert.strictEqual(out.file?.path, "monitors/monitors.json");
@@ -38,20 +41,20 @@ describe("renderMonitors", () => {
 	});
 
 	it("under exec invoke a script entry drops bash", () => {
-		const out = renderMonitors(CLAUDE, "claude", { a: { script: "monitors/a.sh", description: "A." } }, "exec");
+		const out = renderMonitors(CLAUDE, "claude", { a: { script: "monitors/a.sh", description: "A." } }, "exec", ctx);
 		assert.deepStrictEqual(JSON.parse(out.file?.content ?? "[]"), [
 			{ name: "a", command: `PLUGINFINITY_MONITOR='a' "\${CLAUDE_PLUGIN_ROOT}/monitors/a.sh"`, description: "A." },
 		]);
 	});
 
 	it("with no monitors Claude writes no file", () => {
-		const out = renderMonitors(CLAUDE, "claude", {}, "bash");
+		const out = renderMonitors(CLAUDE, "claude", {}, "bash", ctx);
 		assert.strictEqual(out.file, undefined);
 		assert.deepStrictEqual(out.notes, []);
 	});
 
 	it("Copilot drops every monitor with a note and ships nothing", () => {
-		const out = renderMonitors(COPILOT, "copilot", { a: { script: "monitors/a.sh", description: "A." } }, "bash");
+		const out = renderMonitors(COPILOT, "copilot", { a: { script: "monitors/a.sh", description: "A." } }, "bash", ctx);
 		assert.strictEqual(out.file, undefined);
 		assert.deepStrictEqual(
 			out.notes.map((n) => [n.kind, n.name, n.path, n.target]),
@@ -59,6 +62,53 @@ describe("renderMonitors", () => {
 		);
 		assert.deepStrictEqual(out.scripts, []);
 		assert.deepStrictEqual(out.commandFiles, []);
+	});
+});
+
+describe("renderMonitors on-skill-invoke", () => {
+	const watch = (when: string) => ({ w: { script: "monitors/w.sh", description: "W.", when } });
+	const whenOf = (out: ReturnType<typeof renderMonitors>) => JSON.parse(out.file?.content ?? "[]")[0]?.when;
+
+	it("qualifies the bare skill with the plugin name on this target", () => {
+		const out = renderMonitors(CLAUDE, "claude", watch("on-skill-invoke:hook-eval"), "bash", {
+			...ctx,
+			plugin: "other",
+		});
+		assert.strictEqual(whenOf(out), "on-skill-invoke:other:hook-eval");
+		assert.deepStrictEqual(out.issues, []);
+	});
+
+	it("fails a skill the plugin does not have", () => {
+		const out = renderMonitors(CLAUDE, "claude", watch("on-skill-invoke:nope"), "bash", ctx);
+		assert.strictEqual(out.issues.length, 1);
+		assert.strictEqual(out.issues[0]?.key, "monitors.w.when");
+		assert.include(out.issues[0]?.message ?? "", "nope");
+	});
+
+	it("leaves always and an absent when alone", () => {
+		const out = renderMonitors(
+			CLAUDE,
+			"claude",
+			{
+				a: { script: "monitors/a.sh", description: "A.", when: "always" },
+				b: { script: "monitors/b.sh", description: "B." },
+			},
+			"bash",
+			ctx,
+		);
+		const parsed = JSON.parse(out.file?.content ?? "[]");
+		assert.strictEqual(parsed[0].when, "always");
+		assert.isFalse("when" in parsed[1]);
+		assert.deepStrictEqual(out.issues, []);
+	});
+
+	it("Copilot is unaffected: no issues, only the omission note", () => {
+		const out = renderMonitors(COPILOT, "copilot", watch("on-skill-invoke:nope"), "bash", ctx);
+		assert.deepStrictEqual(out.issues, []);
+		assert.deepStrictEqual(
+			out.notes.map((n) => n.kind),
+			["monitor-omitted"],
+		);
 	});
 });
 
@@ -84,7 +134,7 @@ describe("targetMonitors", () => {
 
 describe("renderMonitors under exec", () => {
 	it("a monitor script path with = renders without complaint", () => {
-		const out = renderMonitors(CLAUDE, "claude", { a: { script: "monitors/a=b.sh", description: "A." } }, "exec");
+		const out = renderMonitors(CLAUDE, "claude", { a: { script: "monitors/a=b.sh", description: "A." } }, "exec", ctx);
 		assert.include(out.file?.content ?? "", "a=b.sh");
 	});
 });

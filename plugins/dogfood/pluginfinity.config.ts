@@ -37,12 +37,6 @@ export default defineConfig({
 			description: "Notifies once when the hook-eval skill is invoked",
 			when: "on-skill-invoke:hook-eval",
 		},
-		// Same script under the plugin-qualified skill name, so one live run shows which form starts.
-		"skill-watch-qualified": {
-			script: "monitors/skill-watch.sh",
-			description: "Notifies once when pluginfinity-dogfood:hook-eval is invoked (qualified when)",
-			when: "on-skill-invoke:pluginfinity-dogfood:hook-eval",
-		},
 	},
 	files: ["share/", "bin/dogfood-mcp.sh"],
 	claude: true,

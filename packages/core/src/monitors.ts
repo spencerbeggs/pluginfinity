@@ -13,13 +13,19 @@ export const MonitorName = KebabName;
  * When a monitor starts: `"always"` (the default) or the first time a named
  * skill is invoked, as `on-skill-invoke:<skill>`.
  *
+ * @remarks
+ * `<skill>` is the bare skill name, so the source is host-neutral: it holds no
+ * `:`. Claude Code matches the plugin-qualified name `<plugin>:<skill>`, and
+ * the build writes that form.
+ *
  * @public
  */
 export const MonitorWhen = Schema.Union([
 	Schema.Literal("always"),
 	Schema.String.check(
-		Schema.isPattern(/^on-skill-invoke:.+$/, {
-			message: 'must be "always" or "on-skill-invoke:<skill>"',
+		Schema.isPattern(/^on-skill-invoke:[^:]+$/, {
+			message:
+				'must be "always" or "on-skill-invoke:<skill>" with the bare skill name, no plugin prefix: the build qualifies it',
 		}),
 	),
 ]);
