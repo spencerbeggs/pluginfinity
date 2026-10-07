@@ -470,8 +470,8 @@ env_load() {
 		[ -e "$(_pf_env_values_path "$CLAUDE_CODE_SESSION_ID")" ]; then
 		# Claude gives a skill script and a monitor CLAUDE_CODE_SESSION_ID, so prefer
 		# its own session over the pointer, which names the project's latest one.
-		# Whether it equals the hook session_id is unmeasured: only an id whose
-		# values file exists is used, else the pointer, as before. Copilot sets no
+		# It equals the hook session_id (measured on Claude Code 2.1.291); an id
+		# whose values file is missing falls back to the pointer. Copilot sets no
 		# such variable for a script, so it always takes the pointer.
 		_pf_env_sid=$CLAUDE_CODE_SESSION_ID
 	elif [ -n "$_pf_env_proj" ] && _pf_e_s=$(_pf_env_pointer_read "$_pf_env_proj"); then

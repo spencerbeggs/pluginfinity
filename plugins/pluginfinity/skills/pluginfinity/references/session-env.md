@@ -160,8 +160,8 @@ to stdout and never fails the script. It also loads `log.sh`, so `script_log` wo
 
 A script is not handed a session id the way a hook is. On Claude Code a skill script and a monitor get
 `CLAUDE_CODE_SESSION_ID`, and `env.sh` reads that session when the id is valid and the session has a values
-file. Whether it always equals the hooks' `session_id` is not measured, so any other id falls back to the
-project. Copilot sets no such variable for a script (its MCP server environment names none; a hook's is not
+file. It equals the hooks' `session_id` (measured on Claude Code 2.1.291, 2026-10-07), so the project pointer is
+only the fallback when that session has no values file. Copilot sets no such variable for a script (its MCP server environment names none; a hook's is not
 measured), so there `env.sh` always finds the session through the project: the runner records, per project, the
 latest session that started there. The project is `CLAUDE_PROJECT_DIR` when set, else the working directory,
 walked up to its git root. Two consequences:

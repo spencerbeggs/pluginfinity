@@ -1,7 +1,7 @@
 ---
 type: Measurement
 title: Host runtime probes, 2026-10-07
-description: What Claude Code 2.1.292 and GitHub Copilot CLI 1.0.92 showed for CLAUDE_ENV_FILE reach, the skill base-directory line, an MCP server's working directory, environment and client roots, and Copilot's SessionStart source, measured with throwaway dogfood probes, plus the downstream's skill-script environment.
+description: What Claude Code 2.1.292 and GitHub Copilot CLI 1.0.92 showed for CLAUDE_ENV_FILE reach, the skill base-directory line, an MCP server's working directory, environment and client roots, and Copilot's SessionStart source, measured with throwaway dogfood probes, plus the downstream's skill-script environment and the match between a skill script's `CLAUDE_CODE_SESSION_ID` and the hook `session_id`.
 tags:
   - portability
 status: draft
@@ -20,13 +20,18 @@ sources:
     author: human:spencer
     last_modified: 2026-10-07T00:00:00Z
     title: The downstream's independent measurement of a skill script's environment under Claude Code 2.1.291
+  - id: systems-findings-3
+    resource: savvy-web/systems round-3 findings, 2026-10-07
+    author: human:spencer
+    last_modified: 2026-10-07T00:00:00Z
+    title: The downstream's live measurement under Claude Code 2.1.291 that CLAUDE_CODE_SESSION_ID in the Bash tool equals the session_id its SessionStart hook received
   - id: server-measurement
     resource: plugin-server-environment.md
     title: The earlier server environment measurement this one extends
 generated:
   by: okfit/claude-code
-  at: 2026-10-07T06:19:38Z
-  body_sha256: e06b061f73f7ef221496ae42bc2fa5bab392a4779014d2a223a1f23dac7257aa
+  at: 2026-10-07T09:13:23Z
+  body_sha256: 28d52b5823dc746abe2b480ee3936eec43ba263f68c229a29dc9eced37f4cf6d
 ---
 
 # Host runtime probes, 2026-10-07
@@ -47,15 +52,18 @@ Throwaway probes in the dogfood fixture (commit `f7e553d`, removed afterwards) l
 | 3 | MCP server on Copilot | Working directory the plugin root; client capabilities `{"sampling":{},"elicitation":{...}}`, with no `roots`; environment names included `COPILOT_HOME`, `COPILOT_PLUGIN_ROOT`, `COPILOT_PLUGIN_DATA`, `COPILOT_AGENT_SESSION_ID`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` and `PLUGIN_ROOT`, and no project variable. `INIT_CWD` appeared only because the `pnpm copilot:debug` script launched Copilot, and is absent in a normal launch |
 | 4 | Copilot SessionStart `source` for a fresh session | `new`, so a `startup` matcher skipped the hook (`matcher startup did not match new`) |
 | 5 | Skill script environment on Claude 2.1.291 (downstream, Bash tool) | Of `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_PROJECT_DIR`, `CLAUDE_SKILL_DIR`, `CLAUDE_CODE_SESSION_ID` and `CLAUDE_ENV_FILE`, only `CLAUDE_CODE_SESSION_ID` is set, plus whatever SessionStart wrote to `CLAUDE_ENV_FILE`[^systems-findings] |
+| 6 | `CLAUDE_CODE_SESSION_ID` in the Bash tool against the hook `session_id` on Claude 2.1.291 (downstream) | Byte-identical to the `session_id` a SessionStart hook received, and `CLAUDE_ENV_FILE` exports reached the Bash tool. Copilot is not measured[^systems-findings-3] |
 
 ## What this rules in and out
 
 - A Copilot MCP server cannot learn the project: its working directory is the plugin root, the client offers no roots and no variable names the project. `server_project_dir` returning 1 there is the final answer, not a gap to close.[^server-measurement] A Claude MCP server can read `CLAUDE_PROJECT_DIR`, and the client advertised roots and answered `roots/list`; that was observed through the roots probe, which has since been removed from the fixture.
 - Session env written through `CLAUDE_ENV_FILE` reached the Bash tool and no later hook. One sibling file written in the same directory reached neither, and no other file placement was tried. That a hook needs its own file to carry a value is a design consequence of these results, not a separate measurement.
 - Both hosts insert the base-directory line, so a skill can find its own files from it. On Claude Code 2.1.291 the downstream measured `CLAUDE_SKILL_DIR` unset in the Bash tool, so a skill script cannot rely on that variable there; how a skill script learns its directory on Copilot was not measured.
+- On Claude Code a skill script or monitor can read its own session's values file by `CLAUDE_CODE_SESSION_ID`, because it equals the hooks' `session_id` (Claude Code 2.1.291); the project pointer is only the fallback. Copilot sets no such variable for a script, and whether its hook session id matches anything a script can read is unmeasured.
 - A SessionStart matcher for Copilot must accept `new` as well as `startup`; the build widens `startup` to `startup|new`.
 - Not measured: Copilot's hook environment (the probe was skipped by the `startup` matcher), and the dogfood LSP server on Copilot, which failed to start because the fixture then named a package that does not exist. The fixture now ships a working stub.
 
 [^probe-runs]: conversation with the repository owner, 2026-10-07
 [^systems-findings]: savvy-web/systems round-2 findings, 2026-10-07
+[^systems-findings-3]: savvy-web/systems round-3 findings, 2026-10-07
 [^server-measurement]: `plugin-server-environment.md`

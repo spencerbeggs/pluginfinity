@@ -187,7 +187,7 @@ printf 'package manager: %s\n' "$MYPLUGIN_PM"
   changes directory and calls `env_load "" "$PROJECT_DIR"`. It may source after the `cd` only from an absolute
   `_pf_lib_dir`.
 - **Run the script from the project.** On Claude Code `env.sh` first reads the session `CLAUDE_CODE_SESSION_ID`
-  names, when that session has a values file. Otherwise, and always on Copilot, which sets no such variable for
+  names, which equals the hooks' `session_id` (measured on 2.1.291), when that session has a values file. Otherwise, and always on Copilot, which sets no such variable for
   a script, it finds the session by the project: `CLAUDE_PROJECT_DIR`, else the working directory walked up to
   its git root, and reads the session that started there last. From elsewhere it resolves the defaults live.
 - **Never write a per-session file or `CLAUDE_ENV_FILE` by hand.** A plugin that does is migrated in the
