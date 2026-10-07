@@ -1901,6 +1901,22 @@ describe("build with monitors", () => {
 			}),
 		);
 
+		it.effect("monitors set only in a target override still reject a source monitors/monitors.json", () =>
+			Effect.gen(function* () {
+				const config = `export default {
+	name: "monitored",
+	description: "Fixture plugin.",
+	claude: { monitors: { mail: { script: "hooks/mail.sh", description: "Mail." } } },
+	copilot: true,
+};\n`;
+				const root = yield* monitoredPlugin(config, { "monitors/monitors.json": "[]\n" });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.deepStrictEqual([error.target, error.conflict], ["claude", "reserved-monitors-file"]);
+			}),
+		);
+
 		it.effect("without a monitors field, a shipped monitors/monitors.json still builds", () =>
 			Effect.gen(function* () {
 				const config = `export default {
