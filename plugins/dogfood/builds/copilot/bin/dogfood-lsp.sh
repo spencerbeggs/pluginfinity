@@ -5,6 +5,11 @@
 set -eu
 . "$PLUGINFINITY_LIB/server.sh"
 
+if ! command -v jq >/dev/null 2>&1; then
+	server_log "dogfood-lsp: jq is required"
+	exit 1
+fi
+
 # frame <json>: write one Content-Length framed message.
 frame() {
 	_len=$(printf '%s' "$1" | wc -c | tr -d ' ')

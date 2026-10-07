@@ -140,6 +140,20 @@ frame() {
 	[ "$(lsp_bodies | jq -c '[.id, .error.code]')" = '[3,-32601]' ]
 }
 
+@test "the LSP stub logs and exits 1 when jq is missing" {
+	mkdir -p "$BATS_TEST_TMPDIR/nojq"
+	for t in sh dirname basename date mkdir cat grep rm mktemp tr; do
+		ln -s "$(command -v $t)" "$BATS_TEST_TMPDIR/nojq/$t"
+	done
+	cd "$PROJECT"
+	run --separate-stderr env -i PATH="$BATS_TEST_TMPDIR/nojq" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST=claude \
+		PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_LIB="$BUILDS/claude/lib/pluginfinity" \
+		XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" /bin/sh "$BUILDS/claude/bin/start-lsp.sh" --stdio </dev/null
+	[ "$status" -eq 1 ]
+	[ -z "$output" ]
+	grep -qF "dogfood-lsp: jq is required" "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/error.log"
+}
+
 @test "the built configs point at the shipped launchers" {
 	manifest="$BUILDS/claude/.claude-plugin/plugin.json"
 	grep -q '${CLAUDE_PLUGIN_ROOT}/bin/start-mcp.sh' "$manifest"

@@ -23,8 +23,8 @@ sources:
     title: The earlier server environment measurement this one extends
 generated:
   by: okfit/claude-code
-  at: 2026-10-07T06:17:04Z
-  body_sha256: 2263cecbea4e43edac88caa92816c4488967c4ae02e66a6544af63f8af6cbc7e
+  at: 2026-10-07T06:19:38Z
+  body_sha256: e06b061f73f7ef221496ae42bc2fa5bab392a4779014d2a223a1f23dac7257aa
 ---
 
 # Host runtime probes, 2026-10-07
@@ -48,9 +48,9 @@ Throwaway probes in the dogfood fixture (commit `f7e553d`, removed afterwards) l
 
 ## What this rules in and out
 
-- A Copilot MCP server cannot learn the project: its working directory is the plugin root, the client offers no roots and no variable names the project. `server_project_dir` returning 1 there is the final answer, not a gap to close.[^server-measurement] A Claude MCP server can ask for roots or read `CLAUDE_PROJECT_DIR`.
-- Session env written through `CLAUDE_ENV_FILE` reaches the Bash tool only. A value a later hook needs must come from a file the hook itself sources, which is why the library resolves session env once at SessionStart and each hook reads it from the plugin's own file.
-- A skill can find its own files from the base-directory line on both hosts, and a skill script is given `CLAUDE_SKILL_DIR`-style paths by the caller, never by the environment.
+- A Copilot MCP server cannot learn the project: its working directory is the plugin root, the client offers no roots and no variable names the project. `server_project_dir` returning 1 there is the final answer, not a gap to close.[^server-measurement] A Claude MCP server can read `CLAUDE_PROJECT_DIR`, and the client advertised roots and answered `roots/list`; that was observed through the roots probe, which has since been removed from the fixture.
+- Session env written through `CLAUDE_ENV_FILE` reached the Bash tool and no later hook. One sibling file written in the same directory reached neither, and no other file placement was tried. That a hook needs its own file to carry a value is a design consequence of these results, not a separate measurement.
+- Both hosts insert the base-directory line, so a skill can find its own files from it. On Claude Code 2.1.291 the downstream measured `CLAUDE_SKILL_DIR` unset in the Bash tool, so a skill script cannot rely on that variable there; how a skill script learns its directory on Copilot was not measured.
 - A SessionStart matcher for Copilot must accept `new` as well as `startup`; the build widens `startup` to `startup|new`.
 - Not measured: Copilot's hook environment (the probe was skipped by the `startup` matcher), and the dogfood LSP server on Copilot, which failed to start because the fixture then named a package that does not exist. The fixture now ships a working stub.
 
