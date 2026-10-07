@@ -5,6 +5,13 @@
 * Updated @pluginfinity/core
 * Updated Monitors are a first-class component
 * Updated Plugin source model
+* Updated @pluginfinity/cli
+* Updated @pluginfinity/engine
+* Updated Claude Code monitor environment, 2026-10-07
+* Updated The pluginfinity command line
+* Updated dogfood plugin fixture
+* Updated pluginfinity carrier package
+* Updated pluginfinity.config.ts
 
 ## 2026-10-06
 

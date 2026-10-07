@@ -33,8 +33,8 @@ server_debug() { pf_debug server "$*"; }
 #   - Otherwise, when the working directory is the plugin root or inside it:
 #     nothing, status 1. Copilot starts an MCP server with its cwd at the plugin
 #     root and gives it no project directory, so that cwd says nothing about the
-#     project. On Copilot, MCP servers get no project directory; a server should
-#     ask its MCP client for roots.
+#     project. A Copilot MCP server cannot learn the project: its client offers
+#     no roots and no variable names it (measured 2026-10-07).
 #   - Otherwise: the closest directory above $PWD holding .git, else $PWD
 #     (Copilot starts LSP servers at the git root).
 server_project_dir() {
