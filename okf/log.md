@@ -15,6 +15,12 @@
 * Updated Host runtime probes, 2026-10-07
 * Updated Plugin MCP and LSP server environment on Claude Code and Copilot, 2026-10-05
 * Updated Server launchers ship by discovery and files, beside an injected server library
+* Updated @pluginfinity/targets
+* Added A skill_dir token names a skill's directory, as a placeholder on Copilot
+* Updated Build notes also report hook matchers, ignored hook output and omitted monitors
+* Updated Session env is declared in the config and resolved once at SessionStart
+* Updated Target description
+* Updated pluginfinity companion plugin
 
 ## 2026-10-06
 
