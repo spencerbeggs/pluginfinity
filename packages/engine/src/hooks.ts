@@ -199,9 +199,49 @@ type HooksRenderer = (
 	ignored: ReadonlyArray<string>,
 ) => unknown;
 
+// Mirrors the hook library: only [A-Za-z0-9_| ,-] is an exact `|` list.
+const EXACT_LIST = /^[A-Za-z0-9_| ,-]*$/;
+
+/**
+ * How a host that ignores the SessionStart matcher is told a matcher: a host
+ * names a fresh session's source `new` where Claude says `startup`, so a
+ * matcher that matches `startup` must match `new` too.
+ *
+ * An exact list holding `startup` gains `new` right after it (`startup|resume`
+ * becomes `startup|new|resume`); one that already holds `new`, an empty or `*`
+ * matcher and any matcher not matching `startup` stay as written. A regex
+ * that matches `startup` but not `new` also stays as written, reported as
+ * `unwidened` so the build can note it.
+ *
+ * @public
+ */
+export const sessionStartMatcher = (
+	matcher: string,
+): { readonly matcher: string; readonly widened: boolean; readonly unwidened: boolean } => {
+	const same = { matcher, widened: false, unwidened: false };
+	if (matcher === "" || matcher === "*") return same;
+	if (EXACT_LIST.test(matcher)) {
+		const items = matcher.split("|");
+		const at = items.indexOf("startup");
+		if (at === -1 || items.includes("new")) return same;
+		items.splice(at + 1, 0, "new");
+		return { matcher: items.join("|"), widened: true, unwidened: false };
+	}
+	try {
+		const regex = new RegExp(matcher);
+		return { ...same, unwidened: regex.test("startup") && !regex.test("new") };
+	} catch {
+		return same;
+	}
+};
+
 // An entry's matcher runs in the hook library, not the host, on an event the host ignores matchers for.
 const runtimeMatcher = (ignored: ReadonlyArray<string>, event: string, entry: HookEntry): string | undefined =>
-	ignored.includes(event) ? entry.matcher : undefined;
+	ignored.includes(event)
+		? entry.matcher !== undefined && event === "SessionStart"
+			? sessionStartMatcher(entry.matcher).matcher
+			: entry.matcher
+		: undefined;
 
 // One renderer per hooks format, total over HOOKS_FORMATS.
 const FORMATS: Record<Target["hooks"]["format"], HooksRenderer> = {

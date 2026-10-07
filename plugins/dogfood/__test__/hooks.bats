@@ -129,6 +129,19 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 	assert_hook_json .additionalContext "pluginfinity-dogfood is loaded on copilot (startup)"
 }
 
+@test "SessionStart runs on Copilot's new source: the built matcher is widened to startup|new" {
+	local matcher fx
+	matcher=$(jq -r '.hooks.SessionStart[] | select(.bash | contains("session-start.sh")) | .env.PLUGINFINITY_MATCHER' "$BATS_TEST_DIRNAME/../builds/copilot/com.github.copilot/hooks/hooks.json")
+	[ "$matcher" = "startup|new" ]
+	fx=$(hook_fixture SessionStart '{"source":"new"}')
+	run_hook copilot hooks/session-start.sh "$fx" PLUGINFINITY_MATCHER="$matcher"
+	assert_hook_json .additionalContext "pluginfinity-dogfood is loaded on copilot (new)"
+	fx=$(hook_fixture SessionStart '{"source":"resume"}')
+	run_hook copilot hooks/session-start.sh "$fx" PLUGINFINITY_MATCHER="$matcher"
+	assert_hook_exit 0
+	[ -z "$output" ]
+}
+
 @test "the Copilot hook file sets the matcher for the runtime to enforce" {
 	grep -q "PLUGINFINITY_MATCHER" "$BATS_TEST_DIRNAME/../builds/copilot/com.github.copilot/hooks/hooks.json"
 }

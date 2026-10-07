@@ -16,7 +16,7 @@
 				"timeoutSec": 5,
 				"env": {
 					"PLUGINFINITY_EVENT": "SessionStart",
-					"PLUGINFINITY_MATCHER": "startup"
+					"PLUGINFINITY_MATCHER": "startup|new"
 				}
 			}
 		],

@@ -15,6 +15,8 @@ export const BUILD_NOTE_KINDS = [
 	"monitor-omitted",
 	"env-shell-unsupported",
 	"env-wait-timeout",
+	"hook-matcher-widened",
+	"hook-matcher-regex",
 ] as const;
 
 /**
@@ -28,7 +30,10 @@ export const BUILD_NOTE_KINDS = [
  * passes no session env to the model's shell (`env-shell-unsupported`), so a
  * skill script must source `env.sh`, or a SessionStart hook whose `timeout`
  * is under the 3 seconds a reader may wait for the env runner plus headroom
- * (`env-wait-timeout`).
+ * (`env-wait-timeout`), or widened a SessionStart matcher that matches
+ * `startup` to match a host's `new` source too (`hook-matcher-widened`), or left
+ * a regex matcher as written that matches `startup` but not `new`
+ * (`hook-matcher-regex`).
  *
  * @public
  */

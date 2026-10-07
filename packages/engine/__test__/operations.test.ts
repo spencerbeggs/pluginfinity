@@ -1712,6 +1712,12 @@ describe("build notes", () => {
 		{ target: "copilot", path: "config", kind: "dropped", name: "lspServers.md.diagnostics" },
 		{ target: "copilot", path: "config", kind: "hook-matcher-runtime", name: "SessionStart" },
 		{ target: "copilot", path: "config", kind: "hook-omitted", name: "Setup" },
+		{
+			target: "copilot",
+			path: "config",
+			kind: "hook-matcher-widened",
+			name: "SessionStart startup -> startup|new",
+		},
 	];
 
 	layer(NodeServices.layer)((it) => {

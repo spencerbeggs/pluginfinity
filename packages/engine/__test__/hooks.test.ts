@@ -1,7 +1,15 @@
 import { assert, describe, it } from "@effect/vitest";
 import { CLAUDE, COPILOT, PluginfinityConfig } from "@pluginfinity/targets";
 import { Schema } from "effect";
-import { entryEnv, hookCommand, hookExec, hookScripts, renderHooks, targetHooks } from "../src/hooks.js";
+import {
+	entryEnv,
+	hookCommand,
+	hookExec,
+	hookScripts,
+	renderHooks,
+	sessionStartMatcher,
+	targetHooks,
+} from "../src/hooks.js";
 
 const config = (input: typeof PluginfinityConfig.Encoded) => Schema.decodeUnknownSync(PluginfinityConfig)(input);
 
@@ -255,7 +263,7 @@ describe("renderHooks", () => {
 		assert.notProperty(json.hooks.SessionStart[0], "matcher");
 		assert.deepStrictEqual(json.hooks.SessionStart[0].env, {
 			PLUGINFINITY_EVENT: "SessionStart",
-			PLUGINFINITY_MATCHER: "startup",
+			PLUGINFINITY_MATCHER: "startup|new",
 		});
 		assert.strictEqual(json.hooks.PreToolUse[0].matcher, "Bash");
 		assert.deepStrictEqual(json.hooks.PreToolUse[0].env, { PLUGINFINITY_EVENT: "PreToolUse" });
@@ -300,5 +308,42 @@ describe("renderHooks", () => {
 
 	it("no hooks renders no file", () => {
 		assert.isUndefined(renderHooks(CLAUDE, [], "bash"));
+	});
+});
+
+describe("sessionStartMatcher", () => {
+	it("adds new right after startup in an exact list", () => {
+		assert.deepStrictEqual(sessionStartMatcher("startup"), { matcher: "startup|new", widened: true, unwidened: false });
+		assert.strictEqual(sessionStartMatcher("startup|resume").matcher, "startup|new|resume");
+		assert.strictEqual(sessionStartMatcher("resume|startup").matcher, "resume|startup|new");
+	});
+
+	it("leaves a matcher that cannot or need not widen as written", () => {
+		for (const matcher of ["", "*", "resume", "startup|new", "new", "startuppy"]) {
+			assert.deepStrictEqual(sessionStartMatcher(matcher), { matcher, widened: false, unwidened: false }, matcher);
+		}
+	});
+
+	it("leaves a regex as written and flags one that matches startup but not new", () => {
+		assert.deepStrictEqual(sessionStartMatcher("^start.*"), { matcher: "^start.*", widened: false, unwidened: true });
+		assert.deepStrictEqual(sessionStartMatcher("^(startup|new)$"), {
+			matcher: "^(startup|new)$",
+			widened: false,
+			unwidened: false,
+		});
+		assert.isFalse(sessionStartMatcher("(").unwidened);
+	});
+
+	it("copilot passes the widened list, claude keeps the host matcher as written", () => {
+		const hooked = config({
+			name: "x",
+			description: "Fixture plugin.",
+			copilot: true,
+			hooks: { SessionStart: [{ matcher: "startup|resume", script: "hooks/s.sh" }] },
+		});
+		const copilot = JSON.parse(renderHooks(COPILOT, targetHooks(COPILOT, "copilot", hooked).events, "bash") ?? "{}");
+		assert.strictEqual(copilot.hooks.SessionStart[0].env.PLUGINFINITY_MATCHER, "startup|new|resume");
+		const claude = JSON.parse(renderHooks(CLAUDE, targetHooks(CLAUDE, "claude", hooked).events, "bash") ?? "{}");
+		assert.strictEqual(claude.hooks.SessionStart[0].matcher, "startup|resume");
 	});
 });

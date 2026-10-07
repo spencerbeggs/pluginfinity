@@ -75,6 +75,7 @@ export {
 	hookExec,
 	hookScripts,
 	renderHooks,
+	sessionStartMatcher,
 	shellEnvPrefix,
 	targetHooks,
 } from "./hooks.js";
