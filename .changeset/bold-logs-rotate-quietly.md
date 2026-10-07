@@ -11,10 +11,9 @@ The hook, server and monitor libraries now share one logging standard and a new 
 * `hook_allow` now takes `[reason] [updated-input-json]`.
 * `hook_project_dir` follows the tool call's `cwd`. Use `hook_session_dir` for the session's project.
 * `hook_project_dir` is never empty: the input's absolute `cwd` resolves to its git root or itself, then `CLAUDE_PROJECT_DIR`, then `$PWD`, and a plugin directory is never walked.
-* A source `monitors/monitors.json` fails the build as `PathConflict` (`reserved-monitors-file`) whenever the target builds monitors.
+* A source `monitors/monitors.json` fails the build as `PathConflict` (`reserved-monitors-file`) whenever the target builds monitors. Declare monitors in `pluginfinity.config.ts` instead.
 * Claude Code script hook entries render as `env K=V... bash <path>` so the event and fail policy reach every entry.
 * A hook script path containing `=` fails the build under `scripts.invoke: "exec"`.
-* A source `monitors/monitors.json` is a build error. Declare monitors in `pluginfinity.config.ts` instead.
 
 ## Features
 
@@ -44,4 +43,5 @@ Monitors build from the config's `monitors` component into Claude Code's `monito
 
 * Per-target files for skills, agents and other copied files.
 * `{{tool X | fallback}}` supplies a spelling when a host cannot name the tool.
-* ``{{tool `X`}}`` renders the tool name in a code span where the host spells it, and the plain fallback elsewhere.
+* ``{{tool `X`}}`` renders the tool name in a code span where the host spells it, and the plain fallback elsewhere. A code span jammed against the kind, ``{{tool`X`}}``, is reported as a token problem.
+* `hook_has` lists a skill or agent only on the hosts that build it (`targets: { copilot: false }` is honoured).

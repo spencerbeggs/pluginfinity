@@ -107,7 +107,7 @@ fi
 
 ## Recipe: Stop gate
 
-Keeps the agent working while a marker file exists. It relies on `Stop` and `hook_block`. A blocked stop runs the hook again with `stop_hook_active` set, so the script must let that second run proceed. Otherwise it keeps the agent going until the host's continuation cap (eight on Claude Code). The test puts the marker file in a temporary project and passes that directory as the input's `cwd`, because a non-git `cwd` outranks `CLAUDE_PROJECT_DIR` (which `HOOK_PROJECT_DIR` sets on Claude Code).
+Keeps the agent working while a marker file exists. It relies on `Stop` and `hook_block`. A blocked stop runs the hook again with `stop_hook_active` set, so the script must let that second run proceed. Otherwise it keeps the agent going until the host's continuation cap (eight on Claude Code). The test puts the marker file in the helper's default project, `$BATS_TEST_TMPDIR/project`, which `hook_fixture` uses as the input's `cwd` and `run_hook` gives Claude Code as `CLAUDE_PROJECT_DIR`. One leg sends a fixture with a null `cwd`, so `hook_project_dir` falls back to `CLAUDE_PROJECT_DIR`.
 
 ```ts
 hooks: {
@@ -131,13 +131,15 @@ fi
 
 ```bash
 @test "Stop blocks once when the marker file exists" {
-	mkdir -p "$BATS_TEST_TMPDIR/proj/.git"
-	touch "$BATS_TEST_TMPDIR/proj/.pf-dogfood-block"
-	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/proj" run_hook claude hooks/stop.sh "$(hook_fixture Stop "{\"stop_hook_active\":false,\"cwd\":\"$BATS_TEST_TMPDIR/proj\"}")"
+	mkdir -p "$BATS_TEST_TMPDIR/project/.git"
+	touch "$BATS_TEST_TMPDIR/project/.pf-dogfood-block"
+	run_hook claude hooks/stop.sh "$(hook_fixture Stop '{"stop_hook_active":false}')"
 	assert_hook_json .decision block
-	run_hook copilot hooks/stop.sh "$(hook_fixture Stop "{\"stop_hook_active\":false,\"cwd\":\"$BATS_TEST_TMPDIR/proj\"}")"
+	run_hook copilot hooks/stop.sh "$(hook_fixture Stop '{"stop_hook_active":false}')"
 	assert_hook_json .decision block
-	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/proj" run_hook claude hooks/stop.sh "$(hook_fixture Stop "{\"stop_hook_active\":true,\"cwd\":\"$BATS_TEST_TMPDIR/proj\"}")"
+	run_hook claude hooks/stop.sh "$(hook_fixture Stop '{"stop_hook_active":false,"cwd":null}')"
+	assert_hook_json .decision block
+	run_hook claude hooks/stop.sh "$(hook_fixture Stop '{"stop_hook_active":true}')"
 	assert_hook_noop
 }
 ```
