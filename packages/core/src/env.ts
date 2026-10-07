@@ -28,13 +28,22 @@ export const EnvVarName = Schema.String.check(
 );
 
 /**
- * One declared session variable. Values are strings; `default` defaults to `""`.
+ * One declared session variable. Values are strings; `default` defaults to `""`
+ * and holds no newline or other control character but tab.
  *
  * @public
  */
 export const EnvVar = Schema.Struct({
-	/** The value when nothing else sets it. Defaults to `""`. */
-	default: Schema.optionalKey(Schema.String),
+	/** The value when nothing else sets it, on one line with no control character but tab. Defaults to `""`. */
+	default: Schema.optionalKey(
+		Schema.String.check(
+			// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are rejected on purpose
+			Schema.isPattern(/^[^\u0000-\u0008\u000a-\u001f\u007f]*$/, {
+				message:
+					"must be one line with no control character but tab: the session values file holds one NAME=value per line",
+			}),
+		),
+	),
 	/** What the variable holds, for readers of the config. */
 	description: Schema.optionalKey(Schema.String),
 });

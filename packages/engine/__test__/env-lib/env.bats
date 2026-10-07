@@ -72,7 +72,7 @@ load helpers
 	SETUP=scripts/setup.sh TIMEOUT=1 make_root claude fx A=default
 	setup_script 'echo A=early; exec sleep 5'
 	session_start s1 "$PROJECT"
-	[ "$status" -eq 0 ] && [ -z "$output" ]
+	[ "$status" -eq 0 ] && [ -z "$output" ] && [ -z "$stderr" ]
 	[ "$(values s1)" = "A=default" ]
 	[[ "$(errlog)" == *"setup script scripts/setup.sh timed out after 1s; its output is discarded"* ]]
 }
@@ -123,7 +123,7 @@ load helpers
 
 @test "a session id with / or .. writes nothing anywhere and logs" {
 	make_root claude fx A=default
-	for sid in '../../escape' 'a/b' '..' 'x..y'; do
+	for sid in '../../escape' 'a/b' '..' '.' 'x..y' 'a\\b'; do
 		session_start "$sid" "$PROJECT"
 		[ "$status" -eq 0 ] && [ -z "$output" ]
 	done
@@ -387,4 +387,188 @@ echo refused'
 	read_in "$PROJECT"
 	[ "$output" = default ]
 	[ -z "$(ls "$PROJECT" | grep pwned || :)" ]
+}
+
+@test "a setup timeout ends the setup's children too, a TERM-ignoring one included" {
+	SETUP=scripts/setup.sh TIMEOUT=1 make_root claude fx A=default
+	setup_script "sleep 23 & echo \$! >'$PROJECT/kid'; (trap '' TERM; exec sleep 24) & echo \$! >'$PROJECT/stubborn'; echo A=early; wait"
+	session_start s1 "$PROJECT"
+	[ "$status" -eq 0 ] && [ -z "$output" ] && [ -z "$stderr" ]
+	[ "$(values s1)" = "A=default" ]
+	kid=$(cat "$PROJECT/kid") stubborn=$(cat "$PROJECT/stubborn")
+	[ -n "$kid" ] && [ -n "$stubborn" ]
+	! kill -0 "$kid" 2>/dev/null
+	! kill -0 "$stubborn" 2>/dev/null
+}
+
+@test "Copilot with no event cwd skips setup with a log line; defaults still resolve" {
+	SETUP=scripts/setup.sh make_root copilot fx A=default
+	setup_script "echo A=from-setup; touch '$BATS_TEST_TMPDIR/setup-ran'"
+	session_start_raw '{"sessionId":"c1","source":"new"}'
+	[ "$status" -eq 0 ] && [ -z "$output" ]
+	[ "$(values c1)" = "A=default" ]
+	[ ! -e "$BATS_TEST_TMPDIR/setup-ran" ]
+	[[ "$(errlog)" == *"env: no project; setup script scripts/setup.sh skipped"* ]]
+}
+
+@test "the values file and its directories are private (umask 077)" {
+	make_root claude fx A=default
+	session_start s1 "$PROJECT" CLAUDE_ENV_FILE="$BATS_TEST_TMPDIR/envfile"
+	[[ "$(ls -l "$STATE/pluginfinity/fx/session/s1/env")" == "-rw-------"* ]]
+	[[ "$(ls -ld "$STATE/pluginfinity/fx/session/s1")" == "drwx------"* ]]
+	[[ "$(ls -ld "$STATE/pluginfinity/fx/session")" == "drwx------"* ]]
+}
+
+# broken_jq: a PATH whose jq fails, so the runner falls back to its sed match.
+broken_jq() {
+	mkdir -p "$BATS_TEST_TMPDIR/shim"
+	printf '#!/bin/sh\nexit 1\n' >"$BATS_TEST_TMPDIR/shim/jq"
+	chmod +x "$BATS_TEST_TMPDIR/shim/jq"
+	printf '%s' "$BATS_TEST_TMPDIR/shim:$PATH"
+}
+
+@test "without a working jq: the event still names the session and project" {
+	make_root claude fx A
+	printf 'A=dotenv\n' >"$PROJECT/.env"
+	session_start s1 "$PROJECT/sub" PATH="$(broken_jq)"
+	[ "$(values s1)" = "A=dotenv" ]
+}
+
+@test "without a working jq: an escaped control character in the session id is refused" {
+	make_root claude fx A=default
+	session_start 's1\u0001' "$PROJECT" PATH="$(broken_jq)"
+	[ ! -e "$STATE/pluginfinity/fx/session" ]
+	[[ "$(errlog)" == *"invalid session id"* ]]
+}
+
+# --- R13: SessionStart readers wait for the runner ----------------------------
+
+# reader_bg <out> <sid>: start a SessionStart reader for session <sid> in the background.
+reader_bg() {
+	manual 'env_load "$1" "$PWD"; printf "%s\n" "$A"'
+	env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" XDG_STATE_HOME="$STATE" PLUGINFINITY_EVENT=SessionStart \
+		"${SH_UNDER_TEST:-sh}" -c 'cd "$1" && exec "$2" "$3" "$4"' _ "$PROJECT" "${SH_UNDER_TEST:-sh}" \
+		"$ROOT/skills/x/scripts/run.sh" "$2" >"$1" 2>&1 &
+	READER=$!
+}
+
+@test "a SessionStart reader started before the runner sees the runner's values" {
+	SETUP=scripts/setup.sh make_root claude fx A=default
+	setup_script 'sleep 1; echo A=from-setup'
+	reader_bg "$BATS_TEST_TMPDIR/out" s1
+	session_start s1 "$PROJECT"
+	wait "$READER"
+	[ "$(cat "$BATS_TEST_TMPDIR/out")" = from-setup ]
+	[[ "$(errlog)" != *"had not finished"* ]]
+}
+
+@test "a SessionStart reader gives up after 3s and resolves live with a log line" {
+	make_root claude fx A=default
+	printf 'A=dotenv\n' >"$PROJECT/.env"
+	manual 'env_load s9 "$PWD"; printf "%s\n" "$A"'
+	start=$SECONDS
+	read_in "$PROJECT" PLUGINFINITY_EVENT=SessionStart
+	[ "$output" = dotenv ]
+	[ $((SECONDS - start)) -ge 2 ]
+	[[ "$(errlog)" == *"env: the env runner had not finished after 3s; resolving live"* ]]
+}
+
+@test "a reader in any other event never waits" {
+	make_root claude fx A=default
+	manual 'env_load s9 "$PWD"; printf "%s\n" "$A"'
+	start=$SECONDS
+	read_in "$PROJECT" PLUGINFINITY_EVENT=PreToolUse
+	[ "$output" = default ]
+	[ $((SECONDS - start)) -lt 2 ]
+	[[ "$(errlog)" != *"had not finished"* ]]
+}
+
+# --- R14: a same-id rerun keeps rung 6 ----------------------------------------
+
+@test "a same-id SessionStart rerun keeps names set at rung 6 and re-resolves the rest" {
+	SETUP=scripts/setup.sh make_root claude fx A B
+	setup_script 'echo A=first; echo B=first'
+	session_start s1 "$PROJECT"
+	manual 'env_load s1 "$PWD"; _pf_env_set A from-hook'
+	read_in "$PROJECT"
+	[ "$(cat "$STATE/pluginfinity/fx/session/s1/set")" = A ]
+	setup_script 'echo A=second; echo B=second'
+	session_start s1 "$PROJECT"
+	[ "$(values s1)" = "$(printf 'A=from-hook\nB=second')" ]
+}
+
+@test "a new session id does not inherit rung 6" {
+	SETUP=scripts/setup.sh make_root claude fx A
+	setup_script 'echo A=setup'
+	session_start s1 "$PROJECT"
+	manual 'env_load s1 "$PWD"; _pf_env_set A from-hook'
+	read_in "$PROJECT"
+	session_start s2 "$PROJECT"
+	[ "$(values s2)" = "A=setup" ]
+}
+
+@test "_pf_env_set records a name once in the set file" {
+	make_root claude fx A B
+	session_start s1 "$PROJECT"
+	manual 'env_load s1 "$PWD"; _pf_env_set A 1; _pf_env_set A 2; _pf_env_set B 3'
+	read_in "$PROJECT"
+	[ "$(cat "$STATE/pluginfinity/fx/session/s1/set")" = "$(printf 'A\nB')" ]
+	[ "$(values s1)" = "$(printf 'A=2\nB=3')" ]
+}
+
+# --- R15: the lock -----------------------------------------------------------
+
+@test "two concurrent _pf_env_set loops both land" {
+	make_root claude fx A B
+	session_start s1 "$PROJECT"
+	manual 'env_load s1 "$PWD"; i=0; while [ "$i" -lt 25 ]; do i=$((i + 1)); _pf_env_set "$1" "$1$i"; done'
+	for name in A B; do
+		env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" XDG_STATE_HOME="$STATE" \
+			"${SH_UNDER_TEST:-sh}" -c 'cd "$1" && exec "$2" "$3" "$4"' _ "$PROJECT" "${SH_UNDER_TEST:-sh}" \
+			"$ROOT/skills/x/scripts/run.sh" "$name" &
+	done
+	wait
+	[ "$(values s1)" = "$(printf 'A=A25\nB=B25')" ]
+	[ ! -e "$STATE/pluginfinity/fx/session/s1/lock" ]
+}
+
+@test "a stale lock is removed and the write proceeds" {
+	make_root claude fx A
+	session_start s1 "$PROJECT"
+	mkdir "$STATE/pluginfinity/fx/session/s1/lock"
+	echo $(($(date +%s) - 100)) >"$STATE/pluginfinity/fx/session/s1/lock/at"
+	manual 'env_load s1 "$PWD"; _pf_env_set A v'
+	start=$SECONDS
+	read_in "$PROJECT"
+	[ $((SECONDS - start)) -lt 2 ]
+	[ "$(values s1)" = "A=v" ]
+	[ ! -e "$STATE/pluginfinity/fx/session/s1/lock" ]
+}
+
+@test "a lock held past the retry bound is logged and the write proceeds (fail open)" {
+	make_root claude fx A
+	session_start s1 "$PROJECT"
+	mkdir "$STATE/pluginfinity/fx/session/s1/lock"
+	date +%s >"$STATE/pluginfinity/fx/session/s1/lock/at"
+	manual 'env_load s1 "$PWD"; _pf_env_set A v'
+	read_in "$PROJECT"
+	[ "$status" -eq 0 ]
+	[ "$(values s1)" = "A=v" ]
+	[[ "$(errlog)" == *"env: the session values lock is held too long; writing without it"* ]]
+	# Not ours to release.
+	[ -d "$STATE/pluginfinity/fx/session/s1/lock" ]
+}
+
+@test "the runner writes its done marker" {
+	make_root claude fx A=default
+	session_start s1 "$PROJECT"
+	[ -e "$STATE/pluginfinity/fx/session/s1/done" ]
+}
+
+@test "a setup timeout sends TERM to the setup's children first, so they can clean up" {
+	SETUP=scripts/setup.sh TIMEOUT=1 make_root claude fx A=default
+	setup_script "(trap 'touch \"$PROJECT/got-term\"; exit 0' TERM; sleep 23 & wait) & wait"
+	session_start s1 "$PROJECT"
+	[ "$status" -eq 0 ] && [ -z "$stderr" ]
+	[ -e "$PROJECT/got-term" ]
 }

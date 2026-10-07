@@ -19,9 +19,29 @@
 # authoritative and evaluates the chain live (without setup) only for names the
 # file lacks, or when there is no file at all.
 #
-# State, under ${XDG_STATE_HOME:-$HOME/.local/state}/pluginfinity/<plugin>/:
-#   session/<session id>/env      one NAME=value line per declared name
+# State, under ${XDG_STATE_HOME:-$HOME/.local/state}/pluginfinity/<plugin>/
+# (directories and files created under umask 077):
+#   session/<session id>/env      one NAME=value line per declared name, the
+#                                 resolved value; the value is literal to the
+#                                 end of the line
+#   session/<session id>/set      provenance: one NAME per line for each name
+#                                 last written by _pf_env_set (rung 6). A
+#                                 SessionStart rerun under the same id keeps
+#                                 these names' values and re-resolves the rest.
+#   session/<session id>/done     written by the runner when it has finished
+#   session/<session id>/lock/    a mkdir lock around every read-merge-write of
+#                                 env and set; lock/at holds its epoch seconds
 #   project/<cksum of dir>        line 1 the latest session id, line 2 the dir
+#
+# Locking: a writer waits up to about 5 s for the lock, removes one older than
+# 10 s (or with no lock/at after 2 s) as stale, and on timeout logs and writes
+# anyway (fail open).
+#
+# Claude runs an event's hooks in parallel, so a SessionStart hook may read
+# before the runner has finished. In SessionStart only (PLUGINFINITY_EVENT),
+# env_load with a session id but no values file waits up to 3 s for the
+# runner's done marker, then resolves live with a log line. Other events never
+# wait.
 #
 # Contract for callers (the hook library and the runner):
 #   _pf_env_lib_dir   set before sourcing to this file's directory when
@@ -34,11 +54,12 @@
 #                     declared name. With no session id, the project pointer
 #                     for <project dir> (default: CLAUDE_PROJECT_DIR or $PWD,
 #                     walked up to the nearest .git) names the session. An
-#                     invalid session id (empty, /, .., a control character)
+#                     invalid session id (empty, ., /, .., a backslash, a control character)
 #                     is logged and nothing is read. Always returns 0.
 #   env_reload        env_load again with the arguments the last one got.
 #   _pf_env_set NAME VALUE
-#                     rank-6 write: update the session values file (atomically),
+#                     rank-6 write: under the lock, update the session values
+#                     file (atomically) and record NAME in the set file,
 #                     export NAME in this shell and, on Claude with
 #                     CLAUDE_ENV_FILE set, append `export NAME='VALUE'` to it.
 #                     Returns 1, with a log line, for an undeclared name, a
@@ -104,10 +125,10 @@ _pf_env_is_name() {
 	return 0
 }
 
-# 0 when $1 is a usable session id: not empty, no /, no .., no control character.
+# 0 when $1 is a usable session id: not empty, not ., no /, no .., no \, no control character.
 _pf_env_valid_id() {
 	case ${1:-} in
-	'' | */* | *..*) return 1 ;;
+	'' | . | */* | *..* | *\\*) return 1 ;;
 	esac
 	[ "$(printf '%s' "$1" | tr -d '[:cntrl:]')" = "$1" ]
 }
@@ -145,7 +166,95 @@ _pf_env_key() {
 }
 
 _pf_env_pointer_path() { printf '%s/project/%s\n' "$(_pf_env_state_root)" "$(_pf_env_key "$1")"; }
-_pf_env_values_path() { printf '%s/session/%s/env\n' "$(_pf_env_state_root)" "$1"; }
+_pf_env_session_dir() { printf '%s/session/%s\n' "$(_pf_env_state_root)" "$1"; }
+_pf_env_values_path() { printf '%s/env\n' "$(_pf_env_session_dir "$1")"; }
+
+# Sleep one tick (0.1 s) and count it in _pf_e_ticks; where sleep takes whole
+# seconds only, sleep 1 and count ten.
+_pf_env_nap() {
+	if sleep 0.1 2>/dev/null; then
+		_pf_e_ticks=$((_pf_e_ticks + 1))
+	else
+		sleep 1
+		_pf_e_ticks=$((_pf_e_ticks + 10))
+	fi
+}
+
+# Take the lock in session directory $1: mkdir with bounded retry (about 5 s).
+# A lock older than 10 s, or one whose at file is still missing after 2 s, is
+# stale and removed. On timeout, log and go on without it. Always returns 0.
+_pf_env_lock() {
+	_pf_e_lk="$1/lock"
+	_pf_e_held=
+	(umask 077 && mkdir -p "$1") 2>/dev/null || return 0
+	_pf_e_ticks=0
+	_pf_e_noat=0
+	while [ "$_pf_e_ticks" -lt 50 ]; do
+		if mkdir "$_pf_e_lk" 2>/dev/null; then
+			date +%s >"$_pf_e_lk/at" 2>/dev/null || :
+			_pf_e_held=1
+			return 0
+		fi
+		_pf_e_at=$(cat "$_pf_e_lk/at" 2>/dev/null) || _pf_e_at=
+		case $_pf_e_at in
+		'' | *[!0123456789]*)
+			_pf_e_noat=$((_pf_e_noat + 1))
+			if [ "$_pf_e_noat" -gt 20 ]; then
+				_pf_env_debug "removing a lock with no time as stale"
+				rm -f "$_pf_e_lk/at" 2>/dev/null
+				rmdir "$_pf_e_lk" 2>/dev/null
+				_pf_e_noat=0
+				continue
+			fi
+			;;
+		*)
+			_pf_e_now=$(date +%s 2>/dev/null) || _pf_e_now=$_pf_e_at
+			if [ $((_pf_e_now - _pf_e_at)) -gt 10 ]; then
+				_pf_env_debug "removing a stale lock"
+				rm -f "$_pf_e_lk/at" 2>/dev/null
+				rmdir "$_pf_e_lk" 2>/dev/null
+				continue
+			fi
+			;;
+		esac
+		_pf_env_nap
+	done
+	_pf_env_log "the session values lock is held too long; writing without it"
+	return 0
+}
+
+_pf_env_unlock() {
+	if [ "${_pf_e_held:-}" = 1 ]; then
+		rm -f "$_pf_e_lk/at" 2>/dev/null
+		rmdir "$_pf_e_lk" 2>/dev/null
+	fi
+	_pf_e_held=
+	return 0
+}
+
+# 0 when NAME $2 is listed in the set file of session directory $1.
+_pf_env_was_set() {
+	[ -r "$1/set" ] || return 1
+	while IFS= read -r _pf_e_sl || [ -n "$_pf_e_sl" ]; do
+		[ "$_pf_e_sl" != "$2" ] || return 0
+	done <"$1/set"
+	return 1
+}
+
+# Under the caller's lock: the names the set file lists keep their value from the
+# values file in session directory $1 (a same-id SessionStart rerun).
+_pf_env_keep_set() {
+	[ -r "$1/set" ] && [ -r "$1/env" ] || return 0
+	while IFS= read -r _pf_e_l || [ -n "$_pf_e_l" ]; do
+		_pf_e_k=${_pf_e_l%%=*}
+		[ "$_pf_e_k" != "$_pf_e_l" ] || continue
+		_pf_env_declared "$_pf_e_k" || continue
+		_pf_env_was_set "$1" "$_pf_e_k" || continue
+		_pf_e_v=${_pf_e_l#*=}
+		eval "_pf_env_val_$_pf_e_k=\$_pf_e_v"
+	done <"$1/env"
+	return 0
+}
 
 # The session id the pointer for project $1 names, when it names this very project.
 _pf_env_pointer_read() {
@@ -314,13 +423,14 @@ _pf_env_write_values() {
 		return 1
 	}
 	_pf_e_t="$1.tmp.$$"
-	{
+	(
+		umask 077
 		for _pf_e_n in $_pf_env_names; do
 			_pf_env_declared "$_pf_e_n" || continue
 			eval "_pf_e_v=\${_pf_env_val_$_pf_e_n:-}"
 			printf '%s=%s\n' "$_pf_e_n" "$_pf_e_v"
-		done
-	} 2>/dev/null >"$_pf_e_t" && mv -f "$_pf_e_t" "$1" 2>/dev/null && return 0
+		done >"$_pf_e_t"
+	) 2>/dev/null && mv -f "$_pf_e_t" "$1" 2>/dev/null && return 0
 	rm -f "$_pf_e_t" 2>/dev/null
 	_pf_env_log "cannot write $1"
 	return 1
@@ -344,6 +454,14 @@ env_load() {
 		_pf_env_sid=$_pf_e_s
 	fi
 	[ -z "$_pf_env_sid" ] || _pf_env_file=$(_pf_env_values_path "$_pf_env_sid")
+	# In SessionStart a parallel runner may not have finished: wait for its done marker.
+	if [ -n "$_pf_env_arg_sid" ] && [ -n "$_pf_env_file" ] && [ ! -e "$_pf_env_file" ] &&
+		[ "${PLUGINFINITY_EVENT:-}" = SessionStart ]; then
+		_pf_e_done="$(_pf_env_session_dir "$_pf_env_sid")/done"
+		_pf_e_ticks=0
+		while [ ! -e "$_pf_e_done" ] && [ "$_pf_e_ticks" -lt 30 ]; do _pf_env_nap; done
+		[ -e "$_pf_e_done" ] || _pf_env_log "the env runner had not finished after 3s; resolving live"
+	fi
 	_pf_env_init
 	if [ -n "$_pf_env_file" ] && [ -r "$_pf_env_file" ]; then
 		_pf_env_read_values "$_pf_env_file"
@@ -382,10 +500,21 @@ _pf_env_set() {
 		_pf_env_log "cannot set $_pf_e_sn: no session"
 		return 1
 	fi
-	# Keep every other name as the file has it; a name it lacks keeps its resolved value.
+	# Under the lock, keep every other name as the file has it (a name it lacks keeps
+	# its resolved value), then record NAME as set at rung 6.
+	_pf_e_sd=$(dirname -- "$_pf_env_file")
+	_pf_env_lock "$_pf_e_sd"
 	if [ -r "$_pf_env_file" ]; then _pf_env_read_values "$_pf_env_file"; fi
 	eval "_pf_env_val_$_pf_e_sn=\$_pf_e_sv"
-	_pf_env_write_values "$_pf_env_file" || return 1
+	if ! _pf_env_write_values "$_pf_env_file"; then
+		_pf_env_unlock
+		return 1
+	fi
+	if ! _pf_env_was_set "$_pf_e_sd" "$_pf_e_sn"; then
+		(umask 077 && printf '%s\n' "$_pf_e_sn" >>"$_pf_e_sd/set") 2>/dev/null ||
+			_pf_env_log "cannot record $_pf_e_sn in the set file"
+	fi
+	_pf_env_unlock
 	eval "$_pf_e_sn=\$_pf_e_sv"
 	export "${_pf_e_sn?}"
 	_pf_env_claude_export "$_pf_e_sn"

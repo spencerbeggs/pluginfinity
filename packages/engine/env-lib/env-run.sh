@@ -16,8 +16,13 @@
 # plus PLUGINFINITY_EVENT=SessionStart, and the event on stdin. Its stdout is
 # NAME=value lines (blank and # lines ignored, values literal, later lines
 # win); an undeclared name is skipped with a log line. It is bounded by
-# _pf_env_setup_timeout seconds: on timeout nothing it printed is kept; on a
-# non-zero exit its valid lines are kept.
+# _pf_env_setup_timeout seconds: on timeout the setup and every process it
+# started are terminated (then killed after 1 s) and nothing it printed is
+# kept; on a non-zero exit its valid lines are kept. With no project (a Copilot
+# event with no cwd) setup is skipped with a log line.
+#
+# Under the session lock it keeps the names a same-id rerun finds recorded as
+# set at rung 6, writes the values, then writes the session's done marker.
 
 _pf_env_lib_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) || exit 0
 _pf_env_manual=1
@@ -39,14 +44,16 @@ else
 	cat >"$_pf_r_tmp/input" 2>/dev/null || :
 fi
 
-# A top-level string field of the event: jq when present, else a plain match
-# that gives up on escapes.
+# A top-level string field of the event: jq when it works, else a plain match
+# that keeps escape sequences as written (a session id holding one is invalid).
+_pf_r_jq=
+if command -v jq >/dev/null 2>&1 && jq -n 1 >/dev/null 2>&1; then _pf_r_jq=1; fi
 _pf_r_field() {
-	if command -v jq >/dev/null 2>&1; then
+	if [ -n "$_pf_r_jq" ]; then
 		jq -r --arg k "$1" 'if type == "object" then (.[$k] // empty) | strings else empty end' \
 			<"$_pf_r_tmp/input" 2>/dev/null || :
 	else
-		tr -d '\n' <"$_pf_r_tmp/input" | sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"\\\\]*\)\".*/\1/p"
+		tr -d '\n' <"$_pf_r_tmp/input" | sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p"
 	fi
 }
 
@@ -70,6 +77,30 @@ esac
 
 _pf_env_init
 
+# Every process below $1, from one ps snapshot.
+_pf_r_descendants() {
+	ps -A -o pid= -o ppid= 2>/dev/null | awk -v root="$1" '
+		{ parent[$1] = $2 }
+		END {
+			for (p in parent) {
+				q = p
+				for (i = 0; i < 64 && q != "" && q != 0 && q != 1; i++) {
+					q = parent[q]
+					if (q == root) { print p; break }
+				}
+			}
+		}'
+}
+
+# Send signal $1 to process $2, to its process group when it leads one ($4 is
+# the group id seen at the first signal), and to the pids in $3.
+_pf_r_signal() {
+	case ${2:-} in '' | 0 | 1 | *[!0123456789]*) return 0 ;; esac
+	if [ "${4:-}" = "$2" ]; then kill -s "$1" -- "-$2" 2>/dev/null || :; fi
+	# shellcheck disable=SC2086 # pids are words
+	kill -s "$1" "$2" ${3:-} 2>/dev/null || :
+}
+
 # Rung 2: the setup script.
 _pf_r_setup() {
 	[ -n "$_pf_env_setup" ] || return 0
@@ -78,24 +109,42 @@ _pf_r_setup() {
 		_pf_env_log "setup script $_pf_env_setup is missing; skipped"
 		return 0
 	fi
+	if [ -z "$_pf_r_proj" ]; then
+		_pf_env_log "no project; setup script $_pf_env_setup skipped"
+		return 0
+	fi
 	_pf_r_t=$_pf_env_setup_timeout
 	case $_pf_r_t in '' | *[!0123456789]*) _pf_r_t=10 ;; esac
-	_pf_r_in=${_pf_r_proj:-$PWD}
+	# Its own process group where job control allows (bash, bash as sh), so a
+	# timeout can signal the group; the descendant walk covers dash, which has no
+	# job control without a terminal.
+	set -m 2>/dev/null || :
 	(
-		CDPATH='' cd -- "$_pf_r_in" 2>/dev/null || exit 1
+		CDPATH='' cd -- "$_pf_r_proj" 2>/dev/null || exit 1
 		PLUGINFINITY_EVENT=SessionStart
 		export PLUGINFINITY_EVENT
 		exec bash "$_pf_r_script"
 	) <"$_pf_r_tmp/input" >"$_pf_r_tmp/out" 2>"$_pf_r_tmp/err" &
 	_pf_r_pid=$!
+	set +m 2>/dev/null || :
 	(
 		sleep "$_pf_r_t"
 		: >"$_pf_r_tmp/timedout"
-		kill -TERM "$_pf_r_pid" 2>/dev/null
+		# One snapshot: by the KILL the orphans belong to init and no walk finds them.
+		_pf_r_kids=$(_pf_r_descendants "$_pf_r_pid")
+		_pf_r_pg=$(ps -o pgid= -p "$_pf_r_pid" 2>/dev/null | tr -d ' ')
+		_pf_r_signal TERM "$_pf_r_pid" "$_pf_r_kids" "$_pf_r_pg"
+		sleep 1
+		_pf_r_signal KILL "$_pf_r_pid" "$_pf_r_kids" "$_pf_r_pg"
 	) </dev/null >/dev/null 2>&1 &
 	_pf_r_watch=$!
-	if wait "$_pf_r_pid"; then _pf_r_rc=0; else _pf_r_rc=$?; fi
-	kill "$_pf_r_watch" 2>/dev/null || :
+	if wait "$_pf_r_pid" 2>/dev/null; then _pf_r_rc=0; else _pf_r_rc=$?; fi
+	# After a timeout the watcher still owes the KILL for anything that ignored TERM.
+	if [ -e "$_pf_r_tmp/timedout" ]; then
+		wait "$_pf_r_watch" 2>/dev/null || :
+	else
+		kill "$_pf_r_watch" 2>/dev/null || :
+	fi
 	if pf_debug_on 2>/dev/null && [ -s "$_pf_r_tmp/err" ]; then
 		head -n 20 "$_pf_r_tmp/err" | while IFS= read -r _pf_r_l; do _pf_env_debug "setup: $_pf_r_l"; done
 	fi
@@ -123,7 +172,14 @@ _pf_r_setup
 _pf_env_live "$_pf_r_proj"
 
 if _pf_env_valid_id "$_pf_r_sid"; then
-	if _pf_env_write_values "$(_pf_env_values_path "$_pf_r_sid")" && [ -n "$_pf_r_proj" ]; then
+	_pf_r_sd=$(_pf_env_session_dir "$_pf_r_sid")
+	_pf_env_lock "$_pf_r_sd"
+	# A same-id rerun keeps what _pf_env_set wrote (rung 6) and re-resolves the rest.
+	_pf_env_keep_set "$_pf_r_sd"
+	if _pf_env_write_values "$_pf_r_sd/env"; then _pf_r_ok=1; else _pf_r_ok=; fi
+	_pf_env_unlock
+	(umask 077 && : >"$_pf_r_sd/done") 2>/dev/null || :
+	if [ -n "$_pf_r_ok" ] && [ -n "$_pf_r_proj" ]; then
 		_pf_r_ptr=$(_pf_env_pointer_path "$_pf_r_proj")
 		if (umask 077 && mkdir -p "$(dirname -- "$_pf_r_ptr")") 2>/dev/null &&
 			printf '%s\n%s\n' "$_pf_r_sid" "$_pf_r_proj" >"$_pf_r_ptr.tmp.$$" 2>/dev/null &&

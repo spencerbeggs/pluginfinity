@@ -23,7 +23,7 @@ describe("EnvConfig", () => {
 
 	it.effect("needs only vars, and admits names with no prefix set", () =>
 		Effect.gen(function* () {
-			const env = { vars: { _X: {}, A1: { default: "" } } };
+			const env = { vars: { _X: {}, A1: { default: "" }, TABBED: { default: "a\tb = 'c'" } } };
 			assert.deepStrictEqual(yield* decodeEnv(env), env);
 		}),
 	);
@@ -48,6 +48,10 @@ describe("EnvConfig", () => {
 		["PATH", { vars: { PATH: {} } }],
 		["IFS", { vars: { IFS: {} } }],
 		["a non-string default", { vars: { X: { default: 1 } } }],
+		["a default with a newline", { vars: { X: { default: "a\nb" } } }],
+		["a default with a carriage return", { vars: { X: { default: "a\rb" } } }],
+		["a default with a NUL", { vars: { X: { default: "a\u0000b" } } }],
+		["a default with DEL", { vars: { X: { default: "a\u007fb" } } }],
 		["an unknown var key", { vars: { X: { value: "a" } } }],
 		["an absolute setup", { vars: { X: {} }, setup: "/abs.sh" }],
 		["a setup outside the plugin", { vars: { X: {} }, setup: "../x.sh" }],
