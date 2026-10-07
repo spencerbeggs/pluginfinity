@@ -64,3 +64,33 @@ setup() {
 	done
 	grep -qx "export PFDOG_COLOR='green'" "$BATS_TEST_TMPDIR/claude-env.sh"
 }
+
+@test "an unseeded SessionStart hook resolves at once with no runner wait, on both targets" {
+	local target start
+	for target in claude copilot; do
+		start=$(date +%s)
+		run_hook "$target" hooks/session-start.sh sessionstart.startup.json
+		assert_hook_exit 0
+		[ $(($(date +%s) - start)) -le 1 ]
+	done
+	run grep -q "env runner had not finished" "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/error.log"
+	[ "$status" -ne 0 ]
+}
+
+@test "run_hook --env-wait keeps the library's SessionStart wait" {
+	local start
+	start=$(date +%s)
+	run_hook claude hooks/session-start.sh sessionstart.startup.json --env-wait
+	assert_hook_exit 0
+	[ $(($(date +%s) - start)) -ge 2 ]
+	grep -q "env runner had not finished after 3s" "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/error.log"
+}
+
+@test "a non-skill script under --session-env reads the seeded values, on both targets" {
+	local target
+	for target in claude copilot; do
+		run_script "$target" scripts/print-env.sh --session-env "$BATS_TEST_TMPDIR/session.env"
+		assert_hook_exit 0
+		[ "$output" = $'PFDOG_COLOR=red\nPFDOG_SHAPE=triangle\nPFDOG_LEVEL=1' ]
+	done
+}

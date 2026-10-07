@@ -63,7 +63,34 @@ _pf_seed_session_env() {
 	fi
 }
 
-# run_hook <target> <script> <fixture> [--matcher <m>] [--session-env <file>] [VAR=value...]
+# _pf_valid_session_id <id>: 0 when the session env library would accept <id>:
+# not empty, not ., and no /, .., backslash or control character.
+_pf_valid_session_id() {
+	case "${1:-}" in
+	'' | . | */* | *..* | *\\*) return 1 ;;
+	esac
+	case "$1" in
+	*[[:cntrl:]]*) return 1 ;;
+	esac
+	return 0
+}
+
+# _pf_mark_env_done <target> <session id>: write the env runner's done marker
+# for <session id> under the test's state dir, so a SessionStart reader with no
+# values file resolves live at once instead of waiting up to 3 s for a runner
+# the test never starts. Nothing happens for an invalid id or a build with no
+# env.sh.
+_pf_mark_env_done() {
+	local root="$PLUGIN_DIR/builds/$1" plugin
+	[ -f "$root/lib/pluginfinity/env.sh" ] || return 0
+	_pf_valid_session_id "$2" || return 0
+	plugin=$(sed -n "s/^PLUGINFINITY_PLUGIN='\\(.*\\)'$/\\1/p" "$root/lib/pluginfinity/host.sh" 2>/dev/null | head -n 1)
+	[ -n "$plugin" ] || return 0
+	mkdir -p "$BATS_TEST_TMPDIR/state/pluginfinity/$plugin/session/$2"
+	: >"$BATS_TEST_TMPDIR/state/pluginfinity/$plugin/session/$2/done"
+}
+
+# run_hook <target> <script> <fixture> [--matcher <m>] [--session-env <file>] [--env-wait] [VAR=value...]
 # Runs builds/<target>/<script> under env -i the way the host runs the built
 # hook entry: the entry in the target's hooks file that runs <script>, under the
 # fixture's hook_event_name (else the event of the first such entry), supplies
@@ -73,9 +100,13 @@ _pf_seed_session_env() {
 # --session-env <file> seeds the session values a reader hook sees, as if
 # SessionStart had run: the file's NAME=value lines are written to the session env
 # library's values file for the fixture's session_id, under the test state dir.
+# A SessionStart hook other than the env runner, run with no --session-env,
+# finds the runner's done marker already written for the fixture's session_id,
+# so it resolves the session env live at once; --env-wait leaves the marker out
+# and keeps the library's real wait of up to 3 s, for a test of that wait.
 # Sets $status, $output and $stderr.
 run_hook() {
-	local target=$1 script=$2 fixture=$3 matcher="" has_matcher=0 session_env=""
+	local target=$1 script=$2 fixture=$3 matcher="" has_matcher=0 session_env="" env_wait=0
 	shift 3
 	while [ $# -gt 0 ]; do
 		case "$1" in
@@ -87,6 +118,10 @@ run_hook() {
 		--session-env)
 			session_env=${2:-}
 			shift 2
+			;;
+		--env-wait)
+			env_wait=1
+			shift
 			;;
 		*) break ;;
 		esac
@@ -156,10 +191,13 @@ run_hook() {
 	if [ "$count" -gt 1 ] && [ "$has_matcher" -eq 0 ]; then
 		echo "run_hook: $count entries run $script; using the first (pass --matcher)" >&2
 	fi
+	local sid
+	sid=$(jq -r '.session_id // .sessionId // empty' "$fixture")
 	if [ -n "$session_env" ]; then
-		local sid
-		sid=$(jq -r '.session_id // .sessionId // empty' "$fixture")
 		_pf_seed_session_env "$target" "$session_env" "${sid:-test-session}" || return 1
+	elif [ "$env_wait" -eq 0 ] && [ "$script" != lib/pluginfinity/env-run.sh ] &&
+		[ "$(jq -r '.[0].event | ascii_downcase' <<<"$picked")" = sessionstart ]; then
+		_pf_mark_env_done "$target" "$sid"
 	fi
 	local entry_env=() line
 	while IFS= read -r line; do
@@ -246,7 +284,9 @@ _pf_read_env_file() {
 # not sourced, to model what a SessionStart hook wrote to CLAUDE_ENV_FILE.
 # --session-env <file> seeds the session env library's own state (see run_hook)
 # for session id test-session and for the project the script runs in, so a
-# script that sources env.sh finds the values through the project pointer.
+# script that sources env.sh finds the values through the project pointer. On
+# Claude a script outside skills/ is seeded for the project its CLAUDE_PROJECT_DIR
+# names (HOOK_PROJECT_DIR, else $BATS_TEST_TMPDIR/project), which env.sh prefers.
 # Any other path, a server launcher, gets the host's plugin variables and keeps
 # the host's cwd: the plugin root on Copilot, the caller's on Claude. Each --env
 # adds VAR=value (after --env-file, so it wins); everything after the options, a
@@ -332,7 +372,11 @@ run_script() {
 		[ -n "$cwd" ] || { [ "$target" = copilot ] && cwd=$root; }
 	fi
 	if [ -n "$session_env" ]; then
-		_pf_seed_session_env "$target" "$session_env" test-session "${cwd:-$PWD}" || return 1
+		local seed_proj=${cwd:-$PWD}
+		if [ "$target" = claude ] && [ -z "$kind" ]; then
+			seed_proj=${HOOK_PROJECT_DIR:-$(_pf_project_dir)}
+		fi
+		_pf_seed_session_env "$target" "$session_env" test-session "$seed_proj" || return 1
 	fi
 	if [ -n "$cwd" ]; then
 		run --separate-stderr env -i "${_pf_env[@]}" ${filevars[@]+"${filevars[@]}"} ${vars[@]+"${vars[@]}"} bash -c 'cd "$1" && shift && exec "$@"' _ "$cwd" "${cmd[@]}" "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
