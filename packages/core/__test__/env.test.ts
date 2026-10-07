@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Schema } from "effect";
-import { BaseConfigFields, EnvConfig } from "../src/index.js";
+import { BaseConfigFields, EnvConfig, EnvVarName } from "../src/index.js";
 import { decodeStrict } from "./utils/decode.js";
 
 const decodeEnv = decodeStrict(EnvConfig);
@@ -47,6 +47,22 @@ describe("EnvConfig", () => {
 		["a reserved _PF_ name", { vars: { _PF_X: {} } }],
 		["PATH", { vars: { PATH: {} } }],
 		["IFS", { vars: { IFS: {} } }],
+		...[
+			"HOME",
+			"PWD",
+			"XDG_STATE_HOME",
+			"TMPDIR",
+			"SHELL",
+			"BASH_ENV",
+			"ENV",
+			"CDPATH",
+			"SHELLOPTS",
+			"BASHOPTS",
+			"PS4",
+		].map((name) => [name, { vars: { [name]: {} } }] as const),
+		...["CLAUDE_X", "COPILOT_X", "LD_PRELOAD", "DYLD_INSERT_LIBRARIES"].map(
+			(name) => [`a reserved ${name.slice(0, name.indexOf("_") + 1)} name`, { vars: { [name]: {} } }] as const,
+		),
 		["a non-string default", { vars: { X: { default: 1 } } }],
 		["a default with a newline", { vars: { X: { default: "a\nb" } } }],
 		["a default with a carriage return", { vars: { X: { default: "a\rb" } } }],
@@ -66,6 +82,33 @@ describe("EnvConfig", () => {
 			}),
 		);
 	}
+
+	it.effect("names the rule a reserved or malformed name breaks, at its path", () =>
+		Effect.gen(function* () {
+			const error = yield* Effect.flip(decodeEnv({ vars: { BASH_ENV: {}, lower: {}, OK: {} } }));
+			assert.include(error.message, '["vars"]["BASH_ENV"]');
+			assert.include(error.message, "is reserved");
+			assert.include(error.message, "DYLD_");
+			assert.include(error.message, '["vars"]["lower"]');
+			assert.include(error.message, "must be upper case letters");
+			assert.notInclude(error.message, "excess property");
+			assert.notInclude(error.message, '["OK"]');
+		}),
+	);
+
+	it.effect("EnvVarName rejects a reserved name on its own", () =>
+		Effect.gen(function* () {
+			const error = yield* Effect.flip(decodeStrict(EnvVarName)("CLAUDE_X"));
+			assert.include(error.message, "is reserved");
+		}),
+	);
+
+	it.effect("admits names that only resemble a reserved one", () =>
+		Effect.gen(function* () {
+			const env = { vars: { CLAUDEX: {}, MY_CLAUDE_X: {}, ENVX: {}, LDX: {}, PATHS: {} } };
+			assert.deepStrictEqual(yield* decodeEnv(env), env);
+		}),
+	);
 
 	it.effect("names every var outside the prefix", () =>
 		Effect.gen(function* () {

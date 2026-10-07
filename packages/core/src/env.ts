@@ -1,30 +1,47 @@
 import { Schema } from "effect";
 import { PluginRelativePath } from "./hooks.js";
 
-// The names the env library and the shell itself own: a declared one would shadow them.
-const RESERVED_NAMES = new Set(["PATH", "IFS", "HOME", "PWD"]);
-const RESERVED_PREFIXES = ["PLUGINFINITY_", "_PF_"];
+// The names the env library, the hosts, the shell and the loader own: a declared one
+// would shadow them in every hook and, on Claude Code, in the model's shell.
+const RESERVED_NAME_LIST = [
+	"PATH",
+	"IFS",
+	"HOME",
+	"PWD",
+	"XDG_STATE_HOME",
+	"TMPDIR",
+	"SHELL",
+	"BASH_ENV",
+	"ENV",
+	"CDPATH",
+	"SHELLOPTS",
+	"BASHOPTS",
+	"PS4",
+] as const;
+const RESERVED_NAMES: ReadonlySet<string> = new Set(RESERVED_NAME_LIST);
+const RESERVED_PREFIXES = ["PLUGINFINITY_", "_PF_", "CLAUDE_", "COPILOT_", "LD_", "DYLD_"] as const;
+const RESERVED_MESSAGE = `is reserved: ${RESERVED_NAME_LIST.join(", ")} and names starting ${RESERVED_PREFIXES.join(", ")} belong to the env library, a host, the shell or the dynamic loader`;
+const NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
+const NAME_MESSAGE = "must be upper case letters, digits and _, not starting with a digit";
+const isReserved = (name: string): boolean =>
+	RESERVED_NAMES.has(name) || RESERVED_PREFIXES.some((prefix) => name.startsWith(prefix));
 
 /**
  * A session variable's name: upper case letters, digits and `_`, not starting
  * with a digit.
  *
  * @remarks
- * The env library and the shell own a few names: `PLUGINFINITY_` and `_PF_`
- * prefixes, and `PATH`, `IFS`, `HOME` and `PWD`. A declared one would shadow
- * them in every hook, so they are rejected.
+ * The env library, the hosts, the shell and the dynamic loader own some names:
+ * `PATH`, `IFS`, `HOME`, `PWD`, `XDG_STATE_HOME`, `TMPDIR`, `SHELL`,
+ * `BASH_ENV`, `ENV`, `CDPATH`, `SHELLOPTS`, `BASHOPTS` and `PS4`, and every name
+ * starting `PLUGINFINITY_`, `_PF_`, `CLAUDE_`, `COPILOT_`, `LD_` or `DYLD_`. A
+ * declared one would shadow them in every hook, so they are rejected.
  *
  * @public
  */
 export const EnvVarName = Schema.String.check(
-	Schema.isPattern(/^[A-Z_][A-Z0-9_]*$/, {
-		message: "must be upper case letters, digits and _, not starting with a digit",
-	}),
-	Schema.makeFilter((name: string) =>
-		!RESERVED_NAMES.has(name) && !RESERVED_PREFIXES.some((prefix) => name.startsWith(prefix))
-			? undefined
-			: "is reserved: PATH, IFS, HOME, PWD and names starting PLUGINFINITY_ or _PF_ belong to the env library",
-	),
+	Schema.isPattern(NAME_PATTERN, { message: NAME_MESSAGE }),
+	Schema.makeFilter((name: string) => (isReserved(name) ? RESERVED_MESSAGE : undefined)),
 );
 
 /**
@@ -69,11 +86,20 @@ export const EnvConfig = Schema.Struct({
 			}),
 		),
 	),
-	/** The declared variables, keyed by name. */
-	vars: Schema.Record(EnvVarName, EnvVar),
+	/** The declared variables, keyed by name: each an {@link EnvVarName}. */
+	vars: Schema.Record(Schema.String, EnvVar),
 	/** A plugin-relative script that prints `NAME=value` lines at SessionStart. */
 	setup: Schema.optionalKey(PluginRelativePath),
 }).check(
+	// The names are checked here rather than as the Record's key schema: under
+	// onExcessProperty "error" a key that fails its schema is reported only as an
+	// excess property, and the rule it broke never reaches the message.
+	Schema.makeFilter((env: { readonly vars: Readonly<Record<string, unknown>> }) =>
+		Object.keys(env.vars).flatMap((name) => {
+			const issue = !NAME_PATTERN.test(name) ? NAME_MESSAGE : isReserved(name) ? RESERVED_MESSAGE : undefined;
+			return issue === undefined ? [] : [{ path: ["vars", name], issue }];
+		}),
+	),
 	Schema.makeFilter((env: { readonly prefix?: string; readonly vars: Readonly<Record<string, unknown>> }) => {
 		const prefix = env.prefix;
 		if (prefix === undefined) return undefined;
