@@ -61,8 +61,6 @@ A4. Delegate to `plugin-engineer` with "Name the skills you were told to read or
 
 **Last step. Stop block.** Do this last. Run `touch "$PWD/.pf-dogfood-block"` in the project root; the hook walks up from the session cwd to the nearest `.git`. Then finish your turn with a one-line answer. The Stop hook should block you once with the reason `pluginfinity-dogfood: delete .pf-dogfood-block, then stop`. If you get that reason, delete the file and finish. If you are not blocked, delete the file anyway and record that. Expected: blocked once.
 
-**Env probe step (final).** After the Stop block, run `echo PF_ENV_PROBE=${PF_ENV_PROBE:-unset} PF_DIR_PROBE=${PF_DIR_PROBE:-unset}` with Bash and record the output verbatim as an extra report row labelled P1. It measures whether a SessionStart `CLAUDE_ENV_FILE` export, and a separate `pf-dogfood-hook.sh` file beside it, reach the shell tool.
-
 ## Report
 
 Write the report to `.pluginfinity/hook-eval/<host>-<YYYYMMDD-HHMM>.md` in the project root, where `<host>` is `claude` or `copilot` and the stamp is the local time now. Create the directory first with `mkdir -p .pluginfinity/hook-eval`. The directory is git-ignored.
@@ -83,7 +81,6 @@ Debug enabled: yes/no
 | A2 | the four skills listed | ... | ... | yes/no |
 | A3 | paths auto-load | hook-authoring available; no automatic injection; invocation recorded | ... | yes/no |
 | A4 | plugin-engineer skill answer | ... | ... | yes/no |
-| P1 | PF_ENV_PROBE and PF_DIR_PROBE in the shell tool | recorded, no expectation | ... | n/a |
 
 ## Log excerpts
 (the new error.log and debug.log lines from this run, verbatim)

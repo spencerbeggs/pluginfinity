@@ -17,7 +17,6 @@ hooks: {
 set -euo pipefail
 . "$(dirname "$0")/lib/pluginfinity/hook.sh"
 hook_require_input
-hook_debug "probe: env-reach event=$(hook_event) PF_ENV_PROBE=${PF_ENV_PROBE-unset} PF_DIR_PROBE=${PF_DIR_PROBE-unset} session=$(hook_input session_id)"
 
 cmd=$(hook_input tool_input.command)
 case "$cmd" in
@@ -55,8 +54,6 @@ hooks: {
 set -euo pipefail
 . "$(dirname "$0")/lib/pluginfinity/hook.sh"
 hook_require_input
-. "$(dirname "$0")/lib/dogfood/probes.sh"
-probe_session_start "$(hook_input session_id)"
 
 source=$(hook_input source)
 hook_context "pluginfinity-dogfood is loaded on $(hook_host) ($source)"
@@ -88,7 +85,6 @@ hooks: {
 set -euo pipefail
 . "$(dirname "$0")/lib/pluginfinity/hook.sh"
 hook_require_input
-hook_debug "probe: env-reach event=$(hook_event) PF_ENV_PROBE=${PF_ENV_PROBE-unset} PF_DIR_PROBE=${PF_DIR_PROBE-unset} session=$(hook_input session_id)"
 
 file=$(hook_input tool_input.file_path)
 if [ -n "$file" ]; then
@@ -124,7 +120,6 @@ hooks: {
 set -euo pipefail
 . "$(dirname "$0")/lib/pluginfinity/hook.sh"
 hook_require_input
-hook_debug "probe: env-reach event=$(hook_event) PF_ENV_PROBE=${PF_ENV_PROBE-unset} PF_DIR_PROBE=${PF_DIR_PROBE-unset} session=$(hook_input session_id)"
 
 stop_hook_active=$(hook_input stop_hook_active)
 if [ "$stop_hook_active" != true ] && [ -e "$(hook_project_dir)/.pf-dogfood-block" ]; then
@@ -166,7 +161,6 @@ hooks: {
 set -euo pipefail
 . "$(dirname "$0")/lib/pluginfinity/hook.sh"
 hook_require_input
-hook_debug "probe: env-reach event=$(hook_event) PF_ENV_PROBE=${PF_ENV_PROBE-unset} PF_DIR_PROBE=${PF_DIR_PROBE-unset} session=$(hook_input session_id)"
 
 hook_context "pluginfinity-dogfood subagent context"
 ```
