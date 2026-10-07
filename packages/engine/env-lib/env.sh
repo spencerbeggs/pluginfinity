@@ -7,9 +7,14 @@
 # POSIX sh. Writes nothing to stdout. Fails open: every problem is a log line
 # and the variables keep what the chain could resolve.
 #
-# From a skill script or a monitor, one line applies the session's values:
-#   _pf_lib_dir="$(dirname "$0")/../../../lib/pluginfinity"; . "$_pf_lib_dir/env.sh"   # skills/<s>/scripts/x.sh
-#   _pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"; . "$_pf_lib_dir/env.sh"         # monitors/x.sh
+# From a skill script or a monitor, two lines apply the session's values. Build
+# the path from an absolute directory, before any cd: a relative $0 no longer
+# resolves after one.
+#   _pf_lib_dir="$(cd "$(dirname "$0")/../../../lib/pluginfinity" && pwd)"   # skills/<s>/scripts/x.sh
+#   . "$_pf_lib_dir/env.sh"
+# A script that resolves its own project sources first, changes directory, then
+# loads for that project:
+#   _pf_env_manual=1; . "$_pf_lib_dir/env.sh"; cd "$PROJECT_DIR"; env_load "" "$PROJECT_DIR"
 #
 # Precedence, lowest first: the config default, the setup script's output,
 # <project>/.env, <project>/.env.local, the ambient environment (a declared

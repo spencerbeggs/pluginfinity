@@ -55,7 +55,8 @@ Nothing loads a skill because a file matches its `paths`. Read `hook-authoring` 
 - **Session env** when a value is decided once per session and read in more than one place: a package manager, a
   switch from the project's `.env`, a directory a later hook needs. Declare it under `env` in the config, compute
   it in `env.setup` or with `hook_env_set` from `SessionStart`, and read it as a plain variable in hooks. A skill
-  script or monitor sources `lib/pluginfinity/env.sh`. Never write `CLAUDE_ENV_FILE` or a per-session file by hand,
+  script or monitor sources `lib/pluginfinity/env.sh` from an absolute directory built before any `cd`
+  (`_pf_lib_dir="$(cd "$(dirname "$0")/../../../lib/pluginfinity" && pwd)"`, then `. "$_pf_lib_dir/env.sh"`). Never write `CLAUDE_ENV_FILE` or a per-session file by hand,
   never tell the model to read the variable in its own shell (Copilot has none), and keep every `SessionStart`
   `timeout` at 5 or more. A plugin that calls `source_session_env` or writes `CLAUDE_ENV_FILE` gets migrated to it.
   When migrating, a name whose readers detect a value when it is empty gets `default: ""`, and a name that works

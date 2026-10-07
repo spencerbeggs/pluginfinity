@@ -125,14 +125,36 @@ esac
 
 Every declared name is exported, set to `""` at worst, so `set -u` is safe.
 
-**A skill script or a monitor sources `env.sh` with one line**, which applies the values to its shell:
+**A skill script or a monitor sources `env.sh`**, which applies the values to its shell. Build the library path as
+an absolute directory, before any `cd`, because a relative `$0` resolves against the working directory and stops
+finding the library after a `cd`:
 
 ```bash
-_pf_lib_dir="$(dirname "$0")/../../../lib/pluginfinity"; . "$_pf_lib_dir/env.sh"   # skills/<skill>/scripts/x.sh
-_pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"; . "$_pf_lib_dir/env.sh"         # monitors/x.sh
+_pf_lib_dir="$(cd "$(dirname "$0")/../../../lib/pluginfinity" && pwd)"   # skills/<skill>/scripts/x.sh
+# shellcheck source=/dev/null
+. "$_pf_lib_dir/env.sh"
 ```
 
-Add one `..` per extra directory between the script and the plugin root. `env.sh` is POSIX `sh`, writes nothing
+A monitor at `monitors/x.sh` uses `../lib/pluginfinity`. The `# shellcheck source=/dev/null` line keeps SC1091
+quiet, since shellcheck cannot follow a path built at run time. Add one `..` per extra directory between the
+script and the plugin root.
+
+A script that resolves its own project, such as one that `cd`s into a directory it finds, sources `env.sh` in
+manual mode: `_pf_env_manual=1` before the source skips the automatic load, and the script calls `env_load`
+itself once it knows the project.
+
+```bash
+_pf_lib_dir="$(cd "$(dirname "$0")/../../../lib/pluginfinity" && pwd)"
+_pf_env_manual=1
+# shellcheck source=/dev/null
+. "$_pf_lib_dir/env.sh"
+cd "$PROJECT_DIR" || exit 1
+env_load "" "$PROJECT_DIR"
+```
+
+Sourcing after the `cd` works only because `_pf_lib_dir` is already absolute.
+
+`env.sh` is POSIX `sh`, writes nothing
 to stdout and never fails the script. It also loads `log.sh`, so `script_log` works after it. A monitor sources
 `monitor.sh` first, so its log lines carry the `monitor` component.
 
@@ -233,7 +255,7 @@ pluginfinity's dogfood fixture, `plugins/dogfood`, carries the whole pattern:
   ```bash
   #!/usr/bin/env bash
   set -euo pipefail
-  _pf_lib_dir="$(dirname "$0")/../../../lib/pluginfinity"
+  _pf_lib_dir="$(cd "$(dirname "$0")/../../../lib/pluginfinity" && pwd)"
   . "$_pf_lib_dir/env.sh"
   printf 'PFDOG_COLOR=%s\nPFDOG_SHAPE=%s\nPFDOG_LEVEL=%s\n' "$PFDOG_COLOR" "$PFDOG_SHAPE" "$PFDOG_LEVEL"
   ```

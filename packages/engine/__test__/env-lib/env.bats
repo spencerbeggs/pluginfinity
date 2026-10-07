@@ -219,6 +219,43 @@ load helpers
 	[ "$output" = other-project ]
 }
 
+# rel_run <project dir>: run the script at $ROOT/skills/x/scripts/run.sh by a path relative to $PROJECT/sub.
+rel_run() {
+	run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" XDG_STATE_HOME="$STATE" \
+		"${SH_UNDER_TEST:-sh}" -c 'cd "$1" && exec "$2" ../../root/skills/x/scripts/run.sh "$3"' _ "$PROJECT/sub" \
+		"${SH_UNDER_TEST:-sh}" "$1"
+}
+
+@test "the documented form, built before a cd from a relative script path, still sources env.sh" {
+	make_root claude fx A=default
+	session_start s1 "$PROJECT" A=from-session
+	printf '%s\n' '#!/bin/sh' \
+		'_pf_lib_dir="$(cd "$(dirname "$0")/../../../lib/pluginfinity" && pwd)"' \
+		'cd "$1" || exit 1' \
+		'# shellcheck source=/dev/null' \
+		'. "$_pf_lib_dir/env.sh"' 'printf "%s\n" "$A"' >"$ROOT/skills/x/scripts/run.sh"
+	rel_run "$PROJECT"
+	[ "$status" -eq 0 ] && [ "$output" = from-session ] && [ -z "$stderr" ]
+}
+
+@test "the one-line form after a cd from a relative script path cannot find env.sh" {
+	make_root claude fx A=default
+	session_start s1 "$PROJECT" A=from-session
+	printf '%s\n' '#!/bin/sh' 'cd "$1" || exit 1' \
+		'_pf_lib_dir="$(dirname "$0")/../../../lib/pluginfinity"; . "$_pf_lib_dir/env.sh"' \
+		'printf "%s\n" "${A-unset}"' >"$ROOT/skills/x/scripts/run.sh"
+	rel_run "$PROJECT"
+	[ "$output" != from-session ]
+}
+
+@test "the manual form sources first, changes directory, then loads for the project it resolved" {
+	make_root claude fx A=default
+	session_start s1 "$PROJECT" A=from-session
+	manual 'cd "$1" && env_load "" "$1" && printf "%s\n" "$A"'
+	rel_run "$PROJECT"
+	[ "$status" -eq 0 ] && [ "$output" = from-session ] && [ -z "$stderr" ]
+}
+
 @test "CLAUDE_CODE_SESSION_ID names the script's own session over the project pointer" {
 	make_root claude fx A
 	session_start A "$PROJECT" A=from-a
@@ -343,7 +380,7 @@ load helpers
 
 # manual <body>: a script that sources env.sh with _pf_env_manual=1, then runs <body>.
 manual() {
-	printf '#!/bin/sh\n_pf_env_manual=1\n_pf_lib_dir="$(dirname "$0")/../../../lib/pluginfinity"; . "$_pf_lib_dir/env.sh"\n%s\n' "$1" \
+	printf '#!/bin/sh\n_pf_env_manual=1\n_pf_lib_dir="$(cd "$(dirname "$0")/../../../lib/pluginfinity" && pwd)"\n. "$_pf_lib_dir/env.sh"\n%s\n' "$1" \
 		>"$ROOT/skills/x/scripts/run.sh"
 }
 

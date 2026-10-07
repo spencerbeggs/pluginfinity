@@ -64,7 +64,7 @@ session_start_raw() {
 
 # reader <body>: a skill script that sources env.sh the documented way, then runs <body>.
 reader() {
-	printf '#!/bin/sh\n_pf_lib_dir="$(dirname "$0")/../../../lib/pluginfinity"; . "$_pf_lib_dir/env.sh"\n%s\n' "$1" \
+	printf '#!/bin/sh\n_pf_lib_dir="$(cd "$(dirname "$0")/../../../lib/pluginfinity" && pwd)"\n. "$_pf_lib_dir/env.sh"\n%s\n' "$1" \
 		>"$ROOT/skills/x/scripts/run.sh"
 }
 

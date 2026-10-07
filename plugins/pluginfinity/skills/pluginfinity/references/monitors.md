@@ -66,7 +66,7 @@ sets `_pf_lib_dir` to the library's directory, sources it, then calls the functi
 ```sh
 #!/bin/sh
 set -eu
-_pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"
+_pf_lib_dir="$(cd "$(dirname "$0")/../lib/pluginfinity" && pwd)"
 . "$_pf_lib_dir/monitor.sh"
 
 beat() {
@@ -118,7 +118,7 @@ env: {
 the monitor reads both names:
 
 ```sh
-_pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"
+_pf_lib_dir="$(cd "$(dirname "$0")/../lib/pluginfinity" && pwd)"
 . "$_pf_lib_dir/monitor.sh"
 . "$_pf_lib_dir/env.sh"
 

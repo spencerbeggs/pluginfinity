@@ -171,15 +171,21 @@ Call `_gh pr view`, never bare `gh pr view`. The fallback to `GH_TOKEN` and `GIT
 A value decided once per session, such as a detected package manager or a switch in the project's `.env`, is the
 plugin's session env: declared under `env` in the config, resolved when the session starts, and set by hooks
 with `hook_env_set`. Every hook that sources `hook.sh` sees the values with no call; a plain `command` entry does not. A skill script or a monitor sources `env.sh`, one
-line, which sets every declared name in its shell:
+two lines, which set every declared name in its shell. Build the path from an absolute directory, before any
+`cd`: a relative `$0` stops resolving after one. The directive keeps shellcheck's SC1091 quiet:
 
 ```bash
-_pf_lib_dir="$(dirname "$0")/../../../lib/pluginfinity"; . "$_pf_lib_dir/env.sh"   # skills/<skill>/scripts/x.sh
+_pf_lib_dir="$(cd "$(dirname "$0")/../../../lib/pluginfinity" && pwd)"   # skills/<skill>/scripts/x.sh
+# shellcheck source=/dev/null
+. "$_pf_lib_dir/env.sh"
 printf 'package manager: %s\n' "$MYPLUGIN_PM"
 ```
 
 - **Source it in every skill script that reads a value.** On Claude Code the model's shell already holds the
   values, but on Copilot nothing does, so a script that skips `env.sh` works on one host only.
+- **A script that resolves its own project** sets `_pf_env_manual=1` before sourcing, so nothing loads yet, then
+  changes directory and calls `env_load "" "$PROJECT_DIR"`. It may source after the `cd` only from an absolute
+  `_pf_lib_dir`.
 - **Run the script from the project.** On Claude Code `env.sh` first reads the session `CLAUDE_CODE_SESSION_ID`
   names, when that session has a values file. Otherwise, and always on Copilot, which sets no such variable for
   a script, it finds the session by the project: `CLAUDE_PROJECT_DIR`, else the working directory walked up to
