@@ -205,7 +205,8 @@ export const renderSkill = (
 				invalid(skill.path, [issue(`line ${body.problem.line + skill.bodyOffset}`, body.problem.message)]),
 			);
 		}
-		const rendered = renderTokens(body.text, tokens);
+		const own: TokenContext = { ...tokens, skill: skill.name };
+		const rendered = renderTokens(body.text, own);
 		if ("problems" in rendered) problems.push(...lineIssues(rendered.problems, body.lines, skill.bodyOffset));
 		const failures: Array<ComponentInvalid> = problems.length > 0 ? [invalid(skill.path, problems, id)] : [];
 
@@ -231,7 +232,7 @@ export const renderSkill = (
 				failures.push(invalid(absolute, [issue(`line ${processed.problem.line}`, processed.problem.message)]));
 				continue;
 			}
-			const tokened = renderTokens(processed.text, tokens);
+			const tokened = renderTokens(processed.text, own);
 			if ("problems" in tokened) {
 				failures.push(invalid(absolute, lineIssues(tokened.problems, processed.lines, 0), id));
 				continue;

@@ -33,7 +33,13 @@ const minimalTarget = {
 		lsp: `\${PLUGIN_ROOT}`,
 		body: unresolved("no expansion in bodies"),
 	},
-	skills: { dir: "skills", fields: { description: keep }, hostFields: [], invoke: "/{plugin}:{skill}" },
+	skills: {
+		dir: "skills",
+		fields: { description: keep },
+		hostFields: [],
+		invoke: "/{plugin}:{skill}",
+		dirSpelling: { own: "here", other: "there {skill}" },
+	},
 	agents: {
 		dir: "agents",
 		suffix: ".agent.md",

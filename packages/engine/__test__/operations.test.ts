@@ -1817,6 +1817,26 @@ describe("build with a plugin's own MCP tools", () => {
 				assert.include(claude, "okfit:a /okfit:k mcp__plugin_okfit_mcp__describe");
 			}),
 		);
+
+		it.effect("spells {{skill_dir}} per target and rejects a skill the target does not build", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": OWN_MCP,
+					"package.json": PACKAGE_JSON,
+					"skills/k/SKILL.md":
+						"---\nname: k\ndescription: Does k.\n---\n\nRun {{skill_dir}}/run.sh and {{skill_dir j}}.\n",
+					"skills/j/SKILL.md": "---\nname: j\ndescription: Does j.\ntargets:\n  copilot: false\n---\n\nBody.\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.include(JSON.stringify(error), 'this plugin has no skill \\"j\\"');
+				const claude = yield* build({ selection: nearest(root), targets: ["claude"], check: false });
+				assert.isAbove(claude.length, 0);
+				const text = yield* fs.readFileString(path.join(root, "builds/claude/skills/k/SKILL.md"));
+				assert.include(text, "Run ${CLAUDE_SKILL_DIR}/run.sh and ${CLAUDE_PLUGIN_ROOT}/skills/j.");
+			}),
+		);
 	});
 });
 

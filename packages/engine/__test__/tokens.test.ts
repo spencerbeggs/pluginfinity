@@ -532,3 +532,54 @@ describe("renderTokens stays linear on pathological lines", () => {
 		});
 	});
 });
+
+describe("renderTokens: skill_dir", () => {
+	const inAlpha = (target: typeof CLAUDE) => tokenContext(target, { skill: "alpha" });
+
+	it("spells the own skill's directory per host", () => {
+		assert.strictEqual(
+			text(renderTokens("{{skill_dir}}/scripts/run.sh", inAlpha(CLAUDE))),
+			"${CLAUDE_SKILL_DIR}/scripts/run.sh",
+		);
+		assert.strictEqual(
+			text(renderTokens("{{skill_dir}}", inAlpha(COPILOT))),
+			'this skill\'s base directory (the "Base directory for this skill" line above)',
+		);
+	});
+
+	it("treats naming the own skill as the own form", () => {
+		assert.strictEqual(text(renderTokens("{{skill_dir alpha}}", inAlpha(CLAUDE))), "${CLAUDE_SKILL_DIR}");
+	});
+
+	it("spells another skill's directory per host", () => {
+		assert.strictEqual(text(renderTokens("{{skill_dir beta}}", inAlpha(CLAUDE))), `${ROOT}/skills/beta`);
+		assert.strictEqual(
+			text(renderTokens("{{skill_dir beta}}", inAlpha(COPILOT))),
+			"the beta skill's directory (a sibling of this skill's base directory)",
+		);
+	});
+
+	it("is a problem in an agent body unless it names a skill", () => {
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir}}", claude)).map((p) => p.message),
+			["{{skill_dir}}: an agent has no skill directory; name a skill, {{skill_dir <skill>}}"],
+		);
+		assert.strictEqual(text(renderTokens("{{skill_dir beta}}", claude)), `${ROOT}/skills/beta`);
+	});
+
+	it("is a problem for an unknown or unbuilt skill, extra arguments, a fallback or backticks", () => {
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir nope}}", inAlpha(CLAUDE))).map((p) => p.message),
+			['{{skill_dir nope}}: this plugin has no skill "nope"'],
+		);
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir a b}}", inAlpha(CLAUDE))).map((p) => p.message),
+			["{{skill_dir a b}} takes one skill_dir name"],
+		);
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir | x}}", inAlpha(CLAUDE))).map((p) => p.message),
+			["{{skill_dir | x}}: only a tool token takes a | fallback"],
+		);
+		assert.isAbove(problems(renderTokens("{{skill_dir `beta`}}", inAlpha(CLAUDE))).length, 0);
+	});
+});

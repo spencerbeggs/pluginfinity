@@ -128,7 +128,16 @@ export const COPILOT: Target = Target.make({
 		lsp: ROOT,
 		body: unresolved("Copilot documents no plugin-root expansion inside skill or agent bodies"),
 	},
-	skills: { dir: "skills", fields: skillFields, hostFields: [], invoke: "/{plugin}:{skill}" },
+	skills: {
+		dir: "skills",
+		fields: skillFields,
+		hostFields: [],
+		invoke: "/{plugin}:{skill}",
+		dirSpelling: {
+			own: 'this skill\'s base directory (the "Base directory for this skill" line above)',
+			other: "the {skill} skill's directory (a sibling of this skill's base directory)",
+		},
+	},
 	agents: {
 		id: "{plugin}:{agent}",
 		dir: "com.github.copilot/agents",

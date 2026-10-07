@@ -195,6 +195,12 @@ export class Target extends Schema.Class<Target>("Target")({
 		 * or `unresolved` when the host has no such command.
 		 */
 		invoke: Schema.Union([Schema.String, Unresolved]),
+		/**
+		 * How a skill body names a skill's directory: `own` for the skill the body
+		 * belongs to, `other` for a sibling, a template with `{skill}`. Either may
+		 * be prose where the host expands no path in bodies.
+		 */
+		dirSpelling: Schema.Struct({ own: Schema.String, other: Schema.String }),
 	}),
 	agents: Schema.Struct({
 		dir: Schema.String,

@@ -19,6 +19,11 @@ export interface TokenContext {
 	readonly plugin: string;
 	/** The plugin's skill names. */
 	readonly skills: ReadonlySet<string>;
+	/**
+	 * The skill whose body (or bundled markdown file) is being rendered, so
+	 * `{{skill_dir}}` can name it; absent when rendering an agent body.
+	 */
+	readonly skill?: string;
 	/** The plugin's agent names. */
 	readonly agents: ReadonlySet<string>;
 	/** Every file under a skill directory, as `<skill>/<path>`, `SKILL.md` included. */
@@ -43,7 +48,7 @@ export interface TokenProblem {
 	readonly message: string;
 }
 
-const KINDS = new Set(["tool", "agent", "skill", "plugin_root"]);
+const KINDS = new Set(["tool", "agent", "skill", "skill_dir", "plugin_root"]);
 /** The first word after `{{`: up to whitespace, a brace, a pipe or a backtick. */
 const KIND = /^\s*([^\s{}`|]+)/;
 const LINK = /(!?)\[([^[\]]*)\]\(\s*<?pluginfinity:\/\/([^\s<>()]*)>?\s*\)/g;
@@ -122,6 +127,16 @@ const token = (inner: string, raw: string, ctx: TokenContext): Spelled => {
 		return spelling(ctx.target.pluginRoot.body, raw);
 	}
 	const [name] = args;
+	if (kind === "skill_dir") {
+		if (args.length > 1) return { problem: `${raw} takes one skill_dir name` };
+		if (name === undefined && ctx.skill === undefined) {
+			return { problem: `${raw}: an agent has no skill directory; name a skill, {{skill_dir <skill>}}` };
+		}
+		const skill = name ?? (ctx.skill as string);
+		if (!ctx.skills.has(skill)) return { problem: `${raw}: this plugin has no skill "${skill}"` };
+		const spelling = skill === ctx.skill ? ctx.target.skills.dirSpelling.own : ctx.target.skills.dirSpelling.other;
+		return { value: fill(spelling, { skill }) };
+	}
 	if (name === undefined) return { problem: `${raw} needs ${article(kind)} name` };
 	if (args.length > 1) return { problem: `${raw} takes one ${kind} name` };
 	if (kind === "tool") {
@@ -283,8 +298,20 @@ const links = (line: string, ctx: TokenContext, problems: Array<string>): string
  * {{tool <name> | <fallback>}}
  * {{agent <name>}}
  * {{skill <name>}}
+ * {{skill_dir}}
+ * {{skill_dir <name>}}
  * {{plugin_root}}
  * ```
+ *
+ * `{{skill_dir}}` is the directory of the skill whose body it is written in,
+ * and `{{skill_dir <name>}}` that of the named skill (naming the own skill is
+ * the own form). Claude spells them `${CLAUDE_SKILL_DIR}` and
+ * `${CLAUDE_PLUGIN_ROOT}/skills/<name>`, which it expands in skill bodies;
+ * Copilot expands nothing, so it spells prose that points at the "Base
+ * directory for this skill" line the host puts above the body. An agent has
+ * no skill directory, so the bare form there, an unknown skill or one the
+ * target does not build is a problem. It takes neither a `|` fallback nor
+ * backticks: the spelling is a path on one host and a sentence on the other.
  *
  * A tool token may wrap its name in exactly one pair of backticks:
  *
