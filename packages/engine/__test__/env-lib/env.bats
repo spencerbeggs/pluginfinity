@@ -10,6 +10,14 @@ load helpers
 	[ "$(values s1)" = "$(printf 'A=one\nB=')" ]
 }
 
+@test "a normal run with a setup script writes nothing to stderr" {
+	SETUP=scripts/setup.sh make_root claude fx A=one
+	setup_script 'echo A=from-setup'
+	session_start s1 "$PROJECT"
+	[ "$status" -eq 0 ] && [ -z "$output" ] && [ -z "$stderr" ]
+	[ "$(values s1)" = "A=from-setup" ]
+}
+
 @test "setup output outranks the default" {
 	SETUP=scripts/setup.sh make_root claude fx A=one
 	setup_script 'echo A=from-setup'

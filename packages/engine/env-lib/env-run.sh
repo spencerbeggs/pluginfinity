@@ -4,7 +4,8 @@
 # and runs it as the first SessionStart entry; do not edit a copy under builds/.
 #
 # POSIX sh. Run as a script (`sh <path>`), with the SessionStart event on stdin.
-# Writes nothing to stdout and always exits 0: every problem is a log line.
+# Writes nothing to stdout or stderr and always exits 0: every problem is a log
+# line, and the shell's own job-control notices are redirected away.
 #
 # Once per SessionStart (every source) it resolves each declared name through
 # rungs 1-5 (default, setup output, <project>/.env, <project>/.env.local, the
@@ -143,7 +144,8 @@ _pf_r_setup() {
 	if [ -e "$_pf_r_tmp/timedout" ]; then
 		wait "$_pf_r_watch" 2>/dev/null || :
 	else
-		kill "$_pf_r_watch" 2>/dev/null || :
+		# Reaped inside the redirect: bash as sh prints "Terminated" for a killed job.
+		{ kill "$_pf_r_watch" && wait "$_pf_r_watch"; } 2>/dev/null || :
 	fi
 	if pf_debug_on 2>/dev/null && [ -s "$_pf_r_tmp/err" ]; then
 		head -n 20 "$_pf_r_tmp/err" | while IFS= read -r _pf_r_l; do _pf_env_debug "setup: $_pf_r_l"; done
