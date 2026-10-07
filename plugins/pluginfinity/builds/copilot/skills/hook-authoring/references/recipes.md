@@ -107,7 +107,7 @@ fi
 
 ## Recipe: Stop gate
 
-Keeps the agent working while a marker file exists. It relies on `Stop` and `hook_block`. A blocked stop runs the hook again with `stop_hook_active` set, so the script must let that second run proceed. Otherwise it keeps the agent going until the host's continuation cap (eight on Claude Code). The test sets `HOOK_PROJECT_DIR` to a temporary directory so the marker file lives outside the repository.
+Keeps the agent working while a marker file exists. It relies on `Stop` and `hook_block`. A blocked stop runs the hook again with `stop_hook_active` set, so the script must let that second run proceed. Otherwise it keeps the agent going until the host's continuation cap (eight on Claude Code). The test puts the marker file in a temporary project and passes that directory as the input's `cwd`, because a non-git `cwd` outranks `CLAUDE_PROJECT_DIR` (which `HOOK_PROJECT_DIR` sets on Claude Code).
 
 ```ts
 hooks: {
@@ -133,11 +133,11 @@ fi
 @test "Stop blocks once when the marker file exists" {
 	mkdir -p "$BATS_TEST_TMPDIR/proj/.git"
 	touch "$BATS_TEST_TMPDIR/proj/.pf-dogfood-block"
-	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/proj" run_hook claude hooks/stop.sh "$(hook_fixture Stop '{"stop_hook_active":false}')"
+	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/proj" run_hook claude hooks/stop.sh "$(hook_fixture Stop "{\"stop_hook_active\":false,\"cwd\":\"$BATS_TEST_TMPDIR/proj\"}")"
 	assert_hook_json .decision block
 	run_hook copilot hooks/stop.sh "$(hook_fixture Stop "{\"stop_hook_active\":false,\"cwd\":\"$BATS_TEST_TMPDIR/proj\"}")"
 	assert_hook_json .decision block
-	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/proj" run_hook claude hooks/stop.sh "$(hook_fixture Stop '{"stop_hook_active":true}')"
+	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/proj" run_hook claude hooks/stop.sh "$(hook_fixture Stop "{\"stop_hook_active\":true,\"cwd\":\"$BATS_TEST_TMPDIR/proj\"}")"
 	assert_hook_noop
 }
 ```
