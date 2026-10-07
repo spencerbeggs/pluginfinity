@@ -258,8 +258,8 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 | `assert_hook_json <jq-filter> <expected>` | The filter's raw value over stdout equals `expected` |
 | `assert_hook_noop` | Exit 0 with no output or `{}` |
 | `hook_fixture <event> [overrides-json]` | Writes a Claude-shaped input for the event to a temp file and prints its path |
-| `run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [args...]` | Runs `bash builds/<target>/<path>` under `env -i` with that host's environment: a skill script or a launcher. A path under `skills/` runs from `--cwd` (default the test project, below) on both hosts, as the agent runs it, with `CLAUDE_PROJECT_DIR` set to it on Claude Code unless `HOOK_PROJECT_DIR` is set; any other path keeps the plugin root on Copilot. Stdin is `/dev/null` unless `--stdin` is given. Each `--env` adds one `VAR=value` to the environment; everything after the options, a bare `--` included, reaches the script as an argument. Sets `$status`, `$output` and `$stderr` |
-| `run_monitor <target> <name> [--ticks <n>] [--cwd <dir>] [VAR=value...]` | Runs a monitor's command from `builds/claude/monitors/monitors.json` the way Claude Code starts it: from `--cwd` (default the test project, below), with `${CLAUDE_PLUGIN_ROOT}` substituted into the command text, none of `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` or `CLAUDE_SESSION_ID` set, `CLAUDE_CODE_SESSION_ID=test-session` and stdin `/dev/null`. Bounded to `<n>` ticks (default 1) through `PLUGINFINITY_MONITOR_MAX_TICKS`. Any target but `claude` fails with status 1. See [monitors](monitors.md) |
+| `run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [--env-file <file>] [--interpreter <cmd>] [args...]` | Runs `builds/<target>/<path>` under `env -i`, with `node` for a `.mjs`, `.cjs` or `.js` script and `bash` for anything else (`--interpreter <cmd>` names another, `bash -x` included): a skill script or a launcher. A path under `skills/` gets what the agent's Bash tool gives a skill script: `PATH`, `HOME`, `XDG_STATE_HOME` and, on Claude Code, `CLAUDE_CODE_SESSION_ID=test-session`, but none of `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_PROJECT_DIR`, `CLAUDE_SKILL_DIR` or `CLAUDE_ENV_FILE` (on Copilot nothing beyond the base). It runs from `--cwd` (default the test project, below) on both hosts. `--env-file` adds the `NAME=value` and `export NAME=value` lines of a file, parsed and not sourced, modelling the exports a SessionStart hook wrote to `CLAUDE_ENV_FILE`. Any other path, a launcher, gets the host's plugin variables and keeps the plugin root as the Copilot directory. Stdin is `/dev/null` unless `--stdin` is given. Each `--env` adds one `VAR=value` and wins over `--env-file`; everything after the options, a bare `--` included, reaches the script as an argument. Sets `$status`, `$output` and `$stderr` |
+| `run_monitor <target> <name> [--ticks <n>] [--timeout <seconds>] [--cwd <dir>] [VAR=value...]` | Runs a monitor's command from `builds/claude/monitors/monitors.json` the way Claude Code starts it: from `--cwd` (default the test project, below), with `${CLAUDE_PLUGIN_ROOT}` substituted into the command text, none of `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` or `CLAUDE_SESSION_ID` set, `CLAUDE_CODE_SESSION_ID=test-session` and stdin `/dev/null`. Bounded to `<n>` ticks (default 1) through `PLUGINFINITY_MONITOR_MAX_TICKS`, and to `--timeout` seconds (default 30) of wall-clock time: past it the process group is killed and `$status` is 124. Any target but `claude` fails with status 1. See [monitors](monitors.md) |
 
 The dogfood plugin tests its `PreToolUse` hook on both targets:
 
@@ -290,11 +290,11 @@ the entries for any event. When no entry runs the script at all, the call fails:
 no entry registers.
 
 Every helper shares one test project, `$BATS_TEST_TMPDIR/project`, which the helper creates on first use. It is
-the default for `hook_fixture`'s input `cwd`, for `CLAUDE_PROJECT_DIR` in `run_hook` and `run_script` on Claude
-Code, and for the working directory of a skill script under `run_script` and of `run_monitor`.
+the default for `hook_fixture`'s input `cwd`, for `CLAUDE_PROJECT_DIR` in `run_hook` on Claude Code, and for the
+working directory of a skill script under `run_script` and of `run_monitor`.
 
-`HOOK_PROJECT_DIR` replaces the project directory the host reports: `run_hook` and `run_script` give it to
-Claude Code as `CLAUDE_PROJECT_DIR`, which `hook_session_dir` reads. `hook_project_dir` reads
+`HOOK_PROJECT_DIR` replaces the project directory the host reports: `run_hook` gives it to Claude Code as
+`CLAUDE_PROJECT_DIR` (and `run_script` does for a launcher, not for a skill script), which `hook_session_dir` reads. `hook_project_dir` reads
 `CLAUDE_PROJECT_DIR` only when the fixture has no `cwd`, because a fixture's absolute `cwd` outranks it, as at
 run time, even when that directory holds no `.git`. To point `hook_project_dir` at another project, put it in
 the fixture's `cwd`, or send `"cwd":null` to exercise the `CLAUDE_PROJECT_DIR` path. `run_monitor` ignores

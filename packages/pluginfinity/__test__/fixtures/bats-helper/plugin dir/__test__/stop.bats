@@ -213,3 +213,61 @@ ENV
 	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/other" run_monitor claude show
 	[[ "$output" == "pwd=$BATS_TEST_TMPDIR/project "* ]]
 }
+
+@test "run_script runs a .mjs script under node on both targets, with the host env and cwd" {
+	project=$(cd "$(_pf_project_dir)" && pwd -P)
+	for target in claude copilot; do
+		run_script "$target" skills/s/scripts/node.mjs --env FOO=1 a b
+		[ "$status" -eq 0 ]
+		want="node pwd=$project session=test-session foo=1 args=a b"
+		[ "$target" = copilot ] && want="node pwd=$project session=unset foo=1 args=a b"
+		[ "$output" = "$want" ]
+	done
+}
+
+@test "run_script runs .cjs under node and an extensionless script under bash" {
+	run_script claude skills/s/scripts/cjs.cjs
+	[ "$output" = "cjs ok" ]
+	run_script claude skills/s/scripts/noext x
+	[ "$output" = "pwd=$BATS_TEST_TMPDIR/project foo= args=x" ]
+}
+
+@test "run_script --interpreter overrides the extension" {
+	run_script claude skills/s/scripts/show.sh --interpreter 'bash -x' q
+	[ "$status" -eq 0 ]
+	[[ "$output" == *"args=q"* ]]
+	run_script claude skills/s/scripts/py.txt --interpreter cat
+	[ "$output" = "print('x')" ]
+	run_script claude skills/s/scripts/py.txt --interpreter false
+	[ "$status" -eq 1 ]
+}
+
+@test "run_monitor --timeout kills a monitor that never exits and sets status 124" {
+	run_monitor claude hang --timeout 1
+	[ "$status" -eq 124 ]
+	[[ "$stderr" == *"run_monitor: hang timed out after 1s"* ]]
+	run pgrep -f "sleep 4242"
+	[ "$status" -ne 0 ]
+}
+
+@test "run_monitor --timeout kills a monitor that ignores TERM" {
+	run_monitor claude stubborn --timeout 1
+	[ "$status" -eq 124 ]
+	run pgrep -f "sleep 4343"
+	[ "$status" -ne 0 ]
+	run pgrep -f "stubborn.sh"
+	[ "$status" -ne 0 ]
+}
+
+@test "run_monitor --timeout does not disturb a monitor that finishes in time" {
+	run_monitor claude m --timeout 20
+	[ "$status" -eq 0 ]
+	[ "$output" = "first hello" ]
+	[[ "$stderr" != *timed* ]]
+}
+
+@test "run_monitor rejects a non-numeric --timeout" {
+	run_monitor claude m --timeout soon
+	[ "$status" -eq 1 ]
+	[[ "$stderr" == *"run_monitor: --timeout needs a number of seconds"* ]]
+}

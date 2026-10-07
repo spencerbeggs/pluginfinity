@@ -47,6 +47,19 @@ const VARS = `#!/usr/bin/env bash
 printf 'a=%s b=%s c=%s d=%s\\n' "\${A_ONE-unset}" "\${B_TWO-unset}" "\${C_THREE-unset}" "\${D_FOUR-unset}"
 `;
 
+const NODESCRIPT = `import { argv, env } from "node:process";
+console.log(\`node pwd=\${process.cwd()} session=\${env.CLAUDE_CODE_SESSION_ID ?? "unset"} foo=\${env.FOO ?? ""} args=\${argv.slice(2).join(" ")}\`);
+`;
+
+const HANG = `#!/usr/bin/env bash
+sleep 4242
+`;
+
+const STUBBORN = `#!/usr/bin/env bash
+trap '' TERM
+while :; do sleep 4343; done
+`;
+
 const CAT = "#!/usr/bin/env bash\ncat\necho done\n";
 const MONITOR = `#!/usr/bin/env bash
 _pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"
@@ -77,6 +90,10 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 			writeFileSync(join(scripts, "show.sh"), SHOW);
 			writeFileSync(join(scripts, "proj.sh"), PROJ);
 			writeFileSync(join(scripts, "vars.sh"), VARS);
+			writeFileSync(join(scripts, "node.mjs"), NODESCRIPT);
+			writeFileSync(join(scripts, "cjs.cjs"), "console.log('cjs ok');\n");
+			writeFileSync(join(scripts, "noext"), SHOW);
+			writeFileSync(join(scripts, "py.txt"), "print('x')\n");
 			writeFileSync(join(plugin, "builds", host, "hooks", "startenv.sh"), ENVHOOK);
 			mkdirSync(join(plugin, "builds", host, "servers"), { recursive: true });
 			writeFileSync(join(plugin, "builds", host, "servers", "show.sh"), SHOW);
@@ -175,11 +192,15 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 		}
 		writeFileSync(join(claude, "monitors", "m.sh"), MONITOR);
 		writeFileSync(join(claude, "monitors", "show.sh"), SHOWMON);
+		writeFileSync(join(claude, "monitors", "hang.sh"), HANG);
+		writeFileSync(join(claude, "monitors", "stubborn.sh"), STUBBORN);
 		writeFileSync(
 			join(claude, "monitors", "monitors.json"),
 			JSON.stringify([
 				{ name: "m", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/m.sh"', description: "fixture" },
 				{ name: "show", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/show.sh"', description: "fixture" },
+				{ name: "hang", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/hang.sh"', description: "fixture" },
+				{ name: "stubborn", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/stubborn.sh"', description: "fixture" },
 			]),
 		);
 		const result = spawnSync("bats", ["--tap", join(plugin, "__test__")], {

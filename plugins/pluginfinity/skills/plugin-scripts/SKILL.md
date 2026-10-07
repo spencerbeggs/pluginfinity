@@ -188,8 +188,9 @@ fi
 - `run_hook` is for hooks only. It feeds a hook payload on stdin and reads a hook response, and it runs the
   script with the environment of the built entry that registers it, so a script no entry runs fails the call:
   use `run_script`.
-- `run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [--env-file <file>] [args...]`
-  runs a built skill script or a launcher with `bash builds/<target>/<path>` under `env -i`. A path under
+- `run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [--env-file <file>] [--interpreter <cmd>] [args...]`
+  runs a built skill script or a launcher under `env -i` with `node` for a `.mjs`, `.cjs` or `.js` file and `bash` for
+  anything else (`--interpreter <cmd>` names another). A path under
   `skills/` gets what the agent's Bash tool gives a skill script, which is not the plugin variables: `PATH`,
   `HOME`, `XDG_STATE_HOME` and, on Claude Code, `CLAUDE_CODE_SESSION_ID=test-session` (override it with `--env`),
   and none of `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_PROJECT_DIR`, `CLAUDE_SKILL_DIR` or
@@ -201,9 +202,9 @@ fi
   `VAR=value` and wins over `--env-file`; everything after the options, a bare `--` included, is an argument. It
   sets `$status`, `$output` and `$stderr`. The helper sets `XDG_STATE_HOME` to `$BATS_TEST_TMPDIR/state`, so a
   script that logs writes under the test's temp directory; read `error.log` there.
-- `run_monitor <target> <name> [--ticks <n>] [--cwd <dir>] [VAR=value...]` runs a Claude monitor's built
+- `run_monitor <target> <name> [--ticks <n>] [--timeout <seconds>] [--cwd <dir>] [VAR=value...]` runs a Claude monitor's built
   command from the project directory, without `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`
   or `CLAUDE_SESSION_ID`, bounded to `n` ticks by `PLUGINFINITY_MONITOR_MAX_TICKS`, which every monitor must
-  honour. See [monitors](../pluginfinity/references/monitors.md#test-one).
+  honour, and to `--timeout` seconds (default 30), past which the monitor is killed and `$status` is 124. See [monitors](../pluginfinity/references/monitors.md#test-one).
 - macOS ships bash 3.2, so the script must avoid `${var^^}`, `declare -A`, `mapfile` and `local -n`.
 - Run `bats --recursive __test__`.

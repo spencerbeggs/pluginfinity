@@ -18,3 +18,5 @@
 * `run_script` takes `--cwd` and runs `skills/` paths from the project directory on both hosts.
 * `run_script --env-file <file>` adds a file's `NAME=value` or `export NAME=value` lines to a script's environment, parsed and not sourced, to model `CLAUDE_ENV_FILE` exports.
 * `run_monitor` starts in the project directory without the plugin variables Claude does not set and with `CLAUDE_CODE_SESSION_ID=test-session`.
+* `run_monitor --timeout <seconds>` (default 30) kills the monitor's process group and sets `$status` to 124, so a monitor that never reaches its tick count fails the test instead of hanging bats.
+* `run_script` picks the interpreter by extension (`.mjs`, `.cjs` and `.js` run under `node`, anything else under `bash`) and takes `--interpreter <cmd>` to override it.

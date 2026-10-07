@@ -172,8 +172,10 @@ _pf_read_env_file() {
 	done <"$1"
 }
 
-# run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [--env-file <file>] [args...]
-# Runs `bash builds/<target>/<path> args...` under env -i. A script under skills/
+# run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [--env-file <file>] [--interpreter <cmd>] [args...]
+# Runs `<interpreter> builds/<target>/<path> args...` under env -i. The
+# interpreter is `node` for a .mjs, .cjs or .js script and `bash` otherwise;
+# --interpreter <cmd> overrides it (the command may carry arguments, e.g. 'bash -x'). A script under skills/
 # gets the environment a skill script gets when the agent runs it through its
 # Bash tool: PATH, HOME, XDG_STATE_HOME and, on Claude Code,
 # CLAUDE_CODE_SESSION_ID=test-session, with none of CLAUDE_PLUGIN_ROOT,
@@ -187,7 +189,7 @@ _pf_read_env_file() {
 # bare `--` included, is passed to the script as arguments. Sets $status, $output
 # and $stderr.
 run_script() {
-	local target=$1 script=$2 stdin=/dev/null cwd="" vars=() filevars=()
+	local target=$1 script=$2 stdin=/dev/null cwd="" interp="" vars=() filevars=()
 	shift 2
 	while [ $# -gt 0 ]; do
 		case "$1" in
@@ -197,6 +199,14 @@ run_script() {
 			;;
 		--cwd)
 			cwd=$2
+			shift 2
+			;;
+		--interpreter)
+			if [ -z "${2:-}" ]; then
+				echo "run_script: --interpreter needs a command" >&2
+				return 1
+			fi
+			interp=$2
 			shift 2
 			;;
 		--env-file)
@@ -234,6 +244,15 @@ run_script() {
 		return 1
 	fi
 	case "$script" in skills/*) kind=skill ;; esac
+	if [ -z "$interp" ]; then
+		case "$script" in
+		*.mjs | *.cjs | *.js) interp=node ;;
+		*) interp=bash ;;
+		esac
+	fi
+	# The command is word-split on purpose, so --interpreter 'bash -x' works.
+	local cmd
+	read -r -a cmd <<<"$interp"
 	_pf_host_env "$target" "$root" "$kind" || {
 		echo "run_script: unknown target $target" >&2
 		return 1
@@ -245,13 +264,47 @@ run_script() {
 		[ -n "$cwd" ] || { [ "$target" = copilot ] && cwd=$root; }
 	fi
 	if [ -n "$cwd" ]; then
-		run --separate-stderr env -i "${_pf_env[@]}" ${filevars[@]+"${filevars[@]}"} ${vars[@]+"${vars[@]}"} bash -c 'cd "$1" && shift && exec bash "$@"' _ "$cwd" "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
+		run --separate-stderr env -i "${_pf_env[@]}" ${filevars[@]+"${filevars[@]}"} ${vars[@]+"${vars[@]}"} bash -c 'cd "$1" && shift && exec "$@"' _ "$cwd" "${cmd[@]}" "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
 	else
-		run --separate-stderr env -i "${_pf_env[@]}" ${filevars[@]+"${filevars[@]}"} ${vars[@]+"${vars[@]}"} bash "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
+		run --separate-stderr env -i "${_pf_env[@]}" ${filevars[@]+"${filevars[@]}"} ${vars[@]+"${vars[@]}"} "${cmd[@]}" "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
 	fi
 }
 
-# run_monitor <target> <name> [--ticks <n>] [--cwd <dir>] [VAR=value...]
+# _pf_run_bounded <seconds> <name> <command...>: run <command...> in its own
+# process group and kill the group when <seconds> pass, then exit 124 with a
+# message on stderr. bash 3.2 has no setsid or timeout, so `set -m` gives the
+# background job its own group. Leaves no process behind.
+_pf_run_bounded() {
+	local secs=$1 name=$2 job dog rc flag
+	shift 2
+	flag="$BATS_TEST_TMPDIR/.timeout-$$-$RANDOM"
+	set -m
+	"$@" &
+	job=$!
+	(
+		sleep "$secs"
+		: >"$flag"
+		kill -TERM -- "-$job" 2>/dev/null
+		sleep 1
+		kill -KILL -- "-$job" 2>/dev/null
+	) &
+	dog=$!
+	rc=0
+	wait "$job" || rc=$?
+	kill -KILL -- "-$dog" 2>/dev/null
+	wait "$dog" 2>/dev/null || :
+	# A job that ignored TERM may have been killed by the watchdog's KILL.
+	kill -KILL -- "-$job" 2>/dev/null || :
+	set +m
+	if [ -e "$flag" ]; then
+		rm -f "$flag"
+		echo "run_monitor: $name timed out after ${secs}s" >&2
+		return 124
+	fi
+	return "$rc"
+}
+
+# run_monitor <target> <name> [--ticks <n>] [--timeout <seconds>] [--cwd <dir>] [VAR=value...]
 # Runs the monitor's command from builds/claude/monitors/monitors.json the way
 # Claude does: from --cwd (default $BATS_TEST_TMPDIR/project, created, standing
 # in for the session's project dir), with ${CLAUDE_PLUGIN_ROOT} substituted into
@@ -259,11 +312,15 @@ run_script() {
 # CLAUDE_PLUGIN_DATA or CLAUDE_SESSION_ID in the environment (a monitor does get
 # CLAUDE_CODE_SESSION_ID, set to "test-session"). Stdin is /dev/null.
 # PLUGINFINITY_MONITOR_MAX_TICKS is set to <n> (default 1): every monitor must
-# honour it, stopping after that many polls, a node `command` monitor included.
-# A target other than claude fails with status 1 and a message on stderr. Sets
-# $status, $output and $stderr.
+# honour it, stopping after that many checks, however triggered, a node
+# `command` monitor included. --timeout (default 30) is a wall-clock bound: the
+# monitor's process group is killed after that many seconds and $status is 124,
+# with `run_monitor: <name> timed out after <s>s` on stderr, so a monitor that
+# never reaches its tick count fails the test instead of hanging bats. A target
+# other than claude fails with status 1 and a message on stderr. Sets $status,
+# $output and $stderr.
 run_monitor() {
-	local target=$1 name=$2 ticks=1 cwd=""
+	local target=$1 name=$2 ticks=1 cwd="" timeout=30
 	shift 2
 	if [ "$target" != claude ]; then
 		run --separate-stderr bash -c 'echo "run_monitor: $1 has no monitors" >&2; exit 1' _ "$target"
@@ -273,6 +330,16 @@ run_monitor() {
 		case "$1" in
 		--ticks)
 			ticks=$2
+			shift 2
+			;;
+		--timeout)
+			case "${2:-}" in
+			'' | *[!0-9]*)
+				run --separate-stderr bash -c 'echo "run_monitor: --timeout needs a number of seconds, got $1" >&2; exit 1' _ "'${2:-}'"
+				return 0
+				;;
+			esac
+			timeout=$2
 			shift 2
 			;;
 		--cwd)
@@ -292,7 +359,8 @@ run_monitor() {
 	command=${command//"$token"/"$root"}
 	[ -n "$cwd" ] || cwd=$(_pf_project_dir)
 	mkdir -p "$cwd"
-	run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
+	run --separate-stderr _pf_run_bounded "$timeout" "$name" \
+		env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
 		XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" CLAUDE_CODE_SESSION_ID=test-session \
 		PLUGINFINITY_MONITOR_MAX_TICKS="$ticks" "$@" \
 		bash -c 'cd "$1" && exec bash -c "$2"' _ "$cwd" "$command" </dev/null

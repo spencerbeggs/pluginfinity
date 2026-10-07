@@ -101,9 +101,12 @@ monitor still runs and the logging functions do nothing.
 
 ## Test one
 
-`run_monitor <target> <name> [--ticks <n>] [--cwd <dir>] [VAR=value...]` runs the monitor's command from the
-built `monitors.json` under `bash -c`, bounded to `n` ticks (default 1) by `PLUGINFINITY_MONITOR_MAX_TICKS`, and
-sets `$status`, `$output` and `$stderr`. It starts in `--cwd` (default `$BATS_TEST_TMPDIR/project`, created),
+`run_monitor <target> <name> [--ticks <n>] [--timeout <seconds>] [--cwd <dir>] [VAR=value...]` runs the
+monitor's command from the built `monitors.json` under `bash -c`, bounded to `n` ticks (default 1) by
+`PLUGINFINITY_MONITOR_MAX_TICKS`, and sets `$status`, `$output` and `$stderr`. `--timeout` (default 30) is a
+wall-clock bound: after that many seconds the monitor's whole process group is killed, `$status` is 124 and
+stderr says `run_monitor: <name> timed out after <s>s`, so a monitor that never reaches its tick count fails the
+test instead of hanging bats, and nothing is left running. It starts in `--cwd` (default `$BATS_TEST_TMPDIR/project`, created),
 substitutes `${CLAUDE_PLUGIN_ROOT}` into the command text, and gives the monitor the environment Claude Code
 does: none of `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` or `CLAUDE_SESSION_ID`, and
 `CLAUDE_CODE_SESSION_ID=test-session`, which is the same for every call in a test, so `monitor_once` dedupes across calls (pass `CLAUDE_CODE_SESSION_ID=other` to start a new session). `HOOK_PROJECT_DIR` and the caller's working directory do not apply: use `--cwd`. Only `claude` has monitors: another target, or a missing monitor,
