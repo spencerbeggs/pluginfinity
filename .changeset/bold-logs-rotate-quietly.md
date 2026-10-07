@@ -36,6 +36,7 @@ Monitors build from the config's `monitors` component into Claude Code's `monito
 * `env` in the config declares session variables resolved once at SessionStart through the chain default, `setup` script, `.env`, `.env.local`, ambient environment, then `hook_env_set`. A build with `env` writes `lib/pluginfinity/env.sh` and `env-run.sh` and adds a first SessionStart entry that runs the runner (timeout 15 s); a SessionStart reader waits up to 3 s for it, since Claude runs an event's hooks in parallel.
 * The hook library sources `env.sh` before every hook body, so every hook sees the values. A skill script or monitor sources `lib/pluginfinity/env.sh` with one line.
 * A script or monitor with no session id reads the session `CLAUDE_CODE_SESSION_ID` names when that session has a values file, else the project's latest session, so two Claude Code sessions in one project keep their own values.
+* A Copilot event with no `cwd` has no project, so a reader hook reads no `.env` from the plugin root.
 * New `hook_env_set NAME value` (producer events and declared names only, always returns 0, appends to `CLAUDE_ENV_FILE` on Claude) and `hook_supports env-shell`.
 * An `env.setup` script that is missing or not a file fails the build as `HookScriptInvalid` with component `env`.
 

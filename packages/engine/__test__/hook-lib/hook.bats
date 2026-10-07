@@ -1039,6 +1039,22 @@ has_tools() {
 	[ "$output" = "npm" ]
 }
 
+@test "env: a Copilot reader with no cwd reads no .env from the plugin root, and one with a cwd reads the project's" {
+	make_plugin copilot
+	make_env SILK_PM=npm
+	printf 'SILK_PM=from-plugin-root\n' >"$PLUGIN/.env"
+	hook_script 'printf "%s\n" "${SILK_PM-unset}"'
+	cd "$PLUGIN"
+	run_script '{"sessionId":"s-9","toolName":"bash","toolArgs":"{}"}' PLUGINFINITY_EVENT=PreToolUse
+	[ "$status" -eq 0 ]
+	[ "$output" = npm ]
+	local project="$BATS_TEST_TMPDIR/project"
+	mkdir -p "$project/.git"
+	printf 'SILK_PM=from-project\n' >"$project/.env"
+	run_script "{\"sessionId\":\"s-9\",\"cwd\":\"$project\",\"toolName\":\"bash\",\"toolArgs\":\"{}\"}" PLUGINFINITY_EVENT=PreToolUse
+	[ "$output" = from-project ]
+}
+
 @test "env: a build without env.sh behaves as before" {
 	make_plugin claude
 	hook_script 'printf "%s|" "${SILK_PM-unset}"; hook_env_set SILK_PM x; echo "rc=$?"; hook_noop'

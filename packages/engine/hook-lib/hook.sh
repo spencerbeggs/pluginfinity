@@ -414,7 +414,7 @@ hook_env_set() {
 
 # Load env.sh and apply the session values. A failure here never aborts the hook, even under set -e.
 _pf_env_start() {
-	local sid proj errexit=0 nounset=0
+	local sid proj cwd errexit=0 nounset=0
 	[ -r "$_pf_log_dir/env.sh" ] || return 0
 	case $- in *e*) errexit=1 ;; esac
 	case $- in *u*) nounset=1 ;; esac
@@ -426,7 +426,14 @@ _pf_env_start() {
 	if . "$_pf_log_dir/env.sh" 2>/dev/null; then
 		_pf_env_loaded=1
 		sid=$(hook_input session_id)
-		proj=$(_pf_env_project_of "$(hook_project_dir)")
+		cwd=$(hook_input cwd)
+		if [ "$PLUGINFINITY_HOST" = copilot ] && [ "${cwd#/}" = "$cwd" ]; then
+			# The runner's rule: Copilot runs hooks from the plugin root, which is no
+			# project, so with no absolute cwd read no .env (the session file or the defaults).
+			proj=-
+		else
+			proj=$(_pf_env_project_of "$(hook_project_dir)")
+		fi
 		env_load "$sid" "$proj"
 	else
 		hook_log "env.sh not loadable; session env skipped"

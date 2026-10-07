@@ -242,6 +242,15 @@ load helpers
 	[ ! -e "$STATE/pluginfinity/x" ]
 }
 
+@test "env_load with project - reads no .env and no pointer" {
+	make_root claude fx A=default
+	session_start s1 "$PROJECT" A=from-session
+	printf 'A=dotenv\n' >"$PROJECT/.env"
+	manual 'env_load "" -; printf "%s\n" "$A"'
+	read_in "$PROJECT"
+	[ "$output" = default ]
+}
+
 @test "the session file outranks the reader's own ambient value (resolve once)" {
 	SETUP=scripts/setup.sh make_root claude fx A
 	setup_script 'echo A=setup'
