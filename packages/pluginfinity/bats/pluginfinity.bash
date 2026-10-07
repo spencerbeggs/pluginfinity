@@ -40,10 +40,16 @@ run_hook() {
 	case "$target" in
 	claude)
 		hooks_file="$root/hooks/hooks.json"
+		# An exec-form entry (`env K=V ... bash <script>`) or a command-string entry
+		# (`export K='V'; ... <command>`); the env is the leading assignments of each.
 		entries='[(.hooks // {}) | to_entries[] | .key as $ev | .value[] | (.matcher // "") as $m | (.hooks // [])[]
-			| select((.args // []) | map(type == "string" and endswith("/" + $s)) | any)
-			| {event: $ev, matcher: $m, env: (.args | (index("bash") // length) as $i | .[:$i]
-				| map(select(test("^[A-Za-z_][A-Za-z0-9_]*=")) | {key: sub("=.*$"; ""; "s"), value: sub("^[^=]*="; ""; "s")}) | from_entries)}]'
+			| (if ((.args // []) | map(type == "string" and endswith("/" + $s)) | any) then
+					{event: $ev, matcher: $m, env: (.args | (map(test("^[A-Za-z_][A-Za-z0-9_]*=")) | index(false) // length) as $i | .[:$i]
+						| map({key: sub("=.*$"; ""; "s"), value: sub("^[^=]*="; ""; "s")}) | from_entries)}
+				elif ((.command // "") | (contains("/" + $s + "\"") or contains("/" + $s + " ") or endswith("/" + $s))) then
+					{event: $ev, matcher: $m, env: ((.command | capture("^(?<p>(export [A-Za-z_][A-Za-z0-9_]*=\u0027([^\u0027]|\u0027\\\\\u0027\u0027)*\u0027; )*)").p)
+						| [match("export ([A-Za-z_][A-Za-z0-9_]*)=\u0027((?:[^\u0027]|\u0027\\\\\u0027\u0027)*)\u0027; "; "g") | {key: .captures[0].string, value: (.captures[1].string | gsub("\u0027\\\\\u0027\u0027"; "\u0027"))}] | from_entries)}
+				else empty end)]'
 		;;
 	copilot)
 		hooks_file="$root/com.github.copilot/hooks/hooks.json"
@@ -60,14 +66,19 @@ run_hook() {
 		echo "run_hook: $hooks_file not found; run pluginfinity build" >&2
 		return 1
 	fi
-	local event picked count
+	local event all picked count
 	event=$(jq -r '.hook_event_name // empty' "$fixture")
-	picked=$(jq -c --arg s "$script" --arg e "$event" --arg m "$matcher" --argjson hm "$has_matcher" "$entries"'
-		| (if $e == "" then . else (map(select((.event | ascii_downcase) == ($e | ascii_downcase))) as $x | if ($x | length) > 0 then $x else . end) end)
-		| (if $hm == 1 then map(select(.matcher == $m)) else . end)' "$hooks_file") || {
+	all=$(jq -c --arg s "$script" "$entries" "$hooks_file") || {
 		echo "run_hook: cannot read $hooks_file" >&2
 		return 1
 	}
+	picked=$(jq -c --arg e "$event" --arg m "$matcher" --argjson hm "$has_matcher" '
+		(if $e == "" then . else (map(select((.event | ascii_downcase) == ($e | ascii_downcase))) as $x | if ($x | length) > 0 then $x else . end) end)
+		| (if $hm == 1 then map(select(.matcher == $m)) else . end)' <<<"$all")
+	if [ -n "$event" ] && [ "$(jq 'length' <<<"$all")" -gt 0 ] &&
+		[ "$(jq -r --arg e "$event" 'map(select((.event | ascii_downcase) == ($e | ascii_downcase))) | length' <<<"$all")" -eq 0 ]; then
+		echo "run_hook: no $script entry for event $event; using entries for any event" >&2
+	fi
 	count=$(jq 'length' <<<"$picked")
 	if [ "$count" -eq 0 ]; then
 		if [ "$has_matcher" -eq 1 ]; then

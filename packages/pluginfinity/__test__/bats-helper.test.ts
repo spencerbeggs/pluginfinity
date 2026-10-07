@@ -61,6 +61,8 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 			writeFileSync(join(plugin, "builds", host, "hooks", "stop.sh"), STOP);
 			writeFileSync(join(plugin, "builds", host, "hooks", "crash.sh"), CRASH);
 			writeFileSync(join(plugin, "builds", host, "hooks", "envhook.sh"), ENVHOOK);
+			writeFileSync(join(plugin, "builds", host, "hooks", "cmdhook.sh"), ENVHOOK);
+			writeFileSync(join(plugin, "builds", host, "hooks", "argshook.sh"), ENVHOOK);
 			const scripts = join(plugin, "builds", host, "skills", "s", "scripts");
 			mkdirSync(scripts, { recursive: true });
 			writeFileSync(join(scripts, "cat.sh"), CAT);
@@ -95,6 +97,27 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 						claudeEntry("crash.sh", "PreToolUse", ["PLUGINFINITY_FAIL_CLOSED=1"], "Bash"),
 						claudeEntry("envhook.sh", "PreToolUse", ["PLUGINFINITY_FAIL_CLOSED=1", "EXTRA=bash-a"], "Bash"),
 						claudeEntry("envhook.sh", "PreToolUse", ["EXTRA=read-b"], "Read"),
+					],
+					PostToolUse: [
+						{
+							matcher: "Bash",
+							hooks: [
+								{
+									type: "command",
+									command:
+										"export PLUGINFINITY_EVENT='PostToolUse'; export EXTRA='it'\\''s a=b'; bash \"${CLAUDE_PLUGIN_ROOT}/hooks/cmdhook.sh\"",
+								},
+							],
+						},
+						{
+							hooks: [
+								{
+									type: "command",
+									command: "env",
+									args: ["PLUGINFINITY_EVENT=PostToolUse", "${CLAUDE_PLUGIN_ROOT}/hooks/argshook.sh", "a=b"],
+								},
+							],
+						},
 					],
 				},
 			}),

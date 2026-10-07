@@ -52,8 +52,19 @@ load "$PLUGINFINITY_BATS_HELPER"
 }
 
 @test "run_hook gives Claude PLUGINFINITY_EVENT from the entry, not the payload" {
-	run_hook claude hooks/envhook.sh "$(hook_fixture Bogus)" --matcher Read
-	[[ "$stderr" == "PreToolUse||read-b" ]]
+	run_hook claude hooks/envhook.sh "$(hook_fixture Bogus)" --matcher Read 2>"$BATS_TEST_TMPDIR/warn"
+	[[ "$(cat "$BATS_TEST_TMPDIR/warn")" == *"run_hook: no hooks/envhook.sh entry for event Bogus; using entries for any event"* ]]
+	[[ "$stderr" == *"PreToolUse||read-b" ]]
+}
+
+@test "run_hook reads a Claude command-string entry and unquotes its exported env" {
+	run_hook claude hooks/cmdhook.sh "$(hook_fixture PostToolUse)"
+	[[ "$stderr" == "PostToolUse||it's a=b" ]]
+}
+
+@test "run_hook takes only leading K=V args as env, not author args after the script" {
+	run_hook claude hooks/argshook.sh "$(hook_fixture PostToolUse)"
+	[[ "$stderr" == "PostToolUse||" ]]
 }
 
 @test "run_hook --matcher picks between entries for one script" {
