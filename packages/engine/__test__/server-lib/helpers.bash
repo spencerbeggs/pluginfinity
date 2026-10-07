@@ -26,6 +26,8 @@ launcher() {
 
 # run_launcher [VAR=value...]: run it under env -i from $PWD, with the injected env.
 run_launcher() {
+	# A suite that stubs the runners puts $TMP/stub first; make sure of it.
+	case "$PATH" in "$TMP/stub:"*) ;; *) [ ! -d "$TMP/stub" ] || PATH="$TMP/stub:$PATH" ;; esac
 	run --separate-stderr env -i PATH="$PATH" HOME="$TMP/home" \
 		XDG_STATE_HOME="$TMP/state" PLUGINFINITY_HOST="$HOST" \
 		PLUGINFINITY_PLUGIN=fixture PLUGINFINITY_LIB="$BUILD/lib/pluginfinity" "$@" \

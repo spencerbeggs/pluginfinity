@@ -8,13 +8,20 @@ setup() {
 	printf '#!/bin/sh\necho "mcp $*"\n' >"$PROJECT/node_modules/.bin/dogfood-mcp"
 	printf '#!/bin/sh\necho "lsp $*"\n' >"$PROJECT/node_modules/.bin/dogfood-lsp"
 	chmod +x "$PROJECT/node_modules/.bin/"*
+	# No test may reach a real package manager: every runner is a stub that fails loudly.
+	mkdir -p "$BATS_TEST_TMPDIR/stub"
+	for r in pnpm yarn bun bunx npx; do
+		printf '#!/bin/sh\necho "unstubbed runner %s $*" >&2\nexit 97\n' "$r" >"$BATS_TEST_TMPDIR/stub/$r"
+		chmod +x "$BATS_TEST_TMPDIR/stub/$r"
+	done
+	STUB_PATH="$BATS_TEST_TMPDIR/stub:$PATH"
 }
 
 run_built() { # host launcher [args...]
 	local host=$1 launcher=$2
 	shift 2
 	cd "$PROJECT"
-	run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST="$host" \
+	run --separate-stderr env -i PATH="$STUB_PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST="$host" \
 		PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_LIB="$BUILDS/$host/lib/pluginfinity" \
 		sh "$BUILDS/$host/bin/$launcher" "$@"
 }
@@ -22,7 +29,7 @@ run_built() { # host launcher [args...]
 mcp_session() { # host: pipe a full session into the built MCP launcher
 	local host=$1
 	cd "$PROJECT"
-	run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST="$host" \
+	run --separate-stderr env -i PATH="$STUB_PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST="$host" \
 		PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_LIB="$BUILDS/$host/lib/pluginfinity" \
 		CLAUDE_PROJECT_DIR="$PROJECT" sh "$BUILDS/$host/bin/start-mcp.sh" <<'JSON'
 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}
@@ -51,7 +58,7 @@ pong from $host, project $PROJECT" ]
 
 @test "the MCP server reports no project on copilot with the cwd at the plugin root" {
 	cd "$BUILDS/copilot"
-	run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST=copilot \
+	run --separate-stderr env -i PATH="$STUB_PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST=copilot \
 		PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_LIB="$BUILDS/copilot/lib/pluginfinity" \
 		sh "$BUILDS/copilot/bin/start-mcp.sh" <<'JSON'
 {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ping"}}
@@ -61,7 +68,7 @@ JSON
 
 run_mcp_input() { # input (claude host)
 	cd "$PROJECT"
-	run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST=claude \
+	run --separate-stderr env -i PATH="$STUB_PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST=claude \
 		PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_LIB="$BUILDS/claude/lib/pluginfinity" \
 		CLAUDE_PROJECT_DIR="$PROJECT" sh "$BUILDS/claude/bin/start-mcp.sh" <<<"$1"
 }
@@ -86,7 +93,7 @@ run_mcp_input() { # input (claude host)
 
 @test "the MCP server answers a final request with no trailing newline" {
 	cd "$PROJECT"
-	run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST=claude \
+	run --separate-stderr env -i PATH="$STUB_PATH" HOME="$BATS_TEST_TMPDIR" PLUGINFINITY_HOST=claude \
 		PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_LIB="$BUILDS/claude/lib/pluginfinity" \
 		sh -c "printf '%s' '{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"ping\"}' | sh '$BUILDS/claude/bin/start-mcp.sh'"
 	[ "$(printf '%s\n' "$output" | jq -c '.id')" = 7 ]

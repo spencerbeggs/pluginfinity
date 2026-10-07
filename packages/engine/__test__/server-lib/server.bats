@@ -5,6 +5,10 @@ setup() {
 	TMP=$(physical "$BATS_TEST_TMPDIR")
 	PROJECT="$TMP/project"
 	mkdir -p "$PROJECT/.git" "$PROJECT/sub/dir"
+	# Every runner is a stub that fails loudly, so no test can reach a real package manager.
+	for r in pnpm yarn bun bunx npx; do
+		stub_cmd "$r" 'echo "unstubbed runner $0 $*" >&2; exit 97'
+	done
 }
 
 stub_cmd() { # name body
@@ -218,11 +222,28 @@ run_fallback() { # [VAR=value...]
 	[ "$output" = "pnpm dlx @demo/mcp --stdio" ]
 }
 
-@test "an unrecognised manager name is treated as npm" {
+@test "an unrecognised devEngines manager falls through to the lockfiles" {
 	make_build claude
-	stub_npx 'echo "npx $*"'
+	stub_cmd pnpm 'echo "pnpm $*"'
 	: >"$PROJECT/pnpm-lock.yaml"
 	printf '{"devEngines": {"packageManager": {"name": "deno"}}}\n' >"$PROJECT/package.json"
+	run_fallback
+	[ "$output" = "pnpm dlx @demo/mcp --stdio" ]
+}
+
+@test "an unrecognised packageManager falls through to the lockfiles" {
+	make_build claude
+	stub_cmd yarn 'echo "yarn $*"'
+	: >"$PROJECT/yarn.lock"
+	printf '{"packageManager": "deno@2.0.0"}\n' >"$PROJECT/package.json"
+	run_fallback
+	[ "$output" = "yarn dlx @demo/mcp --stdio" ]
+}
+
+@test "an unrecognised manager with no lockfile falls through to npm" {
+	make_build claude
+	stub_npx 'echo "npx $*"'
+	printf '{"packageManager": "deno@2.0.0"}\n' >"$PROJECT/package.json"
 	run_fallback
 	[ "$output" = "npx --yes @demo/mcp --stdio" ]
 }
@@ -231,6 +252,7 @@ run_fallback() { # [VAR=value...]
 	make_build claude
 	bare_path
 	ln -sf "$(command -v jq)" "$TMP/bare/jq"
+	rm -f "$TMP/stub/pnpm"
 	stub_npx 'echo "npx $*"'
 	printf '{"devEngines": {"packageManager": {"name": "pnpm"}}}\n' >"$PROJECT/package.json"
 	launcher 'server_exec_bin demo-mcp @demo/mcp --stdio'

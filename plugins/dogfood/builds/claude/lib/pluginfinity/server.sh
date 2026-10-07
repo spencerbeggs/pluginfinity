@@ -78,11 +78,7 @@ _pf_detect_pm() { # project
 		printf '%s\n' "$_pf_pm"
 		return 0
 		;;
-	"") ;;
-	*)
-		printf 'npm\n'
-		return 0
-		;;
+	*) ;;
 	esac
 	if [ -f "$1/pnpm-lock.yaml" ]; then
 		printf 'pnpm\n'
