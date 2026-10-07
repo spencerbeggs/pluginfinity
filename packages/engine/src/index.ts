@@ -28,6 +28,17 @@ export {
 } from "./doctor.js";
 export type { EmittedFile } from "./emit.js";
 export { EmitPlan, GENERATED_MODE, applyEmit, planEmit } from "./emit.js";
+export {
+	ENV_RUNNER_TIMEOUT,
+	ENV_SETUP_TIMEOUT,
+	ENV_WAIT_TIMEOUT_FLOOR,
+	envLibFiles,
+	envNotes,
+	envRunnerEntry,
+	envWaitNotes,
+	renderEnvLib,
+	withEnvRunner,
+} from "./env.js";
 export type { BuildError, ConfigError } from "./errors.js";
 export {
 	BuildStale,
@@ -56,11 +67,35 @@ export {
 export type { FieldDrop, MappedFrontmatter, OwnMcp, SplitMarkdown, UnresolvedField } from "./frontmatter.js";
 export { appendSections, mapFrontmatter, splitFrontmatter } from "./frontmatter.js";
 export type { TargetHookEvent, UnsupportedHookEvent } from "./hooks.js";
-export { hookCommand, hookCommandFiles, hookExec, hookScripts, renderHooks, targetHooks } from "./hooks.js";
+export {
+	commandFiles,
+	entryEnv,
+	hookCommand,
+	hookCommandFiles,
+	hookExec,
+	hookScripts,
+	renderHooks,
+	sessionStartMatcher,
+	shellEnvPrefix,
+	targetHooks,
+	widensSessionStart,
+} from "./hooks.js";
 export type { LoadedConfig } from "./loader.js";
 export { ConfigLoader } from "./loader.js";
+export type { LogEntry, LogFileName, LogTail, RawLogLine } from "./logs.js";
+export {
+	configPluginNames,
+	listLogPlugins,
+	logDirectory,
+	logRoot,
+	parseLogLine,
+	readLog,
+	readLogFrom,
+} from "./logs.js";
 export type { Manifest } from "./manifest.js";
 export { renderManifest, serializeManifest } from "./manifest.js";
+export type { MonitorContext, MonitorMap, RenderedMonitors } from "./monitors.js";
+export { renderMonitors, targetMonitors } from "./monitors.js";
 export type { BuildNote, BuildNoteKind } from "./notes.js";
 export { BUILD_NOTE_KINDS } from "./notes.js";
 export type { BuildInput, PlanError, TargetBuild, TargetValidation, ValidateInput } from "./operations.js";

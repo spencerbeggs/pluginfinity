@@ -5,12 +5,30 @@ setup() {
 	TMP=$(physical "$BATS_TEST_TMPDIR")
 	PROJECT="$TMP/project"
 	mkdir -p "$PROJECT/.git" "$PROJECT/sub/dir"
+	# Every runner is a stub that fails loudly, so no test can reach a real package manager.
+	for r in pnpm yarn bun bunx npx; do
+		stub_cmd "$r" 'echo "unstubbed runner $0 $*" >&2; exit 97'
+	done
 }
 
-stub_npx() { # body
+stub_cmd() { # name body
 	mkdir -p "$TMP/stub"
-	printf '#!/bin/sh\n%s\n' "$1" >"$TMP/stub/npx"
-	chmod +x "$TMP/stub/npx"
+	printf '#!/bin/sh\n%s\n' "$2" >"$TMP/stub/$1"
+	chmod +x "$TMP/stub/$1"
+}
+stub_npx() { stub_cmd npx "$1"; }
+
+# A PATH holding only the tools the library and bats need, so jq (or pnpm) is absent.
+bare_path() {
+	mkdir -p "$TMP/bare"
+	for t in env sh bash dirname grep sed cat cut mkdir mktemp date tr head uname rm basename wc sort ls; do
+		ln -sf "$(command -v "$t")" "$TMP/bare/$t"
+	done
+}
+
+run_fallback() { # [VAR=value...]
+	launcher 'server_exec_bin demo-mcp @demo/mcp --stdio'
+	PATH="$TMP/stub:$PATH" run_launcher CLAUDE_PROJECT_DIR="$PROJECT" "$@"
 }
 
 @test "sourcing writes nothing to stdout" {
@@ -109,20 +127,20 @@ stub_npx() { # body
 @test "server_exec_bin falls back to npx with an install hint on stderr" {
 	make_build claude
 	stub_npx 'echo "npx $*"'
-	: >"$PROJECT/pnpm-lock.yaml"
 	launcher 'server_exec_bin demo-mcp @demo/mcp --stdio'
 	PATH="$TMP/stub:$PATH" run_launcher CLAUDE_PROJECT_DIR="$PROJECT"
 	[ "$output" = "npx --yes @demo/mcp --stdio" ]
-	[[ "$stderr" == *"pnpm add -D @demo/mcp"* ]]
+	[[ "$stderr" == *"npm install --save-dev @demo/mcp"* ]]
+	[[ "$stderr" == *'Falling back to "npx --yes @demo/mcp"'* ]]
 }
 
 @test "server_exec_bin --install names a separate package in the install hint" {
 	make_build claude
-	stub_npx 'echo "npx $*"'
+	stub_cmd pnpm 'echo "pnpm $*"'
 	: >"$PROJECT/pnpm-lock.yaml"
 	launcher 'server_exec_bin okfit-mcp @okfit/mcp --install @okfit/plugin --stdio'
 	PATH="$TMP/stub:$PATH" run_launcher CLAUDE_PROJECT_DIR="$PROJECT"
-	[ "$output" = "npx --yes @okfit/mcp --stdio" ]
+	[ "$output" = "pnpm dlx @okfit/mcp --stdio" ]
 	[[ "$stderr" == *"add -D @okfit/plugin"* ]]
 	[[ "$stderr" != *"add -D @okfit/mcp"* ]]
 }
@@ -152,12 +170,115 @@ stub_npx() { # body
 
 @test "packageManager in package.json wins over a lockfile" {
 	make_build claude
-	stub_npx ':'
+	stub_cmd yarn ':'
 	: >"$PROJECT/pnpm-lock.yaml"
 	printf '{"packageManager": "yarn@4.0.0"}\n' >"$PROJECT/package.json"
 	launcher 'server_exec_bin demo-mcp @demo/mcp'
 	PATH="$TMP/stub:$PATH" run_launcher CLAUDE_PROJECT_DIR="$PROJECT"
 	[[ "$stderr" == *"yarn add -D @demo/mcp"* ]]
+}
+
+@test "devEngines.packageManager as an object selects pnpm dlx with no lockfile" {
+	make_build claude
+	stub_cmd pnpm 'echo "pnpm $*"'
+	printf '{"devEngines": {"packageManager": {"name": "pnpm", "version": "12.10.0"}}}\n' >"$PROJECT/package.json"
+	run_fallback
+	[ "$output" = "pnpm dlx @demo/mcp --stdio" ]
+	[[ "$stderr" == *'Falling back to "pnpm dlx @demo/mcp"'* ]]
+	[[ "$stderr" == *"pnpm add -D @demo/mcp"* ]]
+}
+
+@test "devEngines.packageManager as an array uses its first entry" {
+	make_build claude
+	stub_cmd yarn 'echo "yarn $*"'
+	printf '{"devEngines": {"packageManager": [{"name": "yarn"}, {"name": "npm"}]}}\n' >"$PROJECT/package.json"
+	run_fallback
+	[ "$output" = "yarn dlx @demo/mcp --stdio" ]
+}
+
+@test "packageManager bun selects bunx" {
+	make_build claude
+	stub_cmd bunx 'echo "bunx $*"'
+	printf '{"packageManager": "bun@1.2.0"}\n' >"$PROJECT/package.json"
+	run_fallback
+	[ "$output" = "bunx @demo/mcp --stdio" ]
+	[[ "$stderr" == *'Falling back to "bunx @demo/mcp"'* ]]
+}
+
+@test "devEngines wins over packageManager and lockfiles" {
+	make_build claude
+	stub_cmd pnpm 'echo "pnpm $*"'
+	: >"$PROJECT/yarn.lock"
+	printf '{"packageManager": "yarn@4.0.0", "devEngines": {"packageManager": {"name": "pnpm"}}}\n' >"$PROJECT/package.json"
+	run_fallback
+	[ "$output" = "pnpm dlx @demo/mcp --stdio" ]
+}
+
+@test "a lockfile alone selects the manager when there is no package.json" {
+	make_build claude
+	stub_cmd pnpm 'echo "pnpm $*"'
+	: >"$PROJECT/pnpm-lock.yaml"
+	run_fallback
+	[ "$output" = "pnpm dlx @demo/mcp --stdio" ]
+}
+
+@test "an unrecognised devEngines manager falls through to the lockfiles" {
+	make_build claude
+	stub_cmd pnpm 'echo "pnpm $*"'
+	: >"$PROJECT/pnpm-lock.yaml"
+	printf '{"devEngines": {"packageManager": {"name": "deno"}}}\n' >"$PROJECT/package.json"
+	run_fallback
+	[ "$output" = "pnpm dlx @demo/mcp --stdio" ]
+}
+
+@test "an unrecognised packageManager falls through to the lockfiles" {
+	make_build claude
+	stub_cmd yarn 'echo "yarn $*"'
+	: >"$PROJECT/yarn.lock"
+	printf '{"packageManager": "deno@2.0.0"}\n' >"$PROJECT/package.json"
+	run_fallback
+	[ "$output" = "yarn dlx @demo/mcp --stdio" ]
+}
+
+@test "an unrecognised manager with no lockfile falls through to npm" {
+	make_build claude
+	stub_npx 'echo "npx $*"'
+	printf '{"packageManager": "deno@2.0.0"}\n' >"$PROJECT/package.json"
+	run_fallback
+	[ "$output" = "npx --yes @demo/mcp --stdio" ]
+}
+
+@test "a detected manager missing from PATH falls back to npx and says so" {
+	make_build claude
+	bare_path
+	ln -sf "$(command -v jq)" "$TMP/bare/jq"
+	rm -f "$TMP/stub/pnpm"
+	stub_npx 'echo "npx $*"'
+	printf '{"devEngines": {"packageManager": {"name": "pnpm"}}}\n' >"$PROJECT/package.json"
+	launcher 'server_exec_bin demo-mcp @demo/mcp --stdio'
+	PATH="$TMP/stub:$TMP/bare" run_launcher CLAUDE_PROJECT_DIR="$PROJECT"
+	[ "$output" = "npx --yes @demo/mcp --stdio" ]
+	[[ "$stderr" == *"pnpm was not found on PATH"* ]]
+	[[ "$stderr" == *'Falling back to "npx --yes @demo/mcp"'* ]]
+}
+
+@test "without jq the packageManager field is still read and devEngines is ignored" {
+	make_build claude
+	bare_path
+	stub_cmd yarn 'echo "yarn $*"'
+	stub_cmd pnpm 'echo "pnpm $*"'
+	printf '{"devEngines": {"packageManager": {"name": "pnpm"}}, "packageManager": "yarn@4.0.0"}\n' >"$PROJECT/package.json"
+	launcher 'server_exec_bin demo-mcp @demo/mcp --stdio'
+	PATH="$TMP/stub:$TMP/bare" run_launcher CLAUDE_PROJECT_DIR="$PROJECT"
+	[ "$output" = "yarn dlx @demo/mcp --stdio" ]
+}
+
+@test "a non-object devEngines degrades to packageManager" {
+	make_build claude
+	stub_cmd bunx 'echo "bunx $*"'
+	printf '{"devEngines": "pnpm", "packageManager": "bun@1"}\n' >"$PROJECT/package.json"
+	run_fallback
+	[ "$output" = "bunx @demo/mcp --stdio" ]
 }
 
 @test "a launcher run with PLUGINFINITY_LIB unset fails with a clear message" {
@@ -172,5 +293,5 @@ stub_npx() { # body
 	make_build claude
 	launcher 'server_log "boom"'
 	run_launcher
-	grep -q "boom" "$TMP/state/pluginfinity/fixture/server-error.log"
+	grep -q "boom" "$TMP/state/pluginfinity/fixture/error.log"
 }

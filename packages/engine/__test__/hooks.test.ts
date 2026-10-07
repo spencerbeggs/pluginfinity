@@ -1,7 +1,15 @@
 import { assert, describe, it } from "@effect/vitest";
 import { CLAUDE, COPILOT, PluginfinityConfig } from "@pluginfinity/targets";
 import { Schema } from "effect";
-import { hookCommand, hookExec, hookScripts, renderHooks, targetHooks } from "../src/hooks.js";
+import {
+	entryEnv,
+	hookCommand,
+	hookExec,
+	hookScripts,
+	renderHooks,
+	sessionStartMatcher,
+	targetHooks,
+} from "../src/hooks.js";
 
 const config = (input: typeof PluginfinityConfig.Encoded) => Schema.decodeUnknownSync(PluginfinityConfig)(input);
 
@@ -142,17 +150,135 @@ describe("renderHooks", () => {
 			hooks: {
 				SessionStart: [
 					{
-						hooks: [{ type: "command", command: "bash", args: [`\${CLAUDE_PLUGIN_ROOT}/hooks/start.sh`], timeout: 5 }],
+						hooks: [
+							{
+								type: "command",
+								command: "env",
+								args: ["PLUGINFINITY_EVENT=SessionStart", "bash", `\${CLAUDE_PLUGIN_ROOT}/hooks/start.sh`],
+								timeout: 5,
+							},
+						],
 					},
 				],
 				PreToolUse: [
 					{
 						matcher: "Bash",
-						hooks: [{ type: "command", command: `bash "\${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh" --quiet` }],
+						hooks: [
+							{
+								type: "command",
+								command: `export PLUGINFINITY_EVENT='PreToolUse'; bash "\${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh" --quiet`,
+							},
+						],
 					},
 				],
 			},
 		});
+	});
+
+	it("Claude passes the event and fail policy through env, keeping the author's args in order", () => {
+		const hooked = config({
+			name: "x",
+			description: "Fixture plugin.",
+			claude: true,
+			hooks: { PreToolUse: [{ script: "hooks/guard.sh", args: ["--a", "b c"], failClosed: true, matcher: "Bash" }] },
+		});
+		const json = JSON.parse(renderHooks(CLAUDE, targetHooks(CLAUDE, "claude", hooked).events, "bash") ?? "{}");
+		assert.deepStrictEqual(json.hooks.PreToolUse[0].hooks[0], {
+			type: "command",
+			command: "env",
+			args: [
+				"PLUGINFINITY_EVENT=PreToolUse",
+				"PLUGINFINITY_FAIL_CLOSED=1",
+				"bash",
+				"${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh",
+				"--a",
+				"b c",
+			],
+		});
+	});
+
+	it("a Claude command entry exports the event before the author's command", () => {
+		const hooked = config({
+			name: "x",
+			description: "Fixture plugin.",
+			claude: true,
+			hooks: { Stop: [{ command: `node "\${PLUGIN_ROOT}/x.mjs" && echo done` }] },
+		});
+		const json = JSON.parse(renderHooks(CLAUDE, targetHooks(CLAUDE, "claude", hooked).events, "bash") ?? "{}");
+		assert.strictEqual(
+			json.hooks.Stop[0].hooks[0].command,
+			`export PLUGINFINITY_EVENT='Stop'; node "\${CLAUDE_PLUGIN_ROOT}/x.mjs" && echo done`,
+		);
+	});
+
+	it("Claude exec invoke puts the script path right after env pairs", () => {
+		assert.deepStrictEqual(
+			hookExec({ script: "hooks/a.sh" }, `\${CLAUDE_PLUGIN_ROOT}`, "exec", { PLUGINFINITY_EVENT: "Stop" }),
+			{ command: "env", args: ["PLUGINFINITY_EVENT=Stop", `\${CLAUDE_PLUGIN_ROOT}/hooks/a.sh`] },
+		);
+	});
+
+	it("entryEnv adds the matcher only when given", () => {
+		assert.deepStrictEqual(entryEnv("Stop", { script: "a.sh" }), { PLUGINFINITY_EVENT: "Stop" });
+		assert.deepStrictEqual(entryEnv("PreToolUse", { script: "a.sh", failClosed: true }, "Bash"), {
+			PLUGINFINITY_EVENT: "PreToolUse",
+			PLUGINFINITY_FAIL_CLOSED: "1",
+			PLUGINFINITY_MATCHER: "Bash",
+		});
+	});
+
+	it("a shell-form env value with an embedded quote is escaped", () => {
+		assert.strictEqual(
+			hookCommand({ command: "x" }, `\${CLAUDE_PLUGIN_ROOT}`, "bash", { PLUGINFINITY_MATCHER: "it's" }),
+			`export PLUGINFINITY_MATCHER='it'\\''s'; x`,
+		);
+	});
+
+	it("Copilot carries failClosed in its env field", () => {
+		const hooked = config({
+			name: "x",
+			description: "Fixture plugin.",
+			copilot: true,
+			hooks: { PreToolUse: [{ script: "hooks/guard.sh", failClosed: true }] },
+		});
+		const json = JSON.parse(renderHooks(COPILOT, targetHooks(COPILOT, "copilot", hooked).events, "bash") ?? "{}");
+		assert.deepStrictEqual(json.hooks.PreToolUse[0].env, {
+			PLUGINFINITY_EVENT: "PreToolUse",
+			PLUGINFINITY_FAIL_CLOSED: "1",
+		});
+		assert.strictEqual(json.hooks.PreToolUse[0].bash, 'bash "${PLUGIN_ROOT}/hooks/guard.sh"');
+	});
+
+	it("copilot: a matcher on an event the host ignores moves to PLUGINFINITY_MATCHER; other matchers stay", () => {
+		const hooked = config({
+			name: "x",
+			description: "Fixture plugin.",
+			copilot: true,
+			hooks: {
+				SessionStart: [{ matcher: "startup", script: "hooks/s.sh" }],
+				PreToolUse: [{ matcher: "Bash", script: "hooks/g.sh" }],
+			},
+		});
+		const json = JSON.parse(renderHooks(COPILOT, targetHooks(COPILOT, "copilot", hooked).events, "bash") ?? "{}");
+		assert.notProperty(json.hooks.SessionStart[0], "matcher");
+		assert.deepStrictEqual(json.hooks.SessionStart[0].env, {
+			PLUGINFINITY_EVENT: "SessionStart",
+			PLUGINFINITY_MATCHER: "startup|new",
+		});
+		assert.strictEqual(json.hooks.PreToolUse[0].matcher, "Bash");
+		assert.deepStrictEqual(json.hooks.PreToolUse[0].env, { PLUGINFINITY_EVENT: "PreToolUse" });
+	});
+
+	it("claude: a SessionStart matcher stays a host matcher", () => {
+		const hooked = config({
+			name: "x",
+			description: "Fixture plugin.",
+			claude: true,
+			hooks: { SessionStart: [{ matcher: "startup", script: "hooks/s.sh" }] },
+		});
+		const json = JSON.parse(renderHooks(CLAUDE, targetHooks(CLAUDE, "claude", hooked).events, "bash") ?? "{}");
+		assert.strictEqual(json.hooks.SessionStart[0].matcher, "startup");
+		assert.notInclude(JSON.stringify(json), "PLUGINFINITY_MATCHER");
 	});
 
 	it("copilot: version 1, the command under bash, timeoutSec", () => {
@@ -182,5 +308,42 @@ describe("renderHooks", () => {
 
 	it("no hooks renders no file", () => {
 		assert.isUndefined(renderHooks(CLAUDE, [], "bash"));
+	});
+});
+
+describe("sessionStartMatcher", () => {
+	it("adds new right after startup in an exact list", () => {
+		assert.deepStrictEqual(sessionStartMatcher("startup"), { matcher: "startup|new", widened: true, unwidened: false });
+		assert.strictEqual(sessionStartMatcher("startup|resume").matcher, "startup|new|resume");
+		assert.strictEqual(sessionStartMatcher("resume|startup").matcher, "resume|startup|new");
+	});
+
+	it("leaves a matcher that cannot or need not widen as written", () => {
+		for (const matcher of ["", "*", "resume", "startup|new", "new", "startuppy"]) {
+			assert.deepStrictEqual(sessionStartMatcher(matcher), { matcher, widened: false, unwidened: false }, matcher);
+		}
+	});
+
+	it("leaves a regex as written and flags one that matches startup but not new", () => {
+		assert.deepStrictEqual(sessionStartMatcher("^start.*"), { matcher: "^start.*", widened: false, unwidened: true });
+		assert.deepStrictEqual(sessionStartMatcher("^(startup|new)$"), {
+			matcher: "^(startup|new)$",
+			widened: false,
+			unwidened: false,
+		});
+		assert.isFalse(sessionStartMatcher("(").unwidened);
+	});
+
+	it("copilot passes the widened list, claude keeps the host matcher as written", () => {
+		const hooked = config({
+			name: "x",
+			description: "Fixture plugin.",
+			copilot: true,
+			hooks: { SessionStart: [{ matcher: "startup|resume", script: "hooks/s.sh" }] },
+		});
+		const copilot = JSON.parse(renderHooks(COPILOT, targetHooks(COPILOT, "copilot", hooked).events, "bash") ?? "{}");
+		assert.strictEqual(copilot.hooks.SessionStart[0].env.PLUGINFINITY_MATCHER, "startup|new|resume");
+		const claude = JSON.parse(renderHooks(CLAUDE, targetHooks(CLAUDE, "claude", hooked).events, "bash") ?? "{}");
+		assert.strictEqual(claude.hooks.SessionStart[0].matcher, "startup|resume");
 	});
 });

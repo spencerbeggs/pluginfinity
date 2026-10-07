@@ -33,7 +33,13 @@ const minimalTarget = {
 		lsp: `\${PLUGIN_ROOT}`,
 		body: unresolved("no expansion in bodies"),
 	},
-	skills: { dir: "skills", fields: { description: keep }, hostFields: [], invoke: "/{plugin}:{skill}" },
+	skills: {
+		dir: "skills",
+		fields: { description: keep },
+		hostFields: [],
+		invoke: "/{plugin}:{skill}",
+		dirSpelling: { own: "here", other: "there {skill}", agent: "agent {skill}" },
+	},
 	agents: {
 		dir: "agents",
 		suffix: ".agent.md",
@@ -46,9 +52,13 @@ const minimalTarget = {
 		format: "copilot-hooks-v1" as const,
 		events: { Stop: "Stop", Setup: absent },
 		ownEvents: [],
+		matcherIgnored: [],
+		output: { context: [], system_message: [] },
+		envShell: [],
 	},
 	mcp: { placement: inFile("mcp.json"), format: "agent-plugins-mcp-1.0" as const },
 	lsp: { placement: inFile("lsp.json"), format: "copilot-lsp-json" as const, fields: { command: keep } },
+	monitors: unresolved("no monitors"),
 	references: { style: "prose" as const },
 	tools: {
 		names: { Agent: "agent", Skill: drop, Task: unresolved("no alias") },

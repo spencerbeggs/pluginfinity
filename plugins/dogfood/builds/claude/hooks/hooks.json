@@ -5,8 +5,20 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash",
+						"command": "export PLUGINFINITY_EVENT='SessionStart'; sh \"${CLAUDE_PLUGIN_ROOT}/lib/pluginfinity/env-run.sh\"",
+						"timeout": 15
+					}
+				]
+			},
+			{
+				"matcher": "startup",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
 						"args": [
+							"PLUGINFINITY_EVENT=SessionStart",
+							"bash",
 							"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"
 						],
 						"timeout": 5
@@ -19,8 +31,10 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash",
+						"command": "env",
 						"args": [
+							"PLUGINFINITY_EVENT=UserPromptSubmit",
+							"bash",
 							"${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit.sh"
 						],
 						"timeout": 5
@@ -34,8 +48,11 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash",
+						"command": "env",
 						"args": [
+							"PLUGINFINITY_EVENT=PreToolUse",
+							"PLUGINFINITY_FAIL_CLOSED=1",
+							"bash",
 							"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use.sh"
 						],
 						"timeout": 5
@@ -47,8 +64,10 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash",
+						"command": "env",
 						"args": [
+							"PLUGINFINITY_EVENT=PreToolUse",
+							"bash",
 							"${CLAUDE_PLUGIN_ROOT}/hooks/crash.sh"
 						],
 						"timeout": 5
@@ -62,8 +81,10 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash",
+						"command": "env",
 						"args": [
+							"PLUGINFINITY_EVENT=PostToolUse",
+							"bash",
 							"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use.sh"
 						],
 						"timeout": 5
@@ -75,9 +96,41 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash",
+						"command": "env",
 						"args": [
+							"PLUGINFINITY_EVENT=PostToolUse",
+							"bash",
 							"${CLAUDE_PLUGIN_ROOT}/hooks/post-edit.sh"
+						],
+						"timeout": 5
+					}
+				]
+			},
+			{
+				"matcher": "Read",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PostToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/post-read.sh"
+						],
+						"timeout": 5
+					}
+				]
+			},
+			{
+				"matcher": "Grep",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PostToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/env-reader.sh"
 						],
 						"timeout": 5
 					}
@@ -89,8 +142,10 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash",
+						"command": "env",
 						"args": [
+							"PLUGINFINITY_EVENT=SubagentStart",
+							"bash",
 							"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-start.sh"
 						],
 						"timeout": 5
@@ -103,8 +158,10 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "bash",
+						"command": "env",
 						"args": [
+							"PLUGINFINITY_EVENT=Stop",
+							"bash",
 							"${CLAUDE_PLUGIN_ROOT}/hooks/stop.sh"
 						],
 						"timeout": 5

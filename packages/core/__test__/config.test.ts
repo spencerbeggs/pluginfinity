@@ -109,7 +109,9 @@ describe("BaseConfigFields", () => {
 			"hooks",
 			"mcpServers",
 			"lspServers",
+			"monitors",
 			"files",
+			"env",
 		]);
 	});
 });

@@ -5,13 +5,35 @@ import type { KnownTargetId } from "@pluginfinity/targets";
  *
  * @public
  */
-export const BUILD_NOTE_KINDS = ["dropped", "degraded", "tool-dropped", "hook-omitted"] as const;
+export const BUILD_NOTE_KINDS = [
+	"dropped",
+	"degraded",
+	"tool-dropped",
+	"hook-matcher-runtime",
+	"hook-output-ignored",
+	"hook-omitted",
+	"monitor-omitted",
+	"env-shell-unsupported",
+	"env-wait-timeout",
+	"hook-matcher-widened",
+	"hook-matcher-regex",
+] as const;
 
 /**
  * What a target did to something it could not carry as written: `dropped` a
  * field, `degraded` a field into another form (a description suffix or a body
- * section), `tool-dropped` a tool it cannot name, or `hook-omitted` an event
- * it lacks whose entries all set `fallback: "omit"`.
+ * section), `tool-dropped` a tool it cannot name, moved a
+ * `hook-matcher-runtime` matcher the host ignores into the hook library,
+ * noted a script that calls a helper whose output the host ignores
+ * (`hook-output-ignored`), `hook-omitted` an event it lacks whose entries all set `fallback: "omit"`,
+ * `monitor-omitted` a monitor on a host that has none, or noted that the host
+ * passes no session env to the model's shell (`env-shell-unsupported`), so a
+ * skill script must source `env.sh`, or a SessionStart hook whose `timeout`
+ * is under the 3 seconds a reader may wait for the env runner plus headroom
+ * (`env-wait-timeout`), or widened a SessionStart matcher that matches
+ * `startup` to match a host's `new` source too (`hook-matcher-widened`), or left
+ * a regex matcher as written that matches `startup` but not `new`
+ * (`hook-matcher-regex`).
  *
  * @public
  */

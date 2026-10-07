@@ -122,7 +122,7 @@ load helpers
 @test "hook_project_dir is CLAUDE_PROJECT_DIR on claude" {
 	make_plugin claude
 	hook_script 'hook_project_dir'
-	run_script "$FIXTURES/stop.json" CLAUDE_PROJECT_DIR=/somewhere
+	run_script '{"hook_event_name":"Stop"}' CLAUDE_PROJECT_DIR=/somewhere
 	[ "$output" = "/somewhere" ]
 }
 
@@ -134,20 +134,40 @@ load helpers
 	[ "$output" = "$BATS_TEST_TMPDIR/repo" ]
 }
 
-@test "hook_project_dir falls back to cwd when no .git is above it" {
+@test "hook_project_dir answers a non-git cwd as itself" {
 	make_plugin copilot
 	mkdir -p "$BATS_TEST_TMPDIR/loose"
-	hook_script 'hook_project_dir'
-	run_script "{\"hook_event_name\":\"Stop\",\"cwd\":\"$BATS_TEST_TMPDIR/loose\"}"
+	hook_script 'cd "$BATS_TEST_TMPDIR/loose" && hook_project_dir'
+	run_script "{\"hook_event_name\":\"Stop\",\"cwd\":\"$BATS_TEST_TMPDIR/loose\"}" BATS_TEST_TMPDIR="$BATS_TEST_TMPDIR"
 	[ "$output" = "$BATS_TEST_TMPDIR/loose" ]
+}
+
+@test "hook_project_dir answers a non-git cwd on both hosts even with CLAUDE_PROJECT_DIR set" {
+	local host
+	for host in claude copilot; do
+		make_plugin "$host"
+		mkdir -p "$BATS_TEST_TMPDIR/loose/sub" "$BATS_TEST_TMPDIR/other"
+		hook_script 'hook_project_dir'
+		run_script "{\"hook_event_name\":\"Stop\",\"cwd\":\"$BATS_TEST_TMPDIR/loose/sub\"}" CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/other"
+		[ "$output" = "$BATS_TEST_TMPDIR/loose/sub" ]
+	done
+}
+
+@test "hook_project_dir on copilot with no cwd answers PWD and never walks to the repo root" {
+	make_plugin copilot
+	mkdir -p "$BATS_TEST_TMPDIR/repo/.git" "$BATS_TEST_TMPDIR/repo/a/b"
+	hook_script 'cd "$BATS_TEST_TMPDIR/repo/a/b" && hook_project_dir'
+	run_script '{"hook_event_name":"Stop"}' BATS_TEST_TMPDIR="$BATS_TEST_TMPDIR"
+	[ "$output" = "$BATS_TEST_TMPDIR/repo/a/b" ]
 }
 
 @test "hook_project_dir terminates on a relative cwd" {
 	make_plugin copilot
-	hook_script 'hook_project_dir'
-	run_script '{"hook_event_name":"Stop","cwd":"rel/dir"}'
+	mkdir -p "$BATS_TEST_TMPDIR/loose"
+	hook_script 'cd "$BATS_TEST_TMPDIR/loose" && hook_project_dir'
+	run_script '{"hook_event_name":"Stop","cwd":"rel/dir"}' BATS_TEST_TMPDIR="$BATS_TEST_TMPDIR"
 	[ "$status" -eq 0 ]
-	[ "$output" = "rel/dir" ]
+	[ "$output" = "$BATS_TEST_TMPDIR/loose" ]
 }
 
 @test "hook_cd_project changes into the closest .git directory on copilot" {
@@ -163,7 +183,7 @@ load helpers
 	make_plugin claude
 	mkdir -p "$BATS_TEST_TMPDIR/proj"
 	hook_script 'hook_cd_project; pwd -P'
-	run_script "$FIXTURES/stop.json" CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/proj"
+	run_script '{"hook_event_name":"Stop"}' CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/proj"
 	[ "$output" = "$(cd "$BATS_TEST_TMPDIR/proj" && pwd -P)" ]
 }
 
@@ -171,7 +191,7 @@ load helpers
 	make_plugin claude
 	mkdir -p "$BATS_TEST_TMPDIR/work/proj" "$BATS_TEST_TMPDIR/elsewhere/proj"
 	hook_script 'cd "$WORK" && hook_cd_project; pwd -P'
-	run_script "$FIXTURES/stop.json" CLAUDE_PROJECT_DIR=proj WORK="$BATS_TEST_TMPDIR/work" CDPATH="$BATS_TEST_TMPDIR/elsewhere"
+	run_script '{"hook_event_name":"Stop"}' CLAUDE_PROJECT_DIR=proj WORK="$BATS_TEST_TMPDIR/work" CDPATH="$BATS_TEST_TMPDIR/elsewhere"
 	[ "$status" -eq 0 ]
 	[ "$output" = "$(cd "$BATS_TEST_TMPDIR/work/proj" && pwd -P)" ]
 }
@@ -179,7 +199,7 @@ load helpers
 @test "hook_cd_project writes nothing to stdout and fails with a log when the cd fails" {
 	make_plugin claude
 	hook_script 'hook_cd_project || echo failed'
-	run_script "$FIXTURES/stop.json" CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/missing"
+	run_script '{"hook_event_name":"Stop"}' CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/missing"
 	[ "$output" = "failed" ]
 	[[ "$(error_log)" == *"hook_cd_project"* ]]
 }
@@ -277,7 +297,7 @@ echo done'
 @test "hook_context is a logged no-op on copilot UserPromptSubmit" {
 	make_plugin copilot
 	hook_script 'hook_context "lost"'
-	run_script '{"hook_event_name":"UserPromptSubmit","prompt":"hi"}' PLUGINFINITY_HOOK_DEBUG=1
+	run_script '{"hook_event_name":"UserPromptSubmit","prompt":"hi"}' PLUGINFINITY_DEBUG=1
 	[ "$output" = "{}" ]
 	[[ "$(debug_log)" == *"hook_context does nothing on copilot for UserPromptSubmit"* ]]
 }
@@ -321,18 +341,18 @@ echo done'
 
 @test "hook_allow with updated input: updatedInput on claude, modifiedArgs on copilot" {
 	make_plugin claude
-	hook_script 'hook_allow "{\"command\":\"ls\"}"'
+	hook_script 'hook_allow "" "{\"command\":\"ls\"}"'
 	run_script "$FIXTURES/pretooluse.bash.json"
 	[ "$(jq -c .hookSpecificOutput.updatedInput <<<"$output")" = '{"command":"ls"}' ]
 	make_plugin copilot
-	hook_script 'hook_allow "{\"command\":\"ls\"}"'
+	hook_script 'hook_allow "" "{\"command\":\"ls\"}"'
 	run_script "$FIXTURES/pretooluse.bash.json"
 	[ "$(jq -c .modifiedArgs <<<"$output")" = '{"command":"ls"}' ]
 }
 
 @test "hook_allow with invalid updated input under set -e logs and writes nothing" {
 	make_plugin claude
-	hook_script 'hook_allow "not json"'
+	hook_script 'hook_allow "" "not json"'
 	run_script "$FIXTURES/pretooluse.bash.json"
 	[ "$status" -eq 0 ]
 	[ -z "$output" ]
@@ -404,7 +424,7 @@ echo done'
 @test "a second response is ignored" {
 	make_plugin claude
 	hook_script 'hook_block "first"; hook_block "second"'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ "$output" = '{"decision":"block","reason":"first"}' ]
 	[[ "$(debug_log)" == *"ignored a second response"* ]]
 }
@@ -468,14 +488,16 @@ echo done'
 	[ "$output" = '{"permissionDecision":"allow"}' ]
 }
 
-@test "invalid input JSON fails open" {
+@test "invalid input JSON reads as an empty object, and hook_require_input fails open" {
 	make_plugin copilot
-	# An assignment, so set -e sees the failure; a failing $(…) inside a
-	# command's arguments would not abort the script.
-	hook_script 'name=$(hook_input tool_name); hook_deny "$name"'
+	hook_script 'name=$(hook_input tool_name); echo "[$name]"'
 	run_script 'not json'
 	[ "$status" -eq 0 ]
-	[ -z "$output" ]
+	[ "$output" = "[]" ]
+	hook_script 'hook_require_input; hook_deny "no"'
+	run_script 'not json'
+	[ "$status" -eq 0 ]
+	[ "$output" = '{}' ]
 	[ -z "$stderr" ]
 }
 
@@ -541,15 +563,15 @@ echo done'
 	make_plugin claude my-plugin
 	hook_script 'hook_log "boom"'
 	run_script "$FIXTURES/stop.json"
-	[[ "$(error_log my-plugin)" == *"[claude] test.sh: boom"* ]]
+	[[ "$(error_log my-plugin)" == *"[claude] hook/test.sh: boom"* ]]
 }
 
-@test "hook_debug writes nothing unless PLUGINFINITY_HOOK_DEBUG=1" {
+@test "hook_debug writes nothing unless PLUGINFINITY_DEBUG=1" {
 	make_plugin claude
 	hook_script 'hook_debug "quiet"'
 	run_script "$FIXTURES/stop.json"
 	[ -z "$(debug_log)" ]
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[[ "$(debug_log)" == *"quiet"* ]]
 }
 
@@ -558,7 +580,7 @@ echo done'
 	hook_script 'true'
 	run_script "$FIXTURES/stop.json"
 	[ -z "$(debug_log)" ]
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[[ "$(debug_log)" == *"input: {"* ]]
 	[[ "$(debug_log)" == *'"hook_event_name":"Stop"'* ]]
 }
@@ -595,7 +617,7 @@ echo done'
 @test "with debug on, hook_block logs its outcome and stdout is unchanged" {
 	make_plugin claude
 	hook_script 'hook_block "no"'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ "$output" = '{"decision":"block","reason":"no"}' ]
 	[[ "$(debug_log)" == *"outcome: block"* ]]
 }
@@ -603,30 +625,30 @@ echo done'
 @test "with debug on, hook_noop logs outcome: noop" {
 	make_plugin claude
 	hook_script 'hook_noop'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ "$output" = "{}" ]
 	[[ "$(debug_log)" == *"outcome: noop"* ]]
 }
 
 @test "with debug on, each response helper names its outcome, in a fresh log per case" {
 	make_plugin claude
-	local log="$BATS_TEST_TMPDIR/state/pluginfinity/fixture/hook-debug.log"
+	local log="$BATS_TEST_TMPDIR/state/pluginfinity/fixture/debug.log"
 	hook_script 'hook_deny "x"'
-	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
 	[[ "$(debug_log)" == *"outcome: deny"* ]]
 	rm -f "$log"
 	hook_script 'hook_context "x"'
-	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
 	[[ "$(debug_log)" == *"outcome: context"* ]]
 	[[ "$(debug_log)" != *"outcome: deny"* ]]
 	rm -f "$log"
 	hook_script 'hook_system_message "x"'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[[ "$(debug_log)" == *"outcome: system_message"* ]]
 	[[ "$(debug_log)" != *"outcome: context"* ]]
 	rm -f "$log"
 	hook_script 'hook_raw claude "{\"a\":1}"'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[[ "$(debug_log)" == *"outcome: raw"* ]]
 	[[ "$(debug_log)" != *"outcome: system_message"* ]]
 }
@@ -634,7 +656,7 @@ echo done'
 @test "with debug on, hook_allow logs outcome: allow" {
 	make_plugin claude
 	hook_script 'hook_allow'
-	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
 	[ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = "allow" ]
 	[[ "$(debug_log)" == *"outcome: allow"* ]]
 }
@@ -642,7 +664,7 @@ echo done'
 @test "with debug on, hook_ask logs outcome: ask" {
 	make_plugin claude
 	hook_script 'hook_ask "sure?"'
-	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
 	[ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = "ask" ]
 	[[ "$(debug_log)" == *"outcome: ask"* ]]
 }
@@ -650,7 +672,7 @@ echo done'
 @test "with debug on, a second response is ignored and the first kind stays the outcome" {
 	make_plugin claude
 	hook_script 'hook_block "first"; hook_noop'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ "$output" = '{"decision":"block","reason":"first"}' ]
 	[[ "$(debug_log)" == *"outcome: block"* ]]
 	[[ "$(debug_log)" != *"outcome: noop"* ]]
@@ -660,7 +682,7 @@ echo done'
 @test "with debug on, an unsupported helper logs outcome: noop" {
 	make_plugin claude
 	hook_script 'hook_deny "x"'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ "$output" = "{}" ]
 	[[ "$(debug_log)" == *"outcome: noop"* ]]
 }
@@ -668,7 +690,7 @@ echo done'
 @test "with debug on, a hook that emits nothing logs outcome: none, exactly once" {
 	make_plugin claude
 	hook_script 'true'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ -z "$output" ]
 	[[ "$(debug_log)" == *"outcome: none"* ]]
 	[ "$(debug_log | grep -c 'outcome:')" -eq 1 ]
@@ -678,7 +700,7 @@ echo done'
 	make_plugin claude
 	hook_script 'hook_fail_closed
 exit 7'
-	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
 	[ "$status" -eq 0 ]
 	[[ "$output" == *'"permissionDecision":"deny"'* ]]
 	[[ "$(debug_log)" == *"outcome: fail-closed deny (exit 7)"* ]]
@@ -688,7 +710,7 @@ exit 7'
 	make_plugin claude
 	hook_script 'hook_fail_closed
 exit 7'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ "$status" -eq 0 ]
 	[[ "$output" == *'"decision":"block"'* ]]
 	[[ "$(debug_log)" == *"outcome: fail-closed block (exit 7)"* ]]
@@ -697,7 +719,7 @@ exit 7'
 @test "with debug on, a fail-open crash logs outcome: none with the exit code" {
 	make_plugin claude
 	hook_script 'exit 3'
-	run_script "$FIXTURES/stop.json" PLUGINFINITY_HOOK_DEBUG=1
+	run_script "$FIXTURES/stop.json" PLUGINFINITY_DEBUG=1
 	[ -z "$output" ]
 	[[ "$(debug_log)" == *"outcome: none (exit 3)"* ]]
 }
@@ -708,4 +730,493 @@ exit 7'
 	run_script "$FIXTURES/stop.json"
 	[ "$output" = '{"decision":"block","reason":"no"}' ]
 	[ -z "$(debug_log)" ]
+}
+
+@test "PLUGINFINITY_FAIL_CLOSED=1 makes a crashing PreToolUse hook deny" {
+	make_plugin claude; hook_script 'false'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_FAIL_CLOSED=1
+	[ "$status" -eq 0 ]
+	[ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = deny ]
+}
+
+# --- require input / event ---
+
+@test "hook_require_input passes an object through" {
+	make_plugin claude; hook_script 'hook_require_input; echo body'
+	run_script "$FIXTURES/pretooluse.bash.json"; [ "$output" = body ]
+}
+@test "hook_require_input no-ops on an empty payload and logs it" {
+	make_plugin claude; hook_script 'hook_require_input; echo body'
+	run_script ''; [ "$output" = '{}' ]; [[ "$(error_log)" == *"malformed or empty JSON"* ]]
+}
+@test "hook_require_input no-ops on a JSON array" {
+	make_plugin copilot; hook_script 'hook_require_input; echo body'
+	run_script '[1,2]'; [ "$output" = '{}' ]
+}
+@test "hook_event answers from PLUGINFINITY_EVENT on Claude when the payload is garbage" {
+	make_plugin claude; hook_script 'hook_event'
+	run_script 'not json' PLUGINFINITY_EVENT=SessionStart; [ "$output" = SessionStart ]
+}
+@test "hook_event with no event anywhere prints nothing and returns 1" {
+	make_plugin claude; hook_script 'hook_event || echo "rc=$?"'
+	run_script 'not json'; [ "$output" = "rc=1" ]
+}
+
+# --- allow reason / project dirs ---
+
+@test "hook_allow sends its reason on Claude" {
+	make_plugin claude; hook_script 'hook_allow "safe: read-only"'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$(jq -r .hookSpecificOutput.permissionDecisionReason <<<"$output")" = "safe: read-only" ]
+}
+@test "hook_allow sends reason and modifiedArgs on Copilot" {
+	make_plugin copilot; hook_script 'hook_allow "ok" "{\"command\":\"ls\"}"'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$(jq -c '[.permissionDecisionReason, .modifiedArgs.command]' <<<"$output")" = '["ok","ls"]' ]
+}
+@test "hook_allow with no reason omits the reason key" {
+	make_plugin claude; hook_script 'hook_allow'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$(jq -c '.hookSpecificOutput | has("permissionDecisionReason")' <<<"$output")" = false ]
+}
+@test "hook_project_dir prefers a worktree cwd over CLAUDE_PROJECT_DIR" {
+	make_plugin claude
+	mkdir -p "$BATS_TEST_TMPDIR/main/.git" "$BATS_TEST_TMPDIR/wt/sub"; printf 'gitdir: x\n' >"$BATS_TEST_TMPDIR/wt/.git"
+	hook_script 'printf "%s|%s\n" "$(hook_project_dir)" "$(hook_session_dir)"'
+	run_script "{\"cwd\":\"$BATS_TEST_TMPDIR/wt/sub\",\"hook_event_name\":\"PreToolUse\"}" CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/main"
+	[ "$output" = "$BATS_TEST_TMPDIR/wt|$BATS_TEST_TMPDIR/main" ]
+}
+@test "hook_project_dir falls back to CLAUDE_PROJECT_DIR when the input has no cwd" {
+	make_plugin claude; mkdir -p "$BATS_TEST_TMPDIR/main/.git"; hook_script 'hook_project_dir'
+	run_script '{"hook_event_name":"Stop"}' CLAUDE_PROJECT_DIR="$BATS_TEST_TMPDIR/main"
+	[ "$output" = "$BATS_TEST_TMPDIR/main" ]
+}
+
+# --- envelope and relay ---
+
+@test "hook_envelope claude renames Copilot's tool_input keys" {
+	make_plugin copilot; hook_script 'hook_envelope claude | jq -c "[.hook_event_name, .tool_name, .tool_input.file_path, .tool_input.content]"'
+	run_script "$FIXTURES/pretooluse.write.copilot.json" PLUGINFINITY_EVENT=PreToolUse
+	[ "$output" = '["PreToolUse","Write","/tmp/x","hello"]' ]
+}
+
+@test "hook_envelope claude snake-cases a camelCase payload and parses toolArgs" {
+	make_plugin copilot; hook_script 'hook_envelope claude | jq -c "[.session_id, .tool_input.command]"'
+	run_script "$FIXTURES/pretooluse.camel.json" PLUGINFINITY_EVENT=PreToolUse
+	[ "$output" = '["s-1","ls -la"]' ]
+}
+
+@test "hook_envelope on Claude keeps the input and an unknown target returns 1" {
+	make_plugin claude; hook_script 'hook_envelope claude | jq -c "[.hook_event_name, .tool_name]"; hook_envelope nope || echo "rc=$?"'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$output" = $'["PreToolUse","Bash"]\nrc=1' ]
+}
+
+@test "hook_relay maps a Claude deny onto Copilot's shape" {
+	make_plugin copilot
+	hook_script 'hook_relay "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"no\"}}"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PreToolUse
+	[ "$(jq -c '[.permissionDecision,.permissionDecisionReason]' <<<"$output")" = '["deny","no"]' ]
+}
+
+@test "hook_relay prefers the permission decision and logs the dropped context" {
+	make_plugin claude
+	hook_script 'hook_relay "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"allow\",\"additionalContext\":\"c\"}}"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
+	[ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = allow ]
+	[[ "$(debug_log)" == *"hook_relay dropped hookSpecificOutput.additionalContext"* ]]
+}
+
+@test "hook_relay of {} is a noop" {
+	make_plugin claude; hook_script 'hook_relay "{}"'; run_script "$FIXTURES/pretooluse.bash.json"; [ "$output" = '{}' ]
+}
+
+@test "hook_relay of non-JSON emits nothing and returns 1" {
+	make_plugin claude; hook_script 'hook_relay "oops" || echo "rc=$?"'
+	run_script "$FIXTURES/pretooluse.bash.json"; [ "$output" = "rc=1" ]; [[ "$(error_log)" == *"not a JSON object"* ]]
+}
+
+@test "hook_relay of a block on Copilot's Stop blocks" {
+	make_plugin copilot; hook_script 'hook_relay "{\"decision\":\"block\",\"reason\":\"keep going\"}"'
+	run_script '{"hook_event_name":"Stop"}' PLUGINFINITY_EVENT=Stop
+	[ "$(jq -r .decision <<<"$output")" = block ]
+}
+
+@test "hook_relay passes updatedInput to hook_allow and logs unmapped fields" {
+	make_plugin claude
+	hook_script 'hook_relay "{\"continue\":false,\"hookSpecificOutput\":{\"permissionDecision\":\"allow\",\"updatedInput\":{\"command\":\"ls\"}}}"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_DEBUG=1
+	[ "$(jq -c .hookSpecificOutput.updatedInput <<<"$output")" = '{"command":"ls"}' ]
+	[[ "$(debug_log)" == *"hook_relay dropped continue"* ]]
+}
+
+# --- tool names ---
+
+@test "hook_tool_name spells an own MCP tool on Copilot" {
+	make_plugin copilot silk "$(printf "_PF_TOOLS='Read=view'\n_PF_TOOLS_MCP='{server}-{tool}'\n_PF_TOOLS_SERVERS='savvy-mcp'\n_PF_TOOLS_UNLISTED=unresolved\n")"
+	hook_script 'hook_tool_name mcp__plugin_silk_savvy-mcp__biome_check; hook_tool_name Read'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'savvy-mcp-biome_check\nview')" ]
+}
+
+@test "hook_tool_name fails for another plugin's tool on Copilot" {
+	make_plugin copilot silk "$(printf "_PF_TOOLS=''\n_PF_TOOLS_MCP='{server}-{tool}'\n_PF_TOOLS_SERVERS='savvy-mcp'\n_PF_TOOLS_UNLISTED=unresolved\n")"
+	hook_script 'hook_tool_name mcp__plugin_other_x__y || echo "rc=$?"; hook_tool_name AskUserQuestion || echo "rc=$?"'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'rc=1\nrc=1')" ]
+}
+
+@test "hook_tool_name echoes on Claude" {
+	make_plugin claude silk "$(printf "_PF_TOOLS=''\n_PF_TOOLS_MCP='mcp__plugin_{plugin}_{server}__{tool}'\n_PF_TOOLS_SERVERS=''\n_PF_TOOLS_UNLISTED=keep\n")"
+	hook_script 'hook_tool_name mcp__plugin_other_x__y'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = mcp__plugin_other_x__y ]
+}
+
+@test "hook_tool_name uses the Claude plugin name when tools.sh carries one" {
+	make_plugin copilot renamed "$(printf "_PF_TOOLS=''\n_PF_TOOLS_PLUGIN='silk'\n_PF_TOOLS_MCP='{server}-{tool}'\n_PF_TOOLS_SERVERS='a b'\n_PF_TOOLS_UNLISTED=unresolved\n")"
+	hook_script 'hook_tool_name mcp__plugin_silk_b__t'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = b-t ]
+}
+
+@test "hook_tool_name without tools.sh keeps the name" {
+	make_plugin claude silk
+	rm "$PLUGIN/hooks/lib/pluginfinity/tools.sh"
+	hook_script 'hook_tool_name Whatever'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = Whatever ]
+}
+
+# --- component presence and tool prefix ---
+
+has_tools() {
+	printf "_PF_TOOLS=''\n_PF_TOOLS_PLUGIN='silk'\n_PF_TOOLS_MCP='%s'\n_PF_TOOLS_SERVERS='savvy-mcp'\n_PF_TOOLS_UNLISTED=keep\n_PF_HAS_SKILLS='build lint'\n_PF_HAS_AGENTS='reviewer'\n_PF_HAS_MONITORS='%s'\n_PF_HAS_SERVERS='savvy-mcp'\n" "$1" "$2"
+}
+
+@test "hook_has answers for each kind on Claude, with a monitor present" {
+	make_plugin claude silk "$(has_tools 'mcp__plugin_{plugin}_{server}__{tool}' watch)"
+	hook_script 'for a in "skill build" "skill nope" "agent reviewer" "agent x" "monitor watch" "server savvy-mcp" "server x"; do hook_has $a && echo "$a yes" || echo "$a no"; done'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'skill build yes\nskill nope no\nagent reviewer yes\nagent x no\nmonitor watch yes\nserver savvy-mcp yes\nserver x no')" ]
+}
+
+@test "hook_has matches a whole name, never a prefix or a glob" {
+	make_plugin claude silk "$(has_tools 'mcp__plugin_{plugin}_{server}__{tool}' watch)"
+	hook_script 'for n in bu "*" "b?ild" "bui*" build; do rc=0; hook_has skill "$n" || rc=$?; echo "$n rc=$rc"; done'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	echo "[$output]" >&3; [ "$output" = "$(printf 'bu rc=1\n* rc=1\nb?ild rc=1\nbui* rc=1\nbuild rc=0')" ]
+}
+
+@test "hook_has server answers for MCP servers on Copilot" {
+	make_plugin copilot silk "$(has_tools '{server}-{tool}' '')"
+	hook_script 'hook_has server savvy-mcp && echo yes; hook_has server nope || echo "rc=$?"'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'yes\nrc=1')" ]
+}
+
+@test "hook_has finds no monitor on Copilot" {
+	make_plugin copilot silk "$(has_tools '{server}-{tool}' '')"
+	hook_script 'hook_has monitor watch && echo yes || echo "rc=$?"; hook_has skill lint && echo yes'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'rc=1\nyes')" ]
+}
+
+@test "hook_has returns 2 and logs for an unknown kind" {
+	make_plugin claude silk "$(has_tools 'mcp__plugin_{plugin}_{server}__{tool}' watch)"
+	hook_script 'hook_has widget x || echo "rc=$?"'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = rc=2 ]
+}
+
+@test "hook_has without tools.sh finds nothing" {
+	make_plugin claude silk
+	rm "$PLUGIN/hooks/lib/pluginfinity/tools.sh"
+	hook_script 'hook_has skill build || echo "rc=$?"'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = rc=1 ]
+}
+
+@test "hook_tool_prefix on Claude" {
+	make_plugin claude silk "$(has_tools 'mcp__plugin_{plugin}_{server}__{tool}' '')"
+	hook_script 'hook_tool_prefix savvy-mcp'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = mcp__plugin_silk_savvy-mcp__ ]
+}
+
+@test "hook_tool_prefix on Copilot uses the Claude plugin name only for Claude spellings" {
+	make_plugin copilot renamed "$(has_tools '{server}-{tool}' '')"
+	hook_script 'hook_tool_prefix savvy-mcp'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = savvy-mcp- ]
+}
+
+@test "hook_tool_prefix prints nothing and returns 1 for an undeclared server" {
+	make_plugin claude silk "$(has_tools 'mcp__plugin_{plugin}_{server}__{tool}' '')"
+	hook_script 'p=$(hook_tool_prefix other) || echo "rc=$? [$p]"'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "rc=1 []" ]
+}
+
+# --- matchers a host ignores ---
+
+@test "a matcher passed by the build skips a non-matching SessionStart" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"hook_event_name":"SessionStart","source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER=startup
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+}
+
+@test "an alternation matcher matches either word" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER='startup|resume'
+	[ "$output" = ran ]
+}
+
+@test "a regex matcher is unanchored, as on Claude" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER='res.*'
+	[ "$output" = ran ]
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER='^res.*'
+	[ "$output" = ran ]
+}
+
+@test "an exact word does not match as a substring" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"source":"startup-x"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER=startup
+	[ -z "$output" ]
+}
+
+@test "an empty or star matcher matches everything" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER='*'
+	[ "$output" = ran ]
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER=
+	[ "$output" = ran ]
+}
+
+@test "SessionEnd matches on reason and SubagentStop on agent_type" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"reason":"logout"}' PLUGINFINITY_EVENT=SessionEnd PLUGINFINITY_MATCHER=clear
+	[ -z "$output" ]
+	run_script '{"reason":"clear"}' PLUGINFINITY_EVENT=SessionEnd PLUGINFINITY_MATCHER=clear
+	[ "$output" = ran ]
+	run_script '{"agent_type":"reviewer"}' PLUGINFINITY_EVENT=SubagentStop PLUGINFINITY_MATCHER=reviewer
+	[ "$output" = ran ]
+	run_script '{"agent_type":"other"}' PLUGINFINITY_EVENT=SubagentStop PLUGINFINITY_MATCHER=reviewer
+	[ -z "$output" ]
+}
+
+@test "a non-matching matcher logs a debug line and a fail-closed hook still emits nothing" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER=startup PLUGINFINITY_FAIL_CLOSED=1 PLUGINFINITY_DEBUG=1
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+	[[ "$(debug_log)" == *"matcher startup did not match resume"* ]]
+}
+
+# --- session env ---
+
+@test "env: a reader hook sees a declared value from the session values file, on both hosts" {
+	local host
+	for host in claude copilot; do
+		make_plugin "$host"
+		make_env SILK_PM=npm SILK_X
+		seed_env s-1 SILK_PM=pnpm SILK_X=
+		hook_script 'printf "%s|%s\n" "${SILK_PM-unset}" "${SILK_X-unset}"'
+		run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PreToolUse
+		[ "$status" -eq 0 ]
+		[ "$output" = "pnpm|" ]
+		[ -z "$stderr" ]
+	done
+}
+
+@test "env: a reader hook falls back to the config default with no session values" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	hook_script 'printf "%s\n" "${SILK_PM-unset}"'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$output" = "npm" ]
+}
+
+@test "env: a Copilot reader with no cwd reads no .env from the plugin root, and one with a cwd reads the project's" {
+	make_plugin copilot
+	make_env SILK_PM=npm
+	printf 'SILK_PM=from-plugin-root\n' >"$PLUGIN/.env"
+	hook_script 'printf "%s\n" "${SILK_PM-unset}"'
+	cd "$PLUGIN"
+	run_script '{"sessionId":"s-9","toolName":"bash","toolArgs":"{}"}' PLUGINFINITY_EVENT=PreToolUse
+	[ "$status" -eq 0 ]
+	[ "$output" = npm ]
+	local project="$BATS_TEST_TMPDIR/project"
+	mkdir -p "$project/.git"
+	printf 'SILK_PM=from-project\n' >"$project/.env"
+	run_script "{\"sessionId\":\"s-9\",\"cwd\":\"$project\",\"toolName\":\"bash\",\"toolArgs\":\"{}\"}" PLUGINFINITY_EVENT=PreToolUse
+	[ "$output" = from-project ]
+}
+
+@test "env: a build without env.sh behaves as before" {
+	make_plugin claude
+	hook_script 'printf "%s|" "${SILK_PM-unset}"; hook_env_set SILK_PM x; echo "rc=$?"; hook_noop'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$status" -eq 0 ]
+	[ "$output" = $'unset|rc=0\n{}' ]
+	[[ "$(error_log)" == *"no session env"* ]]
+}
+
+@test "env: the library loads under bash 3.2 style set -eu with nothing on stdout" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	hook_script 'true'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+	[ -z "$stderr" ]
+}
+
+@test "env: a matcher-skipped hook does not load the env library, and a matching run does" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	hook_script 'echo ran'
+	run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_MATCHER=resume PLUGINFINITY_DEBUG=1
+	[ -z "$output" ]
+	[[ "$(debug_log)" != *"env:"* ]]
+	run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_MATCHER=startup PLUGINFINITY_DEBUG=1
+	[ "$output" = ran ]
+	[[ "$(debug_log)" == *"env:"* ]]
+}
+
+@test "env: hook_env_set returns 0 under set -e and fail-closed, so a refusal never aborts or denies" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	seed_env s-1 SILK_PM=npm
+	hook_script 'hook_fail_closed; hook_env_set SILK_PM bun; hook_env_set OTHER x; hook_noop'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PreToolUse
+	[ "$status" -eq 0 ]
+	[ "$output" = "{}" ]
+}
+
+@test "env: a fail-closed hook still runs with an unreadable env.sh" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	chmod 000 "$PLUGIN/lib/pluginfinity/env.sh"
+	hook_script 'hook_fail_closed; hook_noop'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_FAIL_CLOSED=1
+	chmod 644 "$PLUGIN/lib/pluginfinity/env.sh"
+	[ "$status" -eq 0 ]
+	[ "$output" = "{}" ]
+}
+
+@test "env: a fail-closed hook still runs when env.sh errors as it loads" {
+	local body
+	for body in 'false' ': "${unbound_name_pf}"; false' 'return 3'; do
+		make_plugin claude
+		make_env SILK_PM=npm
+		printf '%s\n' "$body" >>"$PLUGIN/lib/pluginfinity/env.sh"
+		hook_script 'hook_noop'
+		run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_FAIL_CLOSED=1
+		[ "$status" -eq 0 ]
+		[ "$output" = "{}" ]
+	done
+}
+
+@test "env: hook_env_set in SessionStart persists, exports and a later hook sees it, on both hosts" {
+	local host
+	for host in claude copilot; do
+		make_plugin "$host"
+		make_env SILK_PM=npm SILK_X
+		seed_env s-1 SILK_PM=npm SILK_X=
+		hook_script 'hook_env_set SILK_PM bun; echo "in:$SILK_PM"'
+		run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_EVENT=SessionStart
+		[ "$status" -eq 0 ]
+		[ "$output" = "in:bun" ]
+		[[ "$(values_file)" == *"SILK_PM=bun"* ]]
+		hook_script 'printf "later:%s\n" "$SILK_PM"'
+		run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PreToolUse
+		[ "$output" = "later:bun" ]
+	done
+}
+
+@test "env: hook_env_set works in the other producer events" {
+	local ev
+	for ev in Setup CwdChanged FileChanged; do
+		make_plugin claude
+		make_env SILK_PM=npm
+		seed_env s-1 SILK_PM=npm
+		hook_script 'hook_env_set SILK_PM "a b"; echo "$SILK_PM"'
+		run_script '{"session_id":"s-1","cwd":"/tmp"}' PLUGINFINITY_EVENT=$ev
+		[ "$output" = "a b" ]
+		[[ "$(values_file)" == *"SILK_PM=a b"* ]]
+	done
+}
+
+@test "env: hook_env_set is refused outside a producer event and says why in the debug log" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	seed_env s-1 SILK_PM=npm
+	hook_script 'hook_env_set SILK_PM bun; echo "rc=$?"; echo "$SILK_PM"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PreToolUse PLUGINFINITY_DEBUG=1
+	[ "$output" = $'rc=0\nnpm' ]
+	[[ "$(values_file)" == *"SILK_PM=npm"* ]]
+	[[ "$(debug_log)" == *"hook_env_set"*"PreToolUse"* ]]
+}
+
+@test "env: hook_env_set refuses an undeclared name and a value with a newline, and returns 0, with a log line" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	seed_env s-1 SILK_PM=npm
+	hook_script 'hook_env_set OTHER x && echo r1; hook_env_set SILK_PM $'"'"'a\nb'"'"' && echo r2; echo "$SILK_PM"'
+	run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_EVENT=SessionStart
+	[ "$output" = $'r1\nr2\nnpm' ]
+	[[ "$(error_log)" == *"OTHER"* ]]
+	[[ "$(error_log)" == *"newline"* ]]
+	[[ "$(values_file)" == "SILK_PM=npm" ]]
+}
+
+@test "env: hook_env_set appends to CLAUDE_ENV_FILE on Claude, quoted, and not on Copilot" {
+	local envfile="$BATS_TEST_TMPDIR/envfile"
+	make_plugin claude
+	make_env SILK_PM=npm
+	seed_env s-1 SILK_PM=npm
+	hook_script "hook_env_set SILK_PM \"it's\""
+	run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_EVENT=SessionStart CLAUDE_ENV_FILE="$envfile"
+	[ "$status" -eq 0 ]
+	[ "$(cat "$envfile")" = "export SILK_PM='it'\\''s'" ]
+	[ -z "$output" ]
+	rm -f "$envfile"
+	make_plugin copilot
+	make_env SILK_PM=npm
+	seed_env s-1 SILK_PM=npm
+	hook_script "hook_env_set SILK_PM bun"
+	run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_EVENT=SessionStart CLAUDE_ENV_FILE="$envfile"
+	[ ! -e "$envfile" ]
+	[[ "$(values_file)" == *"SILK_PM=bun"* ]]
+}
+
+@test "hook_supports server-project is true on Claude, false on Copilot, for any event" {
+	make_plugin claude
+	hook_script 'hook_supports server-project && echo own; hook_supports server-project PreToolUse && echo pre; hook_supports server-project SessionEnd && echo end'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'own\npre\nend')" ]
+	make_plugin copilot
+	hook_script 'hook_supports server-project || echo none; hook_supports server-project SessionStart || echo none-start'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'none\nnone-start')" ]
+}
+
+@test "env: hook_supports env-shell is true on Claude's producer events and false elsewhere" {
+	make_plugin claude
+	hook_script 'for e in SessionStart Setup CwdChanged FileChanged; do hook_supports env-shell "$e" || echo "missing $e"; done
+for e in PreToolUse Stop SessionEnd UserPromptSubmit; do ! hook_supports env-shell "$e" || echo "extra $e"; done
+hook_supports env-shell || echo "own-event-no"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PreToolUse
+	[ "$output" = "own-event-no" ]
+	make_plugin claude
+	hook_script 'hook_supports env-shell && echo yes'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "yes" ]
+	make_plugin copilot
+	hook_script 'for e in SessionStart Setup CwdChanged FileChanged PreToolUse; do ! hook_supports env-shell "$e" || echo "extra $e"; done; hook_supports env-shell || echo none'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "none" ]
 }

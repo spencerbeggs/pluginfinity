@@ -6,18 +6,160 @@
 #   load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 #
 # Tests run against builds/<target>/, so run `pluginfinity build` first.
+#
+# Every run gets XDG_STATE_HOME=$BATS_TEST_TMPDIR/state unless the call passes
+# its own (a trailing XDG_STATE_HOME=... on run_hook or run_monitor, or
+# --env XDG_STATE_HOME=... on run_script; the last one wins, as env applies
+# them). The session env the helper seeds (--session-env, the project pointer
+# and run_hook's SessionStart done marker) goes under that same state dir, so
+# the script reads what was seeded.
 
 bats_require_minimum_version 1.5.0
 
 : "${PLUGIN_DIR:=$(cd "$BATS_TEST_DIRNAME/.." && pwd)}"
 
-# run_hook <target> <script> <fixture> [VAR=value...]
-# Runs builds/<target>/<script> under env -i with the host's environment and
-# the fixture on stdin. Sets $status, $output and $stderr.
+# _pf_project_dir: print the test's project directory, $BATS_TEST_TMPDIR/project,
+# creating it on first use. It is the default for hook_fixture's cwd,
+# HOOK_PROJECT_DIR (so CLAUDE_PROJECT_DIR), a skill script's cwd and a
+# monitor's cwd, so one test sees one project everywhere.
+_pf_project_dir() {
+	mkdir -p "$BATS_TEST_TMPDIR/project"
+	printf '%s\n' "$BATS_TEST_TMPDIR/project"
+}
+
+# _pf_state_dir [VAR=value...]: print the state dir a run with these
+# assignments gets: the value of the last XDG_STATE_HOME=..., else
+# $BATS_TEST_TMPDIR/state.
+_pf_state_dir() {
+	local dir="$BATS_TEST_TMPDIR/state" arg
+	for arg in "$@"; do
+		case "$arg" in
+		XDG_STATE_HOME=*) dir=${arg#XDG_STATE_HOME=} ;;
+		esac
+	done
+	printf '%s\n' "$dir"
+}
+
+# _pf_seed_session_env <target> <env-file> <session id> [<project dir>]: write
+# the session env library's own state under the test's state dir, so a reader
+# sees the values without SessionStart having run. The file's NAME=value and
+# `export NAME=value` lines are parsed, not sourced. It writes
+# session/<id>/env and, with a project dir, the project pointer a script with no
+# session id uses (the dir walked up to the nearest .git, as the library does).
+# The plugin's name comes from the build's host.sh. The state dir is
+# $_pf_state when set (see _pf_state_dir), else $BATS_TEST_TMPDIR/state.
+_pf_seed_session_env() {
+	local target=$1 file=$2 sid=$3 proj=${4:-} root="$PLUGIN_DIR/builds/$1" plugin base dir pair p
+	local filevars=()
+	if [ ! -f "$file" ]; then
+		echo "--session-env $file not found" >&2
+		return 1
+	fi
+	plugin=$(sed -n "s/^PLUGINFINITY_PLUGIN='\\(.*\\)'$/\\1/p" "$root/lib/pluginfinity/host.sh" 2>/dev/null | head -n 1)
+	if [ -z "$plugin" ]; then
+		echo "--session-env: $root/lib/pluginfinity/host.sh not found; run pluginfinity build" >&2
+		return 1
+	fi
+	base="${_pf_state:-$BATS_TEST_TMPDIR/state}/pluginfinity/$plugin"
+	dir="$base/session/$sid"
+	mkdir -p "$dir"
+	_pf_read_env_file "$file"
+	: >"$dir/env"
+	for pair in ${filevars[@]+"${filevars[@]}"}; do
+		printf '%s\n' "$pair" >>"$dir/env"
+	done
+	if [ -n "$proj" ]; then
+		mkdir -p "$proj"
+		p=$(cd "$proj" && pwd -P)
+		local q=$p
+		while [ -n "$q" ] && [ "$q" != / ] && [ "$q" != . ]; do
+			if [ -e "$q/.git" ]; then
+				p=$q
+				break
+			fi
+			q=$(dirname "$q")
+		done
+		mkdir -p "$base/project"
+		printf '%s\n%s\n' "$sid" "$p" >"$base/project/$(printf '%s' "$p" | cksum | awk '{ print $1 "-" $2 }')"
+	fi
+}
+
+# _pf_valid_session_id <id>: 0 when the session env library would accept <id>:
+# not empty, not ., and no /, .., backslash or control character.
+_pf_valid_session_id() {
+	case "${1:-}" in
+	'' | . | */* | *..* | *\\*) return 1 ;;
+	esac
+	case "$1" in
+	*[[:cntrl:]]*) return 1 ;;
+	esac
+	return 0
+}
+
+# _pf_mark_env_done <target> <session id>: write the env runner's done marker
+# for <session id> under the run's state dir ($_pf_state, else the test's), so a SessionStart reader with no
+# values file resolves live at once instead of waiting up to 3 s for a runner
+# the test never starts. Nothing happens for an invalid id or a build with no
+# env.sh.
+_pf_mark_env_done() {
+	local root="$PLUGIN_DIR/builds/$1" plugin
+	[ -f "$root/lib/pluginfinity/env.sh" ] || return 0
+	_pf_valid_session_id "$2" || return 0
+	plugin=$(sed -n "s/^PLUGINFINITY_PLUGIN='\\(.*\\)'$/\\1/p" "$root/lib/pluginfinity/host.sh" 2>/dev/null | head -n 1)
+	[ -n "$plugin" ] || return 0
+	local dir="${_pf_state:-$BATS_TEST_TMPDIR/state}/pluginfinity/$plugin/session/$2"
+	mkdir -p "$dir"
+	: >"$dir/done"
+}
+
+# run_hook <target> <script> <fixture> [--matcher <m>] [--session-env <file>] [--env-wait] [VAR=value...]
+# The three options may stand anywhere in the trailing list, mixed with VAR=value
+# arguments; only the exact words --matcher, --session-env and --env-wait are
+# options, so a VAR=value whose value starts with -- is still a VAR=value.
+# Runs builds/<target>/<script> under env -i the way the host runs the built
+# hook entry: the entry in the target's hooks file that runs <script>, under the
+# fixture's hook_event_name (else the event of the first such entry), supplies
+# the environment (Claude: the K=V args before `bash`; Copilot: the `env`
+# object). --matcher picks between entries for one script. Explicit VAR=value
+# arguments override the entry's environment. The fixture is on stdin.
+# --session-env <file> seeds the session values a reader hook sees, as if
+# SessionStart had run: the file's NAME=value lines are written to the session env
+# library's values file for the fixture's session_id, under the test state dir.
+# A SessionStart hook other than the env runner, run with no --session-env,
+# finds the runner's done marker already written for the fixture's session_id,
+# so it resolves the session env live at once; --env-wait leaves the marker out
+# and keeps the library's real wait of up to 3 s, for a test of that wait.
+# Sets $status, $output and $stderr.
 run_hook() {
-	local target=$1 script=$2 fixture=$3
+	local target=$1 script=$2 fixture=$3 matcher="" has_matcher=0 session_env="" env_wait=0
+	local rest=()
 	shift 3
-	local root="$PLUGIN_DIR/builds/$target"
+	# The options may stand anywhere among the VAR=value arguments. Only the exact
+	# words are options, so a VAR=value whose value starts with -- stays a VAR=value.
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--matcher)
+			matcher=${2:-}
+			has_matcher=1
+			shift $(($# > 1 ? 2 : 1))
+			;;
+		--session-env)
+			session_env=${2:-}
+			shift $(($# > 1 ? 2 : 1))
+			;;
+		--env-wait)
+			env_wait=1
+			shift
+			;;
+		*)
+			rest+=("$1")
+			shift
+			;;
+		esac
+	done
+	set -- ${rest[@]+"${rest[@]}"}
+	local root="$PLUGIN_DIR/builds/$target" project
+	project=$(_pf_project_dir)
 	if [ ! -f "$root/$script" ]; then
 		echo "run_hook: $root/$script not found; run pluginfinity build" >&2
 		return 1
@@ -26,26 +168,369 @@ run_hook() {
 	/*) ;;
 	*) fixture="$PLUGIN_DIR/__test__/fixtures/$fixture" ;;
 	esac
-	local event
-	event=$(jq -r '.hook_event_name // empty' "$fixture")
+	local hooks_file entries
 	case "$target" in
 	claude)
-		run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
-			XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" CLAUDE_PLUGIN_ROOT="$root" \
-			CLAUDE_PROJECT_DIR="${HOOK_PROJECT_DIR:-$BATS_TEST_TMPDIR}" "$@" bash "$root/$script" <"$fixture"
+		hooks_file="$root/hooks/hooks.json"
+		# An exec-form entry (`env K=V ... bash <script>`) or a command-string entry
+		# (`export K='V'; ... <command>`); the env is the leading assignments of each.
+		entries='[(.hooks // {}) | to_entries[] | .key as $ev | .value[] | (.matcher // "") as $m | (.hooks // [])[]
+			| (if ((.args // []) | map(type == "string" and endswith("/" + $s)) | any) then
+					{event: $ev, matcher: $m, env: (.args | (map(test("^[A-Za-z_][A-Za-z0-9_]*=")) | index(false) // length) as $i | .[:$i]
+						| map({key: sub("=.*$"; ""; "s"), value: sub("^[^=]*="; ""; "s")}) | from_entries)}
+				elif ((.command // "") | (contains("/" + $s + "\"") or contains("/" + $s + " ") or endswith("/" + $s))) then
+					{event: $ev, matcher: $m, env: ((.command | capture("^(?<p>(export [A-Za-z_][A-Za-z0-9_]*=\u0027([^\u0027]|\u0027\\\\\u0027\u0027)*\u0027; )*)").p)
+						| [match("export ([A-Za-z_][A-Za-z0-9_]*)=\u0027((?:[^\u0027]|\u0027\\\\\u0027\u0027)*)\u0027; "; "g") | {key: .captures[0].string, value: (.captures[1].string | gsub("\u0027\\\\\u0027\u0027"; "\u0027"))}] | from_entries)}
+				else empty end)]'
 		;;
 	copilot)
-		# Copilot runs hooks from the plugin root, and the build sets
-		# PLUGINFINITY_EVENT on every entry.
-		run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
-			XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" PLUGIN_ROOT="$root" \
-			PLUGINFINITY_EVENT="$event" "$@" bash -c 'cd "$1" && shift && exec bash "$@"' _ "$root" "$root/$script" <"$fixture"
+		hooks_file="$root/com.github.copilot/hooks/hooks.json"
+		entries='[(.hooks // {}) | to_entries[] | .key as $ev | .value[]
+			| select((.bash // "") | (contains("/" + $s + "\"") or contains("/" + $s + " ") or endswith("/" + $s)))
+			| {event: $ev, matcher: (.matcher // .env.PLUGINFINITY_MATCHER // ""), env: (.env // {})}]'
 		;;
 	*)
 		echo "run_hook: unknown target $target" >&2
 		return 1
 		;;
 	esac
+	if [ ! -f "$hooks_file" ]; then
+		echo "run_hook: $hooks_file not found; run pluginfinity build" >&2
+		return 1
+	fi
+	local event all picked count
+	event=$(jq -r '.hook_event_name // empty' "$fixture")
+	all=$(jq -c --arg s "$script" "$entries" "$hooks_file") || {
+		echo "run_hook: cannot read $hooks_file" >&2
+		return 1
+	}
+	picked=$(jq -c --arg e "$event" --arg m "$matcher" --argjson hm "$has_matcher" '
+		(if $e == "" then . else (map(select((.event | ascii_downcase) == ($e | ascii_downcase))) as $x | if ($x | length) > 0 then $x else . end) end)
+		| (if $hm == 1 then map(select(.matcher == $m)) else . end)' <<<"$all")
+	if [ -n "$event" ] && [ "$(jq 'length' <<<"$all")" -gt 0 ] &&
+		[ "$(jq -r --arg e "$event" 'map(select((.event | ascii_downcase) == ($e | ascii_downcase))) | length' <<<"$all")" -eq 0 ]; then
+		echo "run_hook: no $script entry for event $event; using entries for any event" >&2
+	fi
+	count=$(jq 'length' <<<"$picked")
+	if [ "$count" -eq 0 ]; then
+		if [ "$has_matcher" -eq 1 ]; then
+			echo "run_hook: no entry in $hooks_file runs $script with matcher '$matcher'" >&2
+		else
+			echo "run_hook: no entry in $hooks_file runs $script" >&2
+		fi
+		return 1
+	fi
+	if [ "$count" -gt 1 ] && [ "$has_matcher" -eq 0 ]; then
+		echo "run_hook: $count entries run $script; using the first (pass --matcher)" >&2
+	fi
+	local entry_env=() line
+	while IFS= read -r line; do
+		entry_env+=("$line")
+	done < <(jq -r '.[0].env | to_entries[] | "\(.key)=\(.value)"' <<<"$picked")
+	local sid _pf_state
+	_pf_state=$(_pf_state_dir ${entry_env[@]+"${entry_env[@]}"} "$@")
+	sid=$(jq -r '.session_id // .sessionId // empty' "$fixture")
+	if [ -n "$session_env" ]; then
+		_pf_seed_session_env "$target" "$session_env" "${sid:-test-session}" || return 1
+	elif [ "$env_wait" -eq 0 ] && [ "$script" != lib/pluginfinity/env-run.sh ] &&
+		[ "$(jq -r '.[0].event | ascii_downcase' <<<"$picked")" = sessionstart ]; then
+		_pf_mark_env_done "$target" "$sid"
+	fi
+	case "$target" in
+	claude)
+		run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
+			XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" CLAUDE_PLUGIN_ROOT="$root" \
+			CLAUDE_PROJECT_DIR="${HOOK_PROJECT_DIR:-$project}" \
+			${entry_env[@]+"${entry_env[@]}"} "$@" bash "$root/$script" <"$fixture"
+		;;
+	copilot)
+		# Copilot runs hooks from the plugin root.
+		run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
+			XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" PLUGIN_ROOT="$root" \
+			${entry_env[@]+"${entry_env[@]}"} "$@" bash -c 'cd "$1" && shift && exec bash "$@"' _ "$root" "$root/$script" <"$fixture"
+		;;
+	esac
+}
+
+# _pf_host_env <target> <root> [skill]: set the _pf_env array to the env -i
+# arguments a plugin process gets (hook-only variables are added by run_hook).
+# With "skill" it is the environment of a script a skill runs through the agent's
+# Bash tool, which gets none of the plugin variables: on Claude Code, as
+# measured, only CLAUDE_CODE_SESSION_ID (and what SessionStart wrote to
+# CLAUDE_ENV_FILE); on Copilot, not measured and assumed minimal, nothing beyond
+# the base. A launcher gets the plugin variables.
+_pf_host_env() {
+	_pf_env=(PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" XDG_STATE_HOME="$BATS_TEST_TMPDIR/state")
+	case "$1" in
+	claude)
+		if [ "${3:-}" = skill ]; then
+			_pf_env+=(CLAUDE_CODE_SESSION_ID=test-session)
+		else
+			_pf_env+=(CLAUDE_PLUGIN_ROOT="$2" CLAUDE_PROJECT_DIR="${HOOK_PROJECT_DIR:-$(_pf_project_dir)}")
+		fi
+		;;
+	copilot) [ "${3:-}" = skill ] || _pf_env+=(PLUGIN_ROOT="$2") ;;
+	*)
+		echo "unknown target $1" >&2
+		return 1
+		;;
+	esac
+}
+
+# _pf_read_env_file <file>: append the file's assignments to the filevars array.
+# The file is parsed, never sourced: blank lines and # comments are skipped, an
+# `export ` prefix is dropped, one pair of surrounding quotes is stripped and
+# nothing is expanded.
+_pf_read_env_file() {
+	local line name value
+	while IFS= read -r line || [ -n "$line" ]; do
+		line=${line#"${line%%[![:space:]]*}"}
+		case "$line" in '' | '#'*) continue ;; esac
+		case "$line" in
+		"export "*) line=${line#export }; line=${line#"${line%%[![:space:]]*}"} ;;
+		esac
+		case "$line" in
+		[A-Za-z_]*=*) ;;
+		*) continue ;;
+		esac
+		name=${line%%=*}
+		value=${line#*=}
+		case "$name" in *[!A-Za-z0-9_]*) continue ;; esac
+		case "$value" in
+		\"*\") value=${value#\"}; value=${value%\"} ;;
+		\'*\') value=${value#\'}; value=${value%\'} ;;
+		esac
+		filevars+=("$name=$value")
+	done <"$1"
+}
+
+# run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [--env-file <file>] [--session-env <file>] [--interpreter <cmd>] [args...]
+# Runs `<interpreter> builds/<target>/<path> args...` under env -i. The
+# interpreter is `node` for a .mjs, .cjs or .js script and `bash` otherwise;
+# --interpreter <cmd> overrides it (the command may carry arguments, e.g. 'bash -x'). A script under skills/
+# gets the environment a skill script gets when the agent runs it through its
+# Bash tool: PATH, HOME, XDG_STATE_HOME and, on Claude Code,
+# CLAUDE_CODE_SESSION_ID=test-session, with none of CLAUDE_PLUGIN_ROOT,
+# CLAUDE_PLUGIN_DATA, CLAUDE_PROJECT_DIR, CLAUDE_SKILL_DIR or CLAUDE_ENV_FILE. It
+# runs from --cwd (default $BATS_TEST_TMPDIR/project, created) on both hosts.
+# --env-file adds the NAME=value and `export NAME=value` lines of a file, parsed
+# not sourced, to model what a SessionStart hook wrote to CLAUDE_ENV_FILE.
+# --session-env <file> seeds the session env library's own state (see run_hook)
+# for session id test-session and for the project the script runs in, so a
+# script that sources env.sh finds the values through the project pointer. On
+# Claude a script outside skills/ is seeded for the project its CLAUDE_PROJECT_DIR
+# names (HOOK_PROJECT_DIR, else $BATS_TEST_TMPDIR/project), which env.sh prefers.
+# Any other path, a server launcher, gets the host's plugin variables and keeps
+# the host's cwd: the plugin root on Copilot, the caller's on Claude. Each --env
+# adds VAR=value (after --env-file, so it wins); everything after the options, a
+# bare `--` included, is passed to the script as arguments. Sets $status, $output
+# and $stderr.
+run_script() {
+	local target=$1 script=$2 stdin=/dev/null cwd="" interp="" vars=() filevars=() session_env=""
+	shift 2
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--stdin)
+			stdin=$2
+			shift 2
+			;;
+		--cwd)
+			cwd=$2
+			shift 2
+			;;
+		--interpreter)
+			if [ -z "${2:-}" ]; then
+				echo "run_script: --interpreter needs a command" >&2
+				return 1
+			fi
+			interp=$2
+			shift 2
+			;;
+		--env-file)
+			if [ ! -f "${2:-}" ]; then
+				echo "run_script: --env-file ${2:-} not found" >&2
+				return 1
+			fi
+			_pf_read_env_file "$2"
+			shift 2
+			;;
+		--session-env)
+			session_env=${2:-}
+			shift 2
+			;;
+		--env)
+			case "${2:-}" in
+			[A-Za-z_]*=*) ;;
+			*)
+				echo "run_script: --env needs VAR=value, got '${2:-}'" >&2
+				return 1
+				;;
+			esac
+			case "${2%%=*}" in
+			*[!A-Za-z0-9_]*)
+				echo "run_script: --env needs VAR=value, got '$2'" >&2
+				return 1
+				;;
+			esac
+			vars+=("$2")
+			shift 2
+			;;
+		*) break ;;
+		esac
+	done
+	local args=("$@")
+	local root="$PLUGIN_DIR/builds/$target" kind=""
+	if [ ! -f "$root/$script" ]; then
+		echo "run_script: $root/$script not found; run pluginfinity build" >&2
+		return 1
+	fi
+	case "$script" in skills/*) kind=skill ;; esac
+	if [ -z "$interp" ]; then
+		case "$script" in
+		*.mjs | *.cjs | *.js) interp=node ;;
+		*) interp=bash ;;
+		esac
+	fi
+	# The command is word-split on purpose, so --interpreter 'bash -x' works.
+	local cmd
+	read -r -a cmd <<<"$interp"
+	_pf_host_env "$target" "$root" "$kind" || {
+		echo "run_script: unknown target $target" >&2
+		return 1
+	}
+	if [ -n "$kind" ]; then
+		[ -n "$cwd" ] || cwd=$(_pf_project_dir)
+		mkdir -p "$cwd"
+	else
+		[ -n "$cwd" ] || { [ "$target" = copilot ] && cwd=$root; }
+	fi
+	if [ -n "$session_env" ]; then
+		local seed_proj=${cwd:-$PWD}
+		if [ "$target" = claude ] && [ -z "$kind" ]; then
+			seed_proj=${HOOK_PROJECT_DIR:-$(_pf_project_dir)}
+		fi
+		local _pf_state
+		_pf_state=$(_pf_state_dir ${filevars[@]+"${filevars[@]}"} ${vars[@]+"${vars[@]}"})
+		_pf_seed_session_env "$target" "$session_env" test-session "$seed_proj" || return 1
+	fi
+	if [ -n "$cwd" ]; then
+		run --separate-stderr env -i "${_pf_env[@]}" ${filevars[@]+"${filevars[@]}"} ${vars[@]+"${vars[@]}"} bash -c 'cd "$1" && shift && exec "$@"' _ "$cwd" "${cmd[@]}" "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
+	else
+		run --separate-stderr env -i "${_pf_env[@]}" ${filevars[@]+"${filevars[@]}"} ${vars[@]+"${vars[@]}"} "${cmd[@]}" "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
+	fi
+}
+
+# _pf_run_bounded <seconds> <name> <command...>: run <command...> in its own
+# process group and kill the group when <seconds> pass, then exit 124 with a
+# message on stderr. bash 3.2 has no setsid or timeout, so `set -m` gives the
+# background job its own group. Leaves no process behind.
+_pf_run_bounded() {
+	local secs=$1 name=$2 job dog rc flag
+	shift 2
+	flag="$BATS_TEST_TMPDIR/.timeout-$$-$RANDOM"
+	set -m
+	"$@" &
+	job=$!
+	(
+		sleep "$secs"
+		: >"$flag"
+		kill -TERM -- "-$job" 2>/dev/null
+		sleep 1
+		kill -KILL -- "-$job" 2>/dev/null
+	) &
+	dog=$!
+	rc=0
+	wait "$job" || rc=$?
+	kill -KILL -- "-$dog" 2>/dev/null
+	wait "$dog" 2>/dev/null || :
+	# A job that ignored TERM may have been killed by the watchdog's KILL.
+	kill -KILL -- "-$job" 2>/dev/null || :
+	set +m
+	if [ -e "$flag" ]; then
+		rm -f "$flag"
+		echo "run_monitor: $name timed out after ${secs}s" >&2
+		return 124
+	fi
+	return "$rc"
+}
+
+# run_monitor <target> <name> [--ticks <n>] [--timeout <seconds>] [--cwd <dir>] [--session-env <file>] [VAR=value...]
+# Runs the monitor's command from builds/claude/monitors/monitors.json the way
+# Claude does: from --cwd (default $BATS_TEST_TMPDIR/project, created, standing
+# in for the session's project dir), with ${CLAUDE_PLUGIN_ROOT} substituted into
+# the command text and none of CLAUDE_PROJECT_DIR, CLAUDE_PLUGIN_ROOT,
+# CLAUDE_PLUGIN_DATA or CLAUDE_SESSION_ID in the environment (a monitor does get
+# CLAUDE_CODE_SESSION_ID, set to "test-session"). Stdin is /dev/null.
+# PLUGINFINITY_MONITOR_MAX_TICKS is set to <n> (default 1): every monitor must
+# honour it, stopping after that many checks, however triggered, a node
+# `command` monitor included. --timeout (default 30, at least 1) is a wall-clock bound: the
+# monitor's process group is killed after that many seconds and $status is 124,
+# with `run_monitor: <name> timed out after <s>s` on stderr, so a monitor that
+# never reaches its tick count fails the test instead of hanging bats. A target
+# other than claude fails with status 1 and a message on stderr. Sets $status,
+# $output and $stderr.
+run_monitor() {
+	local target=$1 name=$2 ticks=1 cwd="" timeout=30 session_env=""
+	shift 2
+	if [ "$target" != claude ]; then
+		run --separate-stderr bash -c 'echo "run_monitor: $1 has no monitors" >&2; exit 1' _ "$target"
+		return 0
+	fi
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--ticks)
+			ticks=$2
+			shift 2
+			;;
+		--timeout)
+			case "${2:-}" in
+			*[!0]* | '') ;;
+			*)
+				# All zeros: a 0 s bound would kill every monitor before its first tick.
+				run --separate-stderr bash -c 'echo "run_monitor: --timeout needs a number of seconds above 0, got $1" >&2; exit 1' _ "'${2:-}'"
+				return 0
+				;;
+			esac
+			case "${2:-}" in
+			'' | *[!0-9]*)
+				run --separate-stderr bash -c 'echo "run_monitor: --timeout needs a number of seconds, got $1" >&2; exit 1' _ "'${2:-}'"
+				return 0
+				;;
+			esac
+			timeout=$2
+			shift 2
+			;;
+		--cwd)
+			cwd=$2
+			shift 2
+			;;
+		--session-env)
+			session_env=${2:-}
+			shift 2
+			;;
+		*) break ;;
+		esac
+	done
+	local root="$PLUGIN_DIR/builds/claude" command
+	command=$(jq -r --arg n "$name" '[.[] | select(.name == $n)][0].command // empty' "$root/monitors/monitors.json" 2>/dev/null)
+	if [ -z "$command" ]; then
+		run --separate-stderr bash -c 'echo "run_monitor: no monitor $1" >&2; exit 1' _ "$name"
+		return 0
+	fi
+	local token='${CLAUDE_PLUGIN_ROOT}'
+	command=${command//"$token"/"$root"}
+	[ -n "$cwd" ] || cwd=$(_pf_project_dir)
+	mkdir -p "$cwd"
+	if [ -n "$session_env" ]; then
+		local _pf_state
+		_pf_state=$(_pf_state_dir "$@")
+		_pf_seed_session_env claude "$session_env" test-session "$cwd" || return 1
+	fi
+	run --separate-stderr _pf_run_bounded "$timeout" "$name" \
+		env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
+		XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" CLAUDE_CODE_SESSION_ID=test-session \
+		PLUGINFINITY_MONITOR_MAX_TICKS="$ticks" "$@" \
+		bash -c 'cd "$1" && exec bash -c "$2"' _ "$cwd" "$command" </dev/null
 }
 
 # assert_hook_exit <n>
@@ -82,7 +567,7 @@ hook_fixture() {
 	local overrides=${2:-}
 	[ -n "$overrides" ] || overrides='{}'
 	local file="$BATS_TEST_TMPDIR/fixture-$1-$RANDOM.json"
-	jq -n --arg e "$1" --arg cwd "$BATS_TEST_TMPDIR" --argjson o "$overrides" \
+	jq -n --arg e "$1" --arg cwd "$(_pf_project_dir)" --argjson o "$overrides" \
 		'{session_id: "test-session", transcript_path: "/dev/null", cwd: $cwd, hook_event_name: $e} + $o' >"$file"
 	printf '%s\n' "$file"
 }

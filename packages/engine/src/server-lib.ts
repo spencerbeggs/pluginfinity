@@ -1,4 +1,5 @@
 import type { EmittedFile } from "./emit.js";
+import { LIB_DIR } from "./lib-files.js";
 import { SERVER_LIB_FILES } from "./server-lib.generated.js";
 
 /**
@@ -6,10 +7,10 @@ import { SERVER_LIB_FILES } from "./server-lib.generated.js";
  *
  * @public
  */
-export const SERVER_LIB_DIR = "lib/pluginfinity";
+export const SERVER_LIB_DIR = LIB_DIR;
 
 /**
- * The server library, as one target's build writes it.
+ * The server library, as one target's build writes it. `log.sh` and `host.sh` come from `libFiles`.
  *
  * @public
  */

@@ -11,6 +11,7 @@ import { readAgents, renderAgent } from "./agents.js";
 import { isJunk } from "./component.js";
 import type { EmitPlan, EmittedFile } from "./emit.js";
 import { applyEmit, planEmit } from "./emit.js";
+import { envNotes, envRunnerEntry, envWaitNotes, withEnvRunner } from "./env.js";
 import type { ConfigError } from "./errors.js";
 import {
 	BuildStale,
@@ -25,10 +26,20 @@ import {
 	TargetDrift,
 } from "./errors.js";
 import { HOOK_LIB_DIR, hookLibFiles } from "./hook-lib.js";
+import { ignoredOutput } from "./hook-output.js";
 import type { TargetHookEvent } from "./hooks.js";
-import { hookCommandFiles, hookScripts, renderHooks, targetHooks } from "./hooks.js";
+import {
+	hookCommandFiles,
+	hookScripts,
+	renderHooks,
+	sessionStartMatcher,
+	targetHooks,
+	widensSessionStart,
+} from "./hooks.js";
+import { LIB_DIR, libFiles } from "./lib-files.js";
 import type { LoadedConfig } from "./loader.js";
 import { pluginName, renderManifest, serializeManifest } from "./manifest.js";
+import { renderMonitors, targetMonitors } from "./monitors.js";
 import type { BuildNote } from "./notes.js";
 import { CONFIG_NOTE_PATH, sortNotes } from "./notes.js";
 import type { ConfigSelection, PreparedPlugin } from "./selection.js";
@@ -38,6 +49,7 @@ import { mcpServerNames, renderServers, serverFiles } from "./servers.js";
 import type { SourceSkill } from "./skills.js";
 import { readSkills, renderSkill } from "./skills.js";
 import type { TokenContext } from "./tokens.js";
+import { renderToolMap } from "./tool-map.js";
 import { ENGINE_VERSION } from "./version.js";
 
 /**
@@ -176,16 +188,26 @@ const checkScript = (
 	config: LoadedConfig,
 	script: string,
 	invoke: "bash" | "exec",
+	component: "hooks" | "monitors" | "env" = "hooks",
 ): Effect.Effect<void, HookScriptInvalid, FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
+		// Claude runs an exec-invoked script as `env K=V... <path>`, and env reads a `=` in the path as an assignment.
+		// A monitor runs as a shell string, where "=" in the path is harmless.
+		if (invoke === "exec" && component === "hooks" && script.includes("=")) {
+			return yield* Effect.fail(
+				new HookScriptInvalid({ path: config.path, script, problem: "equals-in-path", component }),
+			);
+		}
 		const info = yield* fs.stat(path.join(config.root, script)).pipe(Effect.option);
 		if (info._tag === "None" || info.value.type !== "File") {
-			return yield* Effect.fail(new HookScriptInvalid({ path: config.path, script, problem: "missing" }));
+			return yield* Effect.fail(new HookScriptInvalid({ path: config.path, script, problem: "missing", component }));
 		}
 		if (invoke === "exec" && (info.value.mode & 0o111) === 0) {
-			return yield* Effect.fail(new HookScriptInvalid({ path: config.path, script, problem: "not-executable" }));
+			return yield* Effect.fail(
+				new HookScriptInvalid({ path: config.path, script, problem: "not-executable", component }),
+			);
 		}
 	});
 
@@ -253,6 +275,7 @@ const expandShipped = (
 const listedFiles = (
 	config: LoadedConfig,
 	entries: ReadonlyArray<string>,
+	referencedBy = "files",
 ): Effect.Effect<
 	ReadonlyArray<string>,
 	ShippedFileInvalid | PlatformError.PlatformError,
@@ -260,7 +283,7 @@ const listedFiles = (
 > =>
 	Effect.gen(function* () {
 		const fail = (file: string, problem: ShippedFileInvalid["problem"]) =>
-			Effect.fail(new ShippedFileInvalid({ path: config.path, file, referencedBy: "files", problem }));
+			Effect.fail(new ShippedFileInvalid({ path: config.path, file, referencedBy, problem }));
 		const out: Array<string> = [];
 		// The config schema admits only canonical entries; canonicalise anyway so the
 		// reserved-path and collision checks never see a path spelled two ways.
@@ -268,7 +291,7 @@ const listedFiles = (
 			const file = canonical(entry);
 			if (file === undefined) return yield* fail(entry, "outside-root");
 			if (file === "") return yield* fail(entry, "not-normal");
-			out.push(...(yield* expandShipped(config, file, file, "files")));
+			out.push(...(yield* expandShipped(config, file, file, referencedBy)));
 		}
 		return out;
 	});
@@ -311,6 +334,10 @@ const serverShipped = (
 		return files;
 	});
 
+/** The skills or agents a target builds: those whose `targets` do not switch it off. */
+const builtFor = <T extends SourceSkill | SourceAgent>(items: ReadonlyArray<T>, id: KnownTargetId): ReadonlyArray<T> =>
+	items.filter((item) => item.frontmatter.targets?.[id] !== false);
+
 /**
  * What a target's skill and agent bodies may name: the skills and agents it
  * builds, every file of those skills, and the plugin's own MCP servers. Agent
@@ -326,12 +353,12 @@ const tokenContext = (
 	agents: ReadonlyArray<SourceAgent>,
 ): TokenContext => {
 	const plugin = pluginName(config, id);
-	const built = skills.filter((skill) => skill.frontmatter.targets?.[id] !== false);
+	const built = builtFor(skills, id);
 	return {
 		target,
 		plugin,
 		skills: new Set(built.map((skill) => skill.name)),
-		agents: new Set(agents.filter((agent) => agent.frontmatter.targets?.[id] !== false).map((agent) => agent.name)),
+		agents: new Set(builtFor(agents, id).map((agent) => agent.name)),
 		skillFiles: new Set(
 			built.flatMap((skill) => [`${skill.name}/SKILL.md`, ...skill.files.map((file) => `${skill.name}/${file}`)]),
 		),
@@ -360,11 +387,19 @@ const tokenContext = (
  * in its manifest also reserves the server file its host loads by default
  * (Claude Code's `.mcp.json` and `.lsp.json`), but only when this plugin
  * has servers of that kind inline.
+ *
+ * A target with monitors (Claude Code) writes them to `monitors/monitors.json`,
+ * which no source file may occupy, and ships each monitor `script` and each
+ * file a `command` names after `${PLUGIN_ROOT}/` (and the monitor library).
+ * Those files ship only to targets that build monitors, even from under
+ * `hooks/`; a target without monitors notes each as `monitor-omitted` and
+ * ships none.
  */
 const planPlugin = (
 	prepared: PreparedPlugin,
 ): Effect.Effect<ReadonlyArray<PlannedTarget>, PlanError, FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
 		const config = prepared.config;
 		const version = yield* readVersion(config.root);
@@ -394,10 +429,36 @@ const planPlugin = (
 			for (const script of hookScripts(events)) yield* checkScript(config, script, invoke);
 			for (const file of hookCommandFiles(events)) yield* checkScript(config, file, "bash");
 		}
-		const hooksDir = yield* sourceFiles(config.root, "hooks");
-		const listed = yield* listedFiles(config, config.config.files ?? []);
 		const { skills, failures: skillFailures } = yield* readSkills(config.root, KNOWN_TARGET_IDS);
 		const { agents, failures: agentFailures } = yield* readAgents(config.root, KNOWN_TARGET_IDS);
+		// The files each target's monitors run, rendered once. Like hook scripts, over every enabled
+		// target for what ships, so a monitor script under hooks/ never rides the hooks directory
+		// to a target without monitors.
+		const monitorsOf = new Map(
+			config.targets.map((id) => {
+				const rendered = renderMonitors(targetOf(id), id, targetMonitors(id, config.config), invoke, {
+					plugin: pluginName(config.config, id),
+					skills: new Set(builtFor(skills, id).map((skill) => skill.name)),
+				});
+				return [id, { rendered, files: [...rendered.scripts, ...rendered.commandFiles] }] as const;
+			}),
+		);
+		const monitorFilesOf = (id: KnownTargetId) => {
+			const found = monitorsOf.get(id);
+			if (found === undefined) throw new Error(`no monitors for target "${id}"`);
+			return found;
+		};
+		const everyMonitorFile = new Set([...monitorsOf.values()].flatMap((one) => one.files));
+		for (const id of prepared.targets) {
+			const { rendered } = monitorFilesOf(id);
+			for (const script of rendered.scripts) yield* checkScript(config, script, invoke, "monitors");
+			for (const file of rendered.commandFiles) yield* checkScript(config, file, "bash", "monitors");
+		}
+		// The env runner runs `setup` under bash, so it only has to exist.
+		const env = config.config.env;
+		if (env?.setup !== undefined) yield* checkScript(config, env.setup, "bash", "env");
+		const hooksDir = yield* sourceFiles(config.root, "hooks");
+		const baseListed = yield* listedFiles(config, config.config.files ?? []);
 		// Every component problem in the plugin, so one build reports them all.
 		const failures: Array<ComponentInvalid> = [...skillFailures, ...agentFailures];
 		// A problem that names no target recurs for every target; keep one.
@@ -420,7 +481,47 @@ const planPlugin = (
 				kind: "hook-omitted",
 				name: event,
 			}));
+			for (const { event, entries } of events) {
+				if (target.hooks.matcherIgnored.includes(event) && entries.some((entry) => entry.matcher !== undefined)) {
+					notes.push({ target: id, path: CONFIG_NOTE_PATH, kind: "hook-matcher-runtime", name: event });
+				}
+				if (widensSessionStart(target.hooks.matcherIgnored, event)) {
+					for (const entry of entries) {
+						if (entry.matcher === undefined) continue;
+						const spelled = sessionStartMatcher(entry.matcher);
+						if (spelled.widened) {
+							notes.push({
+								target: id,
+								path: CONFIG_NOTE_PATH,
+								kind: "hook-matcher-widened",
+								name: `${event} ${entry.matcher} -> ${spelled.matcher}`,
+							});
+						} else if (spelled.unwidened) {
+							notes.push({
+								target: id,
+								path: CONFIG_NOTE_PATH,
+								kind: "hook-matcher-regex",
+								name: `${event} ${entry.matcher}`,
+							});
+						}
+					}
+				}
+			}
+			// The scripts were checked above, so a read that still fails is skipped: this note is best effort.
+			const sources = new Map<string, string>();
+			for (const script of hookScripts(events)) {
+				const text = yield* fs.readFileString(path.join(config.root, script)).pipe(Effect.option);
+				if (text._tag === "Some") sources.set(script, text.value);
+			}
+			notes.push(...ignoredOutput(id, target, events, (script) => sources.get(script)));
 			const own = new Set(filesOf(events));
+			const monitored = monitorFilesOf(id);
+			notes.push(...monitored.rendered.notes);
+			if (monitored.rendered.issues.length > 0) {
+				const issue = new ComponentInvalid({ path: config.path, target: id, issues: monitored.rendered.issues });
+				if (!failures.some((seen) => seen.message === issue.message)) failures.push(issue);
+			}
+			const monitorOwn = new Set(monitored.files);
 			const servers = serverFiles(target, id, config.config);
 			const serverFilesShipped: Array<string> = [];
 			for (const file of servers.commands) {
@@ -433,12 +534,22 @@ const planPlugin = (
 					...(yield* serverShipped(config, file, servers.owners.get(file) ?? "mcpServers", false)),
 				);
 			}
+			const setting = config.config[id];
+			const targetListed = yield* listedFiles(
+				config,
+				typeof setting === "object" ? (setting.files ?? []) : [],
+				`${id}.files`,
+			);
 			const shipped = [
 				...new Set([
-					...hooksDir.filter((file) => own.has(file) || !everyScript.has(file)),
-					...[...own].filter((script) => !script.startsWith("hooks/")),
+					...hooksDir.filter(
+						(file) => own.has(file) || monitorOwn.has(file) || !(everyScript.has(file) || everyMonitorFile.has(file)),
+					),
+					...[...own, ...monitorOwn].filter((script) => !script.startsWith("hooks/")),
+					...(env?.setup === undefined ? [] : [env.setup]),
 					...serverFilesShipped,
-					...listed,
+					...baseListed,
+					...targetListed,
 				]),
 			];
 			const copied: Array<EmittedFile> = [];
@@ -452,13 +563,38 @@ const planPlugin = (
 			}
 			const manifest = renderManifest(target, id, config.config, version, rendered.manifest);
 			const generated: Array<EmittedFile> = [{ path: target.manifest.path, content: serializeManifest(manifest) }];
-			const hooksFile = renderHooks(target, events, invoke);
-			if (hooksFile !== undefined) {
-				generated.push({ path: target.hooks.path, content: hooksFile });
-				generated.push(...hookLibFiles(id, String(manifest.name), ENGINE_VERSION));
+			// A config that declares env gets the env runner first among the SessionStart entries;
+			// the hook library ships only with the plugin's own hooks.
+			const hooksFile = renderHooks(
+				target,
+				env === undefined ? events : withEnvRunner(target, events, envRunnerEntry(LIB_DIR)),
+				invoke,
+			);
+			if (hooksFile !== undefined) generated.push({ path: target.hooks.path, content: hooksFile });
+			if (events.length > 0) {
+				generated.push(
+					...hookLibFiles(
+						id,
+						String(manifest.name),
+						ENGINE_VERSION,
+						renderToolMap(target, pluginName(config.config, "claude"), [...mcpServerNames(id, config.config)], {
+							skills: builtFor(skills, id).map((skill) => skill.name),
+							agents: builtFor(agents, id).map((agent) => agent.name),
+							monitors: Object.keys(targetMonitors(id, config.config)),
+						}),
+					),
+				);
 			}
+			if (monitored.rendered.file !== undefined) generated.push(monitored.rendered.file);
+			generated.push(
+				...libFiles(id, String(manifest.name), ENGINE_VERSION, {
+					monitors: monitored.rendered.file !== undefined,
+					...(env === undefined ? {} : { env }),
+				}),
+			);
 			generated.push(...rendered.files);
 			notes.push(...rendered.notes);
+			if (env !== undefined) notes.push(...envNotes(target, id), ...envWaitNotes(id, events));
 			if (rendered.stdio) generated.push(...serverLibFiles());
 			const tokens = tokenContext(target, id, config.config, skills, agents);
 			for (const skill of skills) {
@@ -482,10 +618,23 @@ const planPlugin = (
 					placement._tag === "manifest" && placement.key in rendered.manifest ? [placement.reserves] : [],
 				),
 			);
+			// A `monitors` field makes pluginfinity write the monitors file; a source file at that path would
+			// be silently ignored when unshipped and collide when shipped, so either way the source file is rejected.
+			const monitorsFile = monitored.rendered.file?.path;
+			if (monitorsFile !== undefined && (yield* fs.exists(path.join(config.root, monitorsFile)))) {
+				return yield* Effect.fail(
+					new PathConflict({
+						path: config.path,
+						target: id,
+						file: monitorsFile,
+						conflict: "reserved-monitors-file",
+					}),
+				);
+			}
 			const reserved = copied.find(
 				(file) =>
 					reservedFiles.has(file.path) ||
-					[HOOK_LIB_DIR, SERVER_LIB_DIR].some((dir) => file.path === dir || file.path.startsWith(`${dir}/`)),
+					[HOOK_LIB_DIR, LIB_DIR].some((dir) => file.path === dir || file.path.startsWith(`${dir}/`)),
 			);
 			if (reserved !== undefined) {
 				return yield* Effect.fail(

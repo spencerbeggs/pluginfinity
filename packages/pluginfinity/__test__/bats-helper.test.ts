@@ -17,6 +17,70 @@ set -euo pipefail
 hook_block "stop on $(hook_host)"
 `;
 
+const CRASH = `#!/usr/bin/env bash
+set -euo pipefail
+. "$(dirname "$0")/lib/pluginfinity/hook.sh"
+hook_require_input
+false
+`;
+
+const ENVHOOK = `#!/usr/bin/env bash
+set -euo pipefail
+. "$(dirname "$0")/lib/pluginfinity/hook.sh"
+hook_noop
+printf '%s|%s|%s\\n' "\${PLUGINFINITY_EVENT:-}" "\${PLUGINFINITY_FAIL_CLOSED:-}" "\${EXTRA:-}" >&2
+`;
+
+const SHOW = `#!/usr/bin/env bash
+printf 'pwd=%s foo=%s args=%s\\n' "$PWD" "\${FOO:-}" "$*"
+`;
+
+const SHOWMON = `#!/usr/bin/env bash
+printf 'pwd=%s project=%s root=%s plugin=%s session=%s ticks=%s\\n' "$PWD" "\${CLAUDE_PROJECT_DIR-unset}" "\${CLAUDE_PLUGIN_ROOT-unset}" "\${CLAUDE_PLUGIN_DATA-unset}" "\${CLAUDE_CODE_SESSION_ID-unset}" "\${PLUGINFINITY_MONITOR_MAX_TICKS-unset}"
+`;
+
+const PROJ = `#!/usr/bin/env bash
+printf 'pwd=%s project=%s root=%s data=%s skill=%s envfile=%s session=%s plugin_root=%s args=%s\\n' "$PWD" "\${CLAUDE_PROJECT_DIR-unset}" "\${CLAUDE_PLUGIN_ROOT-unset}" "\${CLAUDE_PLUGIN_DATA-unset}" "\${CLAUDE_SKILL_DIR-unset}" "\${CLAUDE_ENV_FILE-unset}" "\${CLAUDE_CODE_SESSION_ID-unset}" "\${PLUGIN_ROOT-unset}" "$*"
+`;
+
+const VARS = `#!/usr/bin/env bash
+printf 'a=%s b=%s c=%s d=%s\\n' "\${A_ONE-unset}" "\${B_TWO-unset}" "\${C_THREE-unset}" "\${D_FOUR-unset}"
+`;
+
+const NODESCRIPT = `import { argv, env } from "node:process";
+console.log(\`node pwd=\${process.cwd()} session=\${env.CLAUDE_CODE_SESSION_ID ?? "unset"} foo=\${env.FOO ?? ""} args=\${argv.slice(2).join(" ")}\`);
+`;
+
+const HANG = `#!/usr/bin/env bash
+sleep 4242
+`;
+
+const STUBBORN = `#!/usr/bin/env bash
+trap '' TERM
+while :; do sleep 4343; done
+`;
+
+const CAT = "#!/usr/bin/env bash\ncat\necho done\n";
+const ENVMON = `#!/usr/bin/env bash
+_pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"
+. "$_pf_lib_dir/monitor.sh"
+. "$_pf_lib_dir/env.sh"
+tick() { monitor_notify "FX_A=${"$"}FX_A"; }
+monitor_every 1 tick
+`;
+// The session env library with its declarations block filled in for one name, FX_A, as a build writes it.
+const envLib = (): string =>
+	readFileSync(fileURLToPath(new URL("../../engine/env-lib/env.sh", import.meta.url)), "utf8").replace(
+		/(# >>> pluginfinity env declarations[^\n]*\n)[\s\S]*?(# <<< pluginfinity env declarations)/,
+		"$1_pf_env_names='FX_A'\n_pf_env_default_FX_A='default'\n_pf_env_setup=''\n_pf_env_setup_timeout=10\n$2",
+	);
+const MONITOR = `#!/usr/bin/env bash
+_pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"
+. "$_pf_lib_dir/monitor.sh"
+tick() { monitor_notify "first ${"$"}{GREETING:-hello}"; }
+monitor_every 1 tick
+`;
+
 describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helper", () => {
 	it("runs a built hook on both targets from a plugin dir with a space", { timeout: 60_000 }, () => {
 		const plugin = join(mkdtempSync(join(tmpdir(), "pluginfinity bats ")), "plugin dir");
@@ -29,7 +93,133 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 			}
 			writeFileSync(join(lib, "host.sh"), `PLUGINFINITY_HOST=${host}\nPLUGINFINITY_PLUGIN='fixture'\n`);
 			writeFileSync(join(plugin, "builds", host, "hooks", "stop.sh"), STOP);
+			writeFileSync(join(plugin, "builds", host, "hooks", "crash.sh"), CRASH);
+			writeFileSync(join(plugin, "builds", host, "hooks", "envhook.sh"), ENVHOOK);
+			writeFileSync(join(plugin, "builds", host, "hooks", "cmdhook.sh"), ENVHOOK);
+			writeFileSync(join(plugin, "builds", host, "hooks", "argshook.sh"), ENVHOOK);
+			const scripts = join(plugin, "builds", host, "skills", "s", "scripts");
+			mkdirSync(scripts, { recursive: true });
+			writeFileSync(join(scripts, "cat.sh"), CAT);
+			writeFileSync(join(scripts, "show.sh"), SHOW);
+			writeFileSync(join(scripts, "proj.sh"), PROJ);
+			writeFileSync(join(scripts, "vars.sh"), VARS);
+			writeFileSync(join(scripts, "node.mjs"), NODESCRIPT);
+			writeFileSync(join(scripts, "cjs.cjs"), "console.log('cjs ok');\n");
+			writeFileSync(join(scripts, "noext"), SHOW);
+			writeFileSync(join(scripts, "py.txt"), "print('x')\n");
+			writeFileSync(join(plugin, "builds", host, "hooks", "startenv.sh"), ENVHOOK);
+			mkdirSync(join(plugin, "builds", host, "servers"), { recursive: true });
+			writeFileSync(join(plugin, "builds", host, "servers", "show.sh"), SHOW);
+			writeFileSync(join(plugin, "builds", host, "servers", "proj.sh"), PROJ);
 		}
+		// The built hook entries each host runs, in the shapes the targets emit.
+		const claudeEntry = (script: string, event: string, env: string[], matcher?: string) => ({
+			...(matcher === undefined ? {} : { matcher }),
+			hooks: [
+				{
+					type: "command",
+					command: "env",
+					args: [`PLUGINFINITY_EVENT=${event}`, ...env, "bash", `\${CLAUDE_PLUGIN_ROOT}/hooks/${script}`],
+				},
+			],
+		});
+		const copilotEntry = (script: string, event: string, env: Record<string, string>, matcher?: string) => ({
+			type: "command",
+			bash: `bash "\${PLUGIN_ROOT}/hooks/${script}"`,
+			...(matcher === undefined ? {} : { matcher }),
+			env: { PLUGINFINITY_EVENT: event, ...env },
+		});
+		mkdirSync(join(plugin, "builds", "claude", "hooks"), { recursive: true });
+		writeFileSync(
+			join(plugin, "builds", "claude", "hooks", "hooks.json"),
+			JSON.stringify({
+				hooks: {
+					Stop: [claudeEntry("stop.sh", "Stop", [])],
+					SessionStart: [
+						claudeEntry("startenv.sh", "SessionStart", ["EXTRA=startup-a"], "startup"),
+						claudeEntry("startenv.sh", "SessionStart", ["EXTRA=resume-b"], "resume"),
+					],
+					PreToolUse: [
+						claudeEntry("crash.sh", "PreToolUse", ["PLUGINFINITY_FAIL_CLOSED=1"], "Bash"),
+						claudeEntry("envhook.sh", "PreToolUse", ["PLUGINFINITY_FAIL_CLOSED=1", "EXTRA=bash-a"], "Bash"),
+						claudeEntry("envhook.sh", "PreToolUse", ["EXTRA=read-b"], "Read"),
+					],
+					PostToolUse: [
+						{
+							matcher: "Bash",
+							hooks: [
+								{
+									type: "command",
+									command:
+										"export PLUGINFINITY_EVENT='PostToolUse'; export EXTRA='it'\\''s a=b'; bash \"${CLAUDE_PLUGIN_ROOT}/hooks/cmdhook.sh\"",
+								},
+							],
+						},
+						{
+							hooks: [
+								{
+									type: "command",
+									command: "env",
+									args: ["PLUGINFINITY_EVENT=PostToolUse", "${CLAUDE_PLUGIN_ROOT}/hooks/argshook.sh", "a=b"],
+								},
+							],
+						},
+					],
+				},
+			}),
+		);
+		mkdirSync(join(plugin, "builds", "copilot", "com.github.copilot", "hooks"), { recursive: true });
+		writeFileSync(
+			join(plugin, "builds", "copilot", "com.github.copilot", "hooks", "hooks.json"),
+			JSON.stringify({
+				version: 1,
+				hooks: {
+					Stop: [copilotEntry("stop.sh", "Stop", {})],
+					// SessionStart entries carry the matcher in env, not in a `matcher` field.
+					SessionStart: [
+						copilotEntry("startenv.sh", "SessionStart", { EXTRA: "startup-a", PLUGINFINITY_MATCHER: "startup" }),
+						copilotEntry("startenv.sh", "SessionStart", { EXTRA: "resume-b", PLUGINFINITY_MATCHER: "resume" }),
+					],
+					PreToolUse: [
+						copilotEntry("crash.sh", "PreToolUse", { PLUGINFINITY_FAIL_CLOSED: "1" }, "Bash"),
+						copilotEntry("envhook.sh", "PreToolUse", { PLUGINFINITY_FAIL_CLOSED: "1", EXTRA: "bash-a" }, "Bash"),
+						copilotEntry("envhook.sh", "PreToolUse", { EXTRA: "read-b" }, "Read"),
+					],
+				},
+			}),
+		);
+		// Every build carries the shared log library the hook library sources.
+		const logLib = readFileSync(fileURLToPath(new URL("../../engine/log-lib/log.sh", import.meta.url)), "utf8");
+		mkdirSync(join(plugin, "builds", "copilot", "lib", "pluginfinity"), { recursive: true });
+		writeFileSync(join(plugin, "builds", "copilot", "lib", "pluginfinity", "log.sh"), logLib);
+		const claude = join(plugin, "builds", "claude");
+		const claudeLib = join(claude, "lib", "pluginfinity");
+		mkdirSync(claudeLib, { recursive: true });
+		mkdirSync(join(claude, "monitors"), { recursive: true });
+		for (const name of ["log.sh", "monitor.sh"]) {
+			const source = name === "log.sh" ? "log-lib" : "monitor-lib";
+			writeFileSync(
+				join(claudeLib, name),
+				readFileSync(fileURLToPath(new URL(`../../engine/${source}/${name}`, import.meta.url)), "utf8"),
+			);
+		}
+		writeFileSync(join(claude, "monitors", "m.sh"), MONITOR);
+		writeFileSync(join(claude, "monitors", "show.sh"), SHOWMON);
+		writeFileSync(join(claude, "monitors", "envmon.sh"), ENVMON);
+		writeFileSync(join(claudeLib, "env.sh"), envLib());
+		writeFileSync(join(claudeLib, "host.sh"), "PLUGINFINITY_HOST=claude\nPLUGINFINITY_PLUGIN='fixture'\n");
+		writeFileSync(join(claude, "monitors", "hang.sh"), HANG);
+		writeFileSync(join(claude, "monitors", "stubborn.sh"), STUBBORN);
+		writeFileSync(
+			join(claude, "monitors", "monitors.json"),
+			JSON.stringify([
+				{ name: "m", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/m.sh"', description: "fixture" },
+				{ name: "show", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/show.sh"', description: "fixture" },
+				{ name: "hang", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/hang.sh"', description: "fixture" },
+				{ name: "stubborn", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/stubborn.sh"', description: "fixture" },
+				{ name: "envmon", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/envmon.sh"', description: "fixture" },
+			]),
+		);
 		const result = spawnSync("bats", ["--tap", join(plugin, "__test__")], {
 			env: { ...process.env, PLUGINFINITY_BATS_HELPER: HELPER },
 			encoding: "utf8",

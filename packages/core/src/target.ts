@@ -195,6 +195,14 @@ export class Target extends Schema.Class<Target>("Target")({
 		 * or `unresolved` when the host has no such command.
 		 */
 		invoke: Schema.Union([Schema.String, Unresolved]),
+		/**
+		 * How a skill body names a skill's directory: `own` for the skill the body
+		 * belongs to, `other` for a sibling, a template with `{skill}`, and `agent`
+		 * for a sibling named from an agent body, which has no skill base
+		 * directory. Where the host expands no path in bodies these are
+		 * placeholders the model fills in, not paths.
+		 */
+		dirSpelling: Schema.Struct({ own: Schema.String, other: Schema.String, agent: RootSpelling }),
 	}),
 	agents: Schema.Struct({
 		dir: Schema.String,
@@ -209,6 +217,28 @@ export class Target extends Schema.Class<Target>("Target")({
 		format: HooksFormat,
 		events: Schema.Record(Schema.String, EventMapping),
 		ownEvents: Schema.Array(Schema.String),
+		/**
+		 * The Claude events whose matcher the host ignores. The build drops the
+		 * host `matcher` key there and the hook library applies the matcher at
+		 * run time instead.
+		 */
+		matcherIgnored: Schema.Array(Schema.String),
+		/**
+		 * The Claude events where the host honours each kind of hook output: the
+		 * `context` a hook adds to the model's view and the `system_message` it
+		 * shows the user. Mirrors `hook_supports` in the hook library, which a test
+		 * pins; the build notes a script that emits output the host would ignore.
+		 */
+		output: Schema.Struct({
+			context: Schema.Array(Schema.String),
+			system_message: Schema.Array(Schema.String),
+		}),
+		/**
+		 * The Claude events from which the host passes values a hook exports to
+		 * the model's shell (Claude Code's `CLAUDE_ENV_FILE`); empty when it has
+		 * no such channel, and a skill script must source `env.sh` instead.
+		 */
+		envShell: Schema.Array(Schema.String),
 	}),
 	mcp: Schema.Struct({
 		placement: ServerPlacement,
@@ -216,6 +246,11 @@ export class Target extends Schema.Class<Target>("Target")({
 		schema: Schema.optionalKey(Schema.String),
 	}),
 	lsp: Schema.Struct({ placement: ServerPlacement, format: LspFormat, fields: FieldMap }),
+	/**
+	 * Where the host reads background monitors and how it spells the plugin root
+	 * in their commands, or `unresolved` when the host has no monitors.
+	 */
+	monitors: Schema.Union([Schema.Struct({ path: Schema.String, root: Schema.String }), Unresolved]),
 	references: Schema.Struct({ style: Schema.Literals(["path", "prose"]) }),
 	tools: Schema.Struct({
 		names: Schema.Record(Schema.String, ToolMapping),

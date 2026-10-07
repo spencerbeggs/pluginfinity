@@ -1,0 +1,10 @@
+---
+name: env-probe
+description: >-
+  Print the pluginfinity-dogfood session env. Use when asked to use the env-probe skill, to check that
+  a skill script sees the session values on this host.
+---
+
+# Session env probe
+
+Run `bash "${CLAUDE_SKILL_DIR}/scripts/print-env.sh"` and report its output. It sources the plugin's `env.sh`, so it prints the session's values on both hosts.

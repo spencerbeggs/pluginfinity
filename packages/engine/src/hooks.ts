@@ -80,6 +80,14 @@ export const hookScripts = (events: ReadonlyArray<TargetHookEvent>): ReadonlyArr
 const COMMAND_FILE = /\$\{PLUGIN_ROOT\}\/([^\s"'`;|&<>()$]+)/g;
 
 /**
+ * Every file a command names as `${PLUGIN_ROOT}/<path>`, in order.
+ *
+ * @public
+ */
+export const commandFiles = (command: string): ReadonlyArray<string> =>
+	[...command.matchAll(COMMAND_FILE)].map((match) => match[1] ?? "");
+
+/**
  * Every file the given events' `command` entries name as
  * `${PLUGIN_ROOT}/<path>`, so the build can ship and check them as it does
  * `script` paths.
@@ -89,9 +97,7 @@ const COMMAND_FILE = /\$\{PLUGIN_ROOT\}\/([^\s"'`;|&<>()$]+)/g;
 export const hookCommandFiles = (events: ReadonlyArray<TargetHookEvent>): ReadonlyArray<string> => [
 	...new Set(
 		events.flatMap((event) =>
-			event.entries.flatMap((entry) =>
-				"command" in entry ? [...entry.command.matchAll(COMMAND_FILE)].map((match) => match[1] ?? "") : [],
-			),
+			event.entries.flatMap((entry) => ("command" in entry ? commandFiles(entry.command) : [])),
 		),
 	),
 ];
@@ -106,14 +112,51 @@ const PLUGIN_ROOT = `\${PLUGIN_ROOT}`;
 const SAFE_PATH = /^[A-Za-z0-9_\-./@%+,=:]+$/;
 
 /**
+ * The environment every hook entry runs with: the event the library reads
+ * (camelCase Copilot payloads carry no `hook_event_name`), `"1"` for
+ * `PLUGINFINITY_FAIL_CLOSED` when the entry sets `failClosed`, and the
+ * matcher when one is given.
+ *
+ * @public
+ */
+export const entryEnv = (event: string, entry: HookEntry, matcher?: string): Readonly<Record<string, string>> => ({
+	PLUGINFINITY_EVENT: event,
+	...(entry.failClosed === true ? { PLUGINFINITY_FAIL_CLOSED: "1" } : {}),
+	...(matcher === undefined ? {} : { PLUGINFINITY_MATCHER: matcher }),
+});
+
+// Env values in a shell string are always single-quoted.
+const quoteValue = (value: string): string => `'${value.replaceAll("'", `'\\''`)}'`;
+
+/**
+ * An env as a shell prefix, `K='V' ` per pair: every value single-quoted, and
+ * empty for an empty env.
+ *
+ * @public
+ */
+export const shellEnvPrefix = (env: Readonly<Record<string, string>>): string =>
+	Object.entries(env)
+		.map(([key, value]) => `${key}=${quoteValue(value)} `)
+		.join("");
+
+/**
  * The shell command a hook entry runs on a target: a `script` through `bash`
  * (or executed directly under `scripts.invoke: "exec"`) at the target's
  * plugin root, or a `command` with `${PLUGIN_ROOT}` spelled the target's way.
  *
  * @public
  */
-export const hookCommand = (entry: HookEntry, root: string, invoke: "bash" | "exec"): string => {
-	if ("command" in entry) return entry.command.replaceAll(PLUGIN_ROOT, root);
+export const hookCommand = (
+	entry: HookEntry,
+	root: string,
+	invoke: "bash" | "exec",
+	env: Readonly<Record<string, string>> = {},
+): string => {
+	const pairs = Object.entries(env).map(([key, value]) => `${key}=${quoteValue(value)}`);
+	if ("command" in entry) {
+		const command = entry.command.replaceAll(PLUGIN_ROOT, root);
+		return pairs.length === 0 ? command : `${pairs.map((pair) => `export ${pair};`).join(" ")} ${command}`;
+	}
 	// The root stays in double quotes so the host's variable expands; a path
 	// with characters the shell would read ($, `, ", spaces) is single-quoted.
 	const path = SAFE_PATH.test(entry.script) ? `"${root}/${entry.script}"` : `"${root}"/${shellQuote(entry.script)}`;
@@ -133,32 +176,100 @@ export const hookExec = (
 	entry: Extract<HookEntry, { readonly script: string }>,
 	root: string,
 	invoke: "bash" | "exec",
+	env: Readonly<Record<string, string>> = {},
 ): { readonly command: string; readonly args: ReadonlyArray<string> } => {
 	const path = `${root}/${entry.script}`;
 	const args = [...(entry.args ?? [])];
+	const pairs = Object.entries(env).map(([key, value]) => `${key}=${value}`);
+	// The host spawns `env` directly, so `${CLAUDE_PLUGIN_ROOT}` in `args` is still
+	// substituted by the host; see okf/references/claude-code-plugin-format.md
+	// ("exec-form hook `args`").
+	if (pairs.length > 0)
+		return { command: "env", args: [...pairs, ...(invoke === "bash" ? ["bash"] : []), path, ...args] };
 	return invoke === "bash" ? { command: "bash", args: [path, ...args] } : { command: path, args };
 };
 
 type HooksRenderer = (
 	events: ReadonlyArray<TargetHookEvent>,
-	command: (entry: HookEntry) => string,
-	exec: (entry: Extract<HookEntry, { readonly script: string }>) => { command: string; args: ReadonlyArray<string> },
+	command: (entry: HookEntry, env?: Readonly<Record<string, string>>) => string,
+	exec: (
+		entry: Extract<HookEntry, { readonly script: string }>,
+		env: Readonly<Record<string, string>>,
+	) => { command: string; args: ReadonlyArray<string> },
+	ignored: ReadonlyArray<string>,
 ) => unknown;
+
+// Mirrors the hook library: only [A-Za-z0-9_| ,-] is an exact `|` list.
+const EXACT_LIST = /^[A-Za-z0-9_| ,-]*$/;
+
+/**
+ * How a host that ignores the SessionStart matcher is told a matcher: a host
+ * names a fresh session's source `new` where Claude says `startup`, so a
+ * matcher that matches `startup` must match `new` too.
+ *
+ * An exact list holding `startup` gains `new` right after it (`startup|resume`
+ * becomes `startup|new|resume`); one that already holds `new`, an empty or `*`
+ * matcher and any matcher not matching `startup` stay as written. A regex
+ * that matches `startup` but not `new` also stays as written, reported as
+ * `unwidened` so the build can note it. The regex is tried as a JavaScript
+ * `RegExp` while the hook library matches with `grep -E`, so exotic syntax
+ * may differ.
+ *
+ * @public
+ */
+export const sessionStartMatcher = (
+	matcher: string,
+): { readonly matcher: string; readonly widened: boolean; readonly unwidened: boolean } => {
+	const same = { matcher, widened: false, unwidened: false };
+	if (matcher === "" || matcher === "*") return same;
+	if (EXACT_LIST.test(matcher)) {
+		const items = matcher.split("|");
+		const at = items.indexOf("startup");
+		if (at === -1 || items.includes("new")) return same;
+		items.splice(at + 1, 0, "new");
+		return { matcher: items.join("|"), widened: true, unwidened: false };
+	}
+	try {
+		const regex = new RegExp(matcher);
+		return { ...same, unwidened: regex.test("startup") && !regex.test("new") };
+	} catch {
+		return same;
+	}
+};
+
+/**
+ * Whether a host that ignores matchers on `event` (`ignored` is its list) is
+ * given a widened SessionStart matcher.
+ *
+ * @public
+ */
+export const widensSessionStart = (ignored: ReadonlyArray<string>, event: string): boolean =>
+	event === "SessionStart" && ignored.includes(event);
+
+// An entry's matcher runs in the hook library, not the host, on an event the host ignores matchers for.
+const runtimeMatcher = (ignored: ReadonlyArray<string>, event: string, entry: HookEntry): string | undefined =>
+	ignored.includes(event)
+		? entry.matcher !== undefined && widensSessionStart(ignored, event)
+			? sessionStartMatcher(entry.matcher).matcher
+			: entry.matcher
+		: undefined;
 
 // One renderer per hooks format, total over HOOKS_FORMATS.
 const FORMATS: Record<Target["hooks"]["format"], HooksRenderer> = {
 	// Claude Code runs a script entry in exec form, with no shell; a command
 	// entry stays the shell string its author wrote.
-	"claude-hooks-json": (events, command, exec) => ({
+	"claude-hooks-json": (events, command, exec, ignored) => ({
 		hooks: Object.fromEntries(
-			events.map(({ name, entries }) => [
+			events.map(({ event, name, entries }) => [
 				name,
 				entries.map((entry) => ({
-					...(entry.matcher === undefined ? {} : { matcher: entry.matcher }),
+					...(entry.matcher === undefined || ignored.includes(event) ? {} : { matcher: entry.matcher }),
 					hooks: [
 						{
 							type: "command",
-							...("script" in entry ? exec(entry) : { command: command(entry) }),
+							...("script" in entry
+								? exec(entry, entryEnv(event, entry, runtimeMatcher(ignored, event, entry)))
+								: { command: command(entry, entryEnv(event, entry, runtimeMatcher(ignored, event, entry))) }),
 							...(entry.timeout === undefined ? {} : { timeout: entry.timeout }),
 						},
 					],
@@ -166,7 +277,7 @@ const FORMATS: Record<Target["hooks"]["format"], HooksRenderer> = {
 			]),
 		),
 	}),
-	"copilot-hooks-v1": (events, command) => ({
+	"copilot-hooks-v1": (events, command, _exec, ignored) => ({
 		version: 1,
 		hooks: Object.fromEntries(
 			events.map(({ event, name, entries }) => [
@@ -174,10 +285,10 @@ const FORMATS: Record<Target["hooks"]["format"], HooksRenderer> = {
 				entries.map((entry) => ({
 					type: "command",
 					bash: command(entry),
-					...(entry.matcher === undefined ? {} : { matcher: entry.matcher }),
+					...(entry.matcher === undefined || ignored.includes(event) ? {} : { matcher: entry.matcher }),
 					...(entry.timeout === undefined ? {} : { timeoutSec: entry.timeout }),
-					// The library reads its event from here: camelCase Copilot payloads carry no hook_event_name.
-					env: { PLUGINFINITY_EVENT: event },
+					// Copilot gets the env only here, never as a shell prefix on `bash`.
+					env: entryEnv(event, entry, runtimeMatcher(ignored, event, entry)),
 				})),
 			]),
 		),
@@ -203,8 +314,9 @@ export const renderHooks = (
 	return `${JSON.stringify(
 		FORMATS[target.hooks.format](
 			events,
-			(entry) => hookCommand(entry, root, invoke),
-			(entry) => hookExec(entry, root, invoke),
+			(entry, env) => hookCommand(entry, root, invoke, env),
+			(entry, env) => hookExec(entry, root, invoke, env),
+			target.hooks.matcherIgnored,
 		),
 		null,
 		"\t",

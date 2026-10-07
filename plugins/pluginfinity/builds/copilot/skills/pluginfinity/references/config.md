@@ -41,8 +41,10 @@ export default defineConfig({
 | `keywords` | No | A list of strings |
 | `scripts.invoke` | No | How hook scripts run: `"bash"` (the default) or `"exec"`; see [hooks](hooks.md) |
 | `hooks` | No | Hook entries keyed by Claude Code event name; see [hooks](hooks.md) |
+| `env` | No | Session variables: `vars`, optional `prefix` and `setup`. Resolved once per session; every hook that sources `hook.sh` reads them, and a skill script or monitor sources `env.sh`. Reserved names fail: `PATH`, `IFS`, `HOME`, `PWD`, `XDG_STATE_HOME`, `TMPDIR`, `SHELL`, `BASH_ENV`, `ENV`, `CDPATH`, `SHELLOPTS`, `BASHOPTS`, `PS4`, and any name starting `PLUGINFINITY_`, `_PF_`, `CLAUDE_`, `COPILOT_`, `LD_` or `DYLD_`; see [session env](session-env.md) |
 | `mcpServers` | No | MCP servers in Claude Code's `.mcp.json` shape; see below |
 | `lspServers` | No | LSP servers in Claude Code's `.lsp.json` shape; see below |
+| `monitors` | No | Background monitors keyed by name; Claude Code only. See [monitors](monitors.md) |
 | `files` | No | Plugin-relative files, or directories ending in `/`, shipped to every target |
 | `claude`, `copilot` | At least one | Enables that target; see below |
 
@@ -65,8 +67,12 @@ overrides:
   that host only; `[]` removes the event there. Copilot's object also accepts `userPromptTransformed`
   and `errorOccurred`, events only Copilot has.
 - `mcpServers`, `lspServers`: a server here replaces the base server of the same name on that host.
+- `monitors`: a monitor here replaces the base monitor of the same name on that host.
+- `files`: extra files and directories (ending in `/`) shipped to that host only, on top of the base `files`.
+  The same path rules apply: a canonical relative path, not under `builds/` or `node_modules/`. A file
+  that only one host reads, such as a Copilot-only data directory, goes here instead of in the base list.
 
-No other key is accepted. In particular the plugin's `description` has no per-target override: every
+No other key is accepted. In particular `env` has no per-target override, and the plugin's `description` has none: every
 manifest gets the same one, so word it for both hosts. A skill's or agent's own `description` can differ
 per host, through `targets.<id>.description` in that component's frontmatter (see
 [skills and agents](components.md)).
@@ -86,4 +92,8 @@ per host, through `targets.<id>.description` in that component's frontmatter (se
 - **`env` keys starting with `PLUGINFINITY_` fail.** The build injects `PLUGINFINITY_HOST`,
   `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB` itself.
 - **A `files` entry** is a canonical relative path: no empty, `.` or `..` segment, not the plugin root,
-  and not under `builds/` or `node_modules/`. Only the base config has `files`.
+  and not under `builds/` or `node_modules/`. The base `files` ships to every host and a target's own
+  `files` to that host.
+- **A source file at `monitors/monitors.json` fails the build** (`reserved-monitors-file`) whenever the target
+  builds monitors, set at the base or in the target's own `monitors`, shipped by `files` or not. The build
+  writes that path on Claude Code; see [monitors](monitors.md). Copilot builds none, so it is unaffected.

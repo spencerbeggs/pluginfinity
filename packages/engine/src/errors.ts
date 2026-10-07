@@ -321,7 +321,7 @@ export class HookEventUnsupported extends Schema.TaggedError<HookEventUnsupporte
  *
  * @public
  */
-export const HookScriptProblem = Schema.Literals(["missing", "not-executable"]);
+export const HookScriptProblem = Schema.Literals(["missing", "not-executable", "equals-in-path"]);
 
 /**
  * A hook `script` cannot be shipped as configured.
@@ -334,17 +334,31 @@ export class HookScriptInvalid extends Schema.TaggedError<HookScriptInvalid>()("
 	/** The script, relative to the plugin root. */
 	script: Schema.String,
 	problem: HookScriptProblem,
+	/** The component that runs the script: `hooks`, `monitors`, or `env` for the `env.setup` script. */
+	component: Schema.Literals(["hooks", "monitors", "env"]),
 }) {
+	private get kind(): string {
+		return this.component === "monitors"
+			? "monitor script"
+			: this.component === "env"
+				? "env setup script"
+				: "hook script";
+	}
+
 	override get message(): string {
 		return this.problem === "missing"
-			? `hook script ${this.script} named in ${this.path} does not exist`
-			: `hook script ${this.script} is not executable, and ${this.path} sets scripts.invoke to "exec"`;
+			? `${this.kind} ${this.script} named in ${this.path} does not exist`
+			: this.problem === "equals-in-path"
+				? `${this.kind} ${this.script} has "=" in its path, and ${this.path} sets scripts.invoke to "exec", where Claude Code runs it after env and env reads it as a variable assignment`
+				: `${this.kind} ${this.script} is not executable, and ${this.path} sets scripts.invoke to "exec"`;
 	}
 
 	get remediation(): Remediation {
 		return this.problem === "missing"
 			? { hint: `Create ${this.script} under the plugin root, or fix the path in ${this.path}.` }
-			: { hint: `Run \`chmod +x ${this.script}\`, or drop scripts.invoke so hooks run through bash.` };
+			: this.problem === "equals-in-path"
+				? { hint: `Rename ${this.script} without "=", or drop scripts.invoke so scripts run through bash.` }
+				: { hint: `Run \`chmod +x ${this.script}\`, or drop scripts.invoke so scripts run through bash.` };
 	}
 }
 
@@ -411,8 +425,11 @@ export class PathConflict extends Schema.TaggedError<PathConflict>()("PathConfli
 	target: Schema.String,
 	/** The build path both claim, relative to `builds/<target>/`. */
 	file: Schema.String,
-	/** Why the path is taken: a generated file, a reserved library directory, or a reserved server file. */
-	conflict: Schema.Literals(["generated", "reserved-dir", "reserved-server-file"]),
+	/**
+	 * Why the path is taken: a generated file, a reserved library directory, a reserved server file,
+	 * or the monitors file a `monitors` field generates.
+	 */
+	conflict: Schema.Literals(["generated", "reserved-dir", "reserved-server-file", "reserved-monitors-file"]),
 }) {
 	override get message(): string {
 		switch (this.conflict) {
@@ -420,6 +437,8 @@ export class PathConflict extends Schema.TaggedError<PathConflict>()("PathConfli
 				return `${this.file} is under a directory pluginfinity reserves for its injected library`;
 			case "reserved-server-file":
 				return `${this.target} loads ${this.file} as a server config file, but the plugin also ships a source file at that path`;
+			case "reserved-monitors-file":
+				return `${this.target} generates ${this.file} from the monitors field, but the plugin source also has a file at that path`;
 			default:
 				return `${this.target} generates ${this.file}, but the plugin also ships a source file at that path`;
 		}
@@ -432,6 +451,10 @@ export class PathConflict extends Schema.TaggedError<PathConflict>()("PathConfli
 			case "reserved-server-file":
 				return {
 					hint: `Declare those servers under mcpServers or lspServers in the pluginfinity config instead of shipping ${this.file}.`,
+				};
+			case "reserved-monitors-file":
+				return {
+					hint: `Delete the source ${this.file} and declare those monitors under the monitors field in the pluginfinity config.`,
 				};
 			default:
 				return { hint: `Delete or move the source ${this.file}; pluginfinity writes that file itself.` };

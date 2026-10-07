@@ -14,6 +14,7 @@ import { Command } from "effect/cli";
 import { buildCommand } from "../commands/build.js";
 import { doctorCommand } from "../commands/doctor.js";
 import { initCommand } from "../commands/init.js";
+import { logsCommand } from "../commands/logs.js";
 import { pluginCommand } from "../commands/plugin.js";
 import type { LaunchFacts } from "../commands/shared.js";
 import { validateCommand } from "../commands/validate.js";
@@ -40,6 +41,7 @@ const root = (launch: LaunchFacts) =>
 			buildCommand(launch),
 			validateCommand(launch),
 			doctorCommand(launch),
+			logsCommand(launch),
 		]),
 	);
 

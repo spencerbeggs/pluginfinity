@@ -19,6 +19,11 @@ export interface TokenContext {
 	readonly plugin: string;
 	/** The plugin's skill names. */
 	readonly skills: ReadonlySet<string>;
+	/**
+	 * The skill whose body (or bundled markdown file) is being rendered, so
+	 * `{{skill_dir}}` can name it; absent when rendering an agent body.
+	 */
+	readonly skill?: string;
 	/** The plugin's agent names. */
 	readonly agents: ReadonlySet<string>;
 	/** Every file under a skill directory, as `<skill>/<path>`, `SKILL.md` included. */
@@ -43,9 +48,9 @@ export interface TokenProblem {
 	readonly message: string;
 }
 
-const KINDS = new Set(["tool", "agent", "skill", "plugin_root"]);
-/** The first word after `{{`: up to whitespace or a brace. */
-const KIND = /^\s*([^\s{}]+)/;
+const KINDS = new Set(["tool", "agent", "skill", "skill_dir", "plugin_root"]);
+/** The first word after `{{`: up to whitespace, a brace, a pipe or a backtick. */
+const KIND = /^\s*([^\s{}`|]+)/;
 const LINK = /(!?)\[([^[\]]*)\]\(\s*<?pluginfinity:\/\/([^\s<>()]*)>?\s*\)/g;
 /** Every `pluginfinity://` occurrence, in any case. */
 const SCHEMES = /pluginfinity:\/\//gi;
@@ -97,18 +102,51 @@ const tool = (name: string, raw: string, ctx: TokenContext): Spelled => {
 /** Spell the inside of one `{{…}}` that opens with a known kind; `raw` is the whole token as written. */
 const token = (inner: string, raw: string, ctx: TokenContext): Spelled => {
 	if (/[{}]/.test(inner)) return { problem: `malformed token ${raw}; write \\{{ for a literal {{` };
-	const [kind = "", ...args] = inner
+	const bar = inner.indexOf("|");
+	const head = bar === -1 ? inner : inner.slice(0, bar);
+	const fallback = bar === -1 ? undefined : inner.slice(bar + 1).trim();
+	const [kind = "", ...args] = head
 		.trim()
 		.split(/\s+/)
 		.filter((part) => part.length > 0);
+	// The name of a tool token may be wrapped in exactly one pair of backticks, to render as a code span.
+	let code = false;
+	if (head.includes("`")) {
+		if (kind !== "tool") return { problem: `${raw}: only a tool token takes a backtick-wrapped name` };
+		const wrapped = /^\s*tool\s+`([^`\s]+)`\s*$/.exec(head);
+		if (wrapped === null) {
+			return { problem: `${raw}: wrap the tool name in exactly one pair of backticks, as {{tool \`Name\`}}` };
+		}
+		code = true;
+		args[0] = wrapped[1] as string;
+		args.length = 1;
+	}
+	if (fallback !== undefined && kind !== "tool") return { problem: `${raw}: only a tool token takes a | fallback` };
 	if (kind === "plugin_root") {
 		if (args.length > 0) return { problem: `${raw}: plugin_root takes no argument` };
 		return spelling(ctx.target.pluginRoot.body, raw);
 	}
 	const [name] = args;
+	if (kind === "skill_dir") {
+		if (args.length > 1) return { problem: `${raw} takes one skill_dir name` };
+		if (name === undefined && ctx.skill === undefined) {
+			return { problem: `${raw}: an agent has no skill directory; name a skill, {{skill_dir <skill>}}` };
+		}
+		const skill = name ?? (ctx.skill as string);
+		if (!ctx.skills.has(skill)) return { problem: `${raw}: this plugin has no skill "${skill}"` };
+		const spellings = ctx.target.skills.dirSpelling;
+		const chosen = ctx.skill === undefined ? spellings.agent : skill === ctx.skill ? spellings.own : spellings.other;
+		const spelled = spelling(chosen, raw);
+		return "problem" in spelled ? spelled : { value: fill(spelled.value, { skill }) };
+	}
 	if (name === undefined) return { problem: `${raw} needs ${article(kind)} name` };
 	if (args.length > 1) return { problem: `${raw} takes one ${kind} name` };
-	if (kind === "tool") return tool(name, raw, ctx);
+	if (kind === "tool") {
+		if (fallback === "") return { problem: `${raw}: the fallback after | is empty` };
+		const spelled = tool(name, raw, ctx);
+		if (fallback !== undefined && "problem" in spelled) return { value: fallback };
+		return code && "value" in spelled ? { value: `\`${spelled.value}\`` } : spelled;
+	}
 	if (kind === "agent") {
 		if (!ctx.agents.has(name)) return { problem: `${raw}: this plugin has no agent "${name}"` };
 		return { value: fill(ctx.target.agents.id, { plugin: ctx.plugin, agent: name }) };
@@ -254,8 +292,45 @@ const links = (line: string, ctx: TokenContext, problems: Array<string>): string
  * or report every one it cannot render.
  *
  * @remarks
- * A token is `{{tool <name>}}`, `{{agent <name>}}`, `{{skill <name>}}` or
- * `{{plugin_root}}`, with whitespace allowed inside the braces, on one line.
+ * A token is one of the following, with whitespace allowed inside the braces,
+ * on one line:
+ *
+ * ```text
+ * {{tool <name>}}
+ * {{tool <name> | <fallback>}}
+ * {{agent <name>}}
+ * {{skill <name>}}
+ * {{skill_dir}}
+ * {{skill_dir <name>}}
+ * {{plugin_root}}
+ * ```
+ *
+ * `{{skill_dir}}` is the directory of the skill whose body it is written in,
+ * and `{{skill_dir <name>}}` that of the named skill (naming the own skill is
+ * the own form). Claude spells them `${CLAUDE_SKILL_DIR}` and
+ * `${CLAUDE_PLUGIN_ROOT}/skills/<name>`, which it expands in skill bodies;
+ * Copilot expands nothing, so on Copilot the token is a placeholder the model
+ * resolves from the "Base directory for this skill" line the host puts above
+ * the body (`<skill base directory>`, and `<skill base directory>/../<name>`
+ * for a sibling), not a literal path. An agent has no skill directory, so the
+ * bare form there is a problem, as is a named skill on a target with no
+ * spelling for it from an agent (Copilot), an unknown skill or one the target
+ * does not build. It takes neither a `|` fallback nor backticks.
+ *
+ * A tool token may wrap its name in exactly one pair of backticks:
+ *
+ * ```text
+ * {{tool `Name`}}
+ * {{tool `Name` | <fallback>}}
+ * ```
+ *
+ * It then renders as a code span of the spelling where the tool spells, and as
+ * the fallback in plain text where it does not;
+ * unbalanced or doubled backticks, and backticks on any other kind, are
+ * problems. Only a tool token takes
+ * a `|` fallback: literal prose, trimmed, that replaces the token on a target
+ * where the tool has no spelling (and is discarded where it has one). It may
+ * not be empty or contain `{` or `}`.
  * Tokens are replaced everywhere, fenced and inline code included; `\{{`
  * before a token renders it literally, and before any other `{{` the
  * backslash stays. A `{{` whose first word is not a kind is text, so

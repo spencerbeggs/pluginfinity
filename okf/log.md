@@ -1,5 +1,27 @@
 # Log
 
+## 2026-10-07
+
+* Updated @pluginfinity/core
+* Updated Monitors are a first-class component
+* Updated Plugin source model
+* Updated @pluginfinity/cli
+* Updated @pluginfinity/engine
+* Updated Claude Code monitor environment, 2026-10-07
+* Updated The pluginfinity command line
+* Updated dogfood plugin fixture
+* Updated pluginfinity carrier package
+* Updated pluginfinity.config.ts
+* Updated Host runtime probes, 2026-10-07
+* Updated Plugin MCP and LSP server environment on Claude Code and Copilot, 2026-10-05
+* Updated Server launchers ship by discovery and files, beside an injected server library
+* Updated @pluginfinity/targets
+* Added A skill_dir token names a skill's directory, as a placeholder on Copilot
+* Updated Build notes also report hook matchers, ignored hook output and omitted monitors
+* Updated Session env is declared in the config and resolved once at SessionStart
+* Updated Target description
+* Updated pluginfinity companion plugin
+
 ## 2026-10-06
 
 * Updated @pluginfinity/cli
@@ -15,6 +37,12 @@
 * Updated pluginfinity companion plugin
 * Updated pluginfinity first release
 * Updated @pluginfinity/core
+* Added Claude Code's MCP and LSP servers go inline in plugin.json
+* Updated Build notes also report hook matchers, ignored hook output and omitted monitors
+* Updated Facts about a hook entry travel to its script as environment variables
+* Updated Hooks, servers, monitors and scripts share one logging standard
+* Updated pluginfinity carrier package
+* Updated pluginfinity.config.ts
 
 ## 2026-10-05
 

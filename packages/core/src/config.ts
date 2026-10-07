@@ -1,7 +1,10 @@
 import { Schema } from "effect";
+import { EnvConfig } from "./env.js";
 import { Hooks } from "./hooks.js";
 import { LspServers } from "./lsp.js";
 import { McpServers } from "./mcp.js";
+import { Monitors } from "./monitors.js";
+import { KebabName } from "./name.js";
 
 /**
  * A plugin name as every host spells it: kebab-case, lowercase letters and
@@ -9,11 +12,7 @@ import { McpServers } from "./mcp.js";
  *
  * @public
  */
-export const PluginName = Schema.String.check(
-	Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
-		message: "must be kebab-case: lowercase letters and digits separated by single hyphens",
-	}),
-);
+export const PluginName = KebabName;
 
 /**
  * How a `script` hook is invoked: through `bash`, which ignores the file
@@ -75,8 +74,12 @@ export const BaseConfigFields = {
 	mcpServers: Schema.optionalKey(McpServers),
 	/** LSP servers in Claude Code's `.lsp.json` server shape. */
 	lspServers: Schema.optionalKey(LspServers),
+	/** Background monitors, keyed by name; Claude Code delivers each stdout line to the model. */
+	monitors: Schema.optionalKey(Monitors),
 	/** Extra files and directories (ending in `/`) shipped to every target. */
 	files: Schema.optionalKey(Schema.Array(ShippedPath)),
+	/** Session variables the plugin keeps, resolved once at SessionStart; plugin-wide, with no per-target override. */
+	env: Schema.optionalKey(EnvConfig),
 } as const;
 
 /**
@@ -94,7 +97,8 @@ export const BASE_CONFIG_KEYS: ReadonlyArray<string> = Object.keys(BaseConfigFie
  * `hooks` is the target's own hooks schema, so each target admits the events
  * it has: a hook under it replaces the base entries for that event on that
  * target, and `[]` removes them. A server under `mcpServers` or `lspServers`
- * replaces the base server of that name.
+ * replaces the base server of that name, and a monitor under `monitors`
+ * replaces the base monitor of that name.
  *
  * @public
  */
@@ -104,8 +108,11 @@ export const makeTargetSetting = <H extends Schema.Top>(hooks: H) =>
 		Schema.Struct({
 			/** The plugin's name on this host, when it differs from the base `name`. */
 			name: Schema.optionalKey(PluginName),
+			/** Extra files and directories (ending in `/`) shipped to this target only, on top of the base `files`. */
+			files: Schema.optionalKey(Schema.Array(ShippedPath)),
 			hooks: Schema.optionalKey(hooks),
 			mcpServers: Schema.optionalKey(McpServers),
 			lspServers: Schema.optionalKey(LspServers),
+			monitors: Schema.optionalKey(Monitors),
 		}),
 	]);

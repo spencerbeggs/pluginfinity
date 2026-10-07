@@ -23,6 +23,17 @@ describe("defineConfig", () => {
 			description: "x",
 			copilot: { hooks: { userPromptTransformed: [{ script: "hooks/a.sh" }] } },
 		});
+		defineConfig({ name: "foo", description: "x", claude: { files: ["a/"] }, copilot: { files: ["b/", "c.json"] } });
+		// @ts-expect-error -- a files entry is a string path.
+		defineConfig({ name: "foo", description: "x", copilot: { files: [1] } });
+		defineConfig({
+			name: "foo",
+			description: "x",
+			monitors: { "a-b": { script: "monitors/a.sh", description: "A.", when: "on-skill-invoke:x" } },
+			claude: { monitors: { "a-b": { command: "true", description: "A." } } },
+		});
+		// @ts-expect-error -- a monitor needs a description.
+		defineConfig({ name: "foo", description: "x", monitors: { a: { script: "monitors/a.sh" } } });
 		assert.ok(true);
 	});
 });

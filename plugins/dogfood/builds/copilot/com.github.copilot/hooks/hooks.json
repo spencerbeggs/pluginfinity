@@ -4,10 +4,19 @@
 		"SessionStart": [
 			{
 				"type": "command",
+				"bash": "sh \"${PLUGIN_ROOT}/lib/pluginfinity/env-run.sh\"",
+				"timeoutSec": 15,
+				"env": {
+					"PLUGINFINITY_EVENT": "SessionStart"
+				}
+			},
+			{
+				"type": "command",
 				"bash": "bash \"${PLUGIN_ROOT}/hooks/session-start.sh\"",
 				"timeoutSec": 5,
 				"env": {
-					"PLUGINFINITY_EVENT": "SessionStart"
+					"PLUGINFINITY_EVENT": "SessionStart",
+					"PLUGINFINITY_MATCHER": "startup|new"
 				}
 			}
 		],
@@ -28,7 +37,8 @@
 				"matcher": "Bash",
 				"timeoutSec": 5,
 				"env": {
-					"PLUGINFINITY_EVENT": "PreToolUse"
+					"PLUGINFINITY_EVENT": "PreToolUse",
+					"PLUGINFINITY_FAIL_CLOSED": "1"
 				}
 			},
 			{
@@ -55,6 +65,24 @@
 				"type": "command",
 				"bash": "bash \"${PLUGIN_ROOT}/hooks/post-edit.sh\"",
 				"matcher": "Edit|Write",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "PostToolUse"
+				}
+			},
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/post-read.sh\"",
+				"matcher": "Read",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "PostToolUse"
+				}
+			},
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/env-reader.sh\"",
+				"matcher": "Grep",
 				"timeoutSec": 5,
 				"env": {
 					"PLUGINFINITY_EVENT": "PostToolUse"

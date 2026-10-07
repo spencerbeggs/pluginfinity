@@ -13,8 +13,8 @@ You are running a live end-to-end check of pluginfinity's hook library from insi
 ## Before you start
 
 1. Work out which host you are, Claude Code or GitHub Copilot CLI, and record its version with `claude --version` or `copilot --version`.
-2. Ask the user to confirm the session was started with `pnpm claude:debug` or `pnpm copilot:debug`. Those scripts set `PLUGINFINITY_HOOK_DEBUG=1` and load this plugin and the companion pluginfinity plugin. If it was not, say so in the report; the debug-log checks are then skipped.
-3. Note the current line count of each log, with `wc -l` or "absent", so you can read only the lines this run adds. They live in `~/.local/state/pluginfinity/pluginfinity-dogfood/` as `hook-error.log` and `hook-debug.log`.
+2. Ask the user to confirm the session was started with `pnpm claude:debug` or `pnpm copilot:debug`. Those scripts set `PLUGINFINITY_DEBUG=1` and load this plugin and the companion pluginfinity plugin. If it was not, say so in the report; the debug-log checks are then skipped.
+3. Note the current line count of each log, with `wc -l` or "absent", so you can read only the lines this run adds. They live in `${XDG_STATE_HOME:-~/.local/state}/pluginfinity/pluginfinity-dogfood/` as `error.log` and `debug.log`; each line is `<timestamp> [<host>] <component>/<script>: <message>`.
 
 When a step needs a subagent, use `eval-subagent` from this plugin; it carries no other context.
 
@@ -37,7 +37,7 @@ Copilot notes:
 
 **Step 1. SessionStart context.** Look at the context you received at session start. Did pluginfinity-dogfood inject a line like `pluginfinity-dogfood is loaded on <host> (<source>)`? Quote it exactly, or say it is absent. Expected: present, naming your host. On Copilot this has been seen in one run and missed in another, so report what you see without judging it.
 
-**Step 2. UserPromptSubmit.** Ask the user to send you a message containing `pf-dogfood-system`, typed as a chat message. When it arrives, check the new lines in hook-debug.log.
+**Step 2. UserPromptSubmit.** Ask the user to send you a message containing `pf-dogfood-system`, typed as a chat message. When it arrives, check the new lines in debug.log.
 <!-- pluginfinity:only claude -->
 Then ask the user whether they saw a system message reading `pluginfinity-dogfood saw the marker`. Expected: seen in the UI as `UserPromptSubmit says: ...`, and not added to your context. Record what the user reports.
 <!-- /pluginfinity:only -->
@@ -47,7 +47,7 @@ Expected: nothing shown, and a debug line `hook_system_message does nothing on c
 
 **Step 3. PreToolUse deny.** Run the shell command `echo pf-dogfood-deny`. Record whether it was blocked and the exact reason. Expected: blocked, with a reason mentioning `pluginfinity-dogfood denies commands holding pf-dogfood-deny`.
 
-**Step 4. PreToolUse crash fails open.** Run `touch /tmp/pf-dogfood-crash.txt`, then read `/tmp/pf-dogfood-crash.txt` with your file-read tool, not the shell. Record whether the read succeeded, then check the new lines in hook-error.log. Expected: the read succeeds, and the error log gains a line containing `exited 1`.
+**Step 4. PreToolUse crash fails open.** Run `touch /tmp/pf-dogfood-crash.txt`, then read `/tmp/pf-dogfood-crash.txt` with your file-read tool, not the shell. Record whether the read succeeded, then check the new lines in error.log. Expected: the read succeeds, and the error log gains a line containing `exited 1`.
 
 **Step 5. PostToolUse context.** Run `echo pf-dogfood-context`. Did you receive additional context `pluginfinity-dogfood saw pf-dogfood-context` after the tool result? Quote it. Expected: yes.
 
@@ -57,9 +57,9 @@ The injected context is at the top of the subagent's first prompt. Also ask the 
 <!-- /pluginfinity:only -->
 Expected: the subagent quotes `pluginfinity-dogfood subagent context`.
 
-**Step 7. Unexpected errors.** Look at the new lines in hook-error.log since the start, apart from step 4's crash line. Any other line is unexpected; quote it.
+**Step 7. Unexpected errors.** Look at the new lines in error.log since the start, apart from step 4's crash line. Any other line is unexpected; quote it.
 
-**Step 8. Debug log review.** Quote the new hook-debug.log lines from this run, and note which hook functions were no-ops on this host. Each hook run logs an `input:` line holding the raw event the host sent.
+**Step 8. Debug log review.** Quote the new debug.log lines from this run, and note which hook functions were no-ops on this host. Each hook run logs an `input:` line holding the raw event the host sent.
 <!-- pluginfinity:only copilot -->
 
 **Step 9. Input shape.** From the `input:` lines for the PreToolUse runs in steps 3 and 4, state whether `tool_input` was an object or a string, which key names the Read tool used, and whether `hook_event_name` was present. Do not edit any build to find this out.
@@ -107,7 +107,7 @@ Debug enabled: yes/no
 | A4 | plugin-engineer skill answer | ... | ... | yes/no |
 
 ## Log excerpts
-(the new hook-error.log and hook-debug.log lines from this run, verbatim)
+(the new error.log and debug.log lines from this run, verbatim)
 
 ## Anything unexpected
 ```
@@ -120,6 +120,7 @@ These lines exercise body tokens and plugin links; they are not evaluation steps
 
 - Read files with {{tool Read}} and the dogfood server's echo tool, {{tool mcp__plugin_pluginfinity-dogfood_dogfood__echo}}.
 - Delegate to {{agent eval-subagent}}, or see [the helper agent](pluginfinity://agent/eval-subagent).
+- To ask a question, {{tool AskUserQuestion | ask the user}} directly.
 - This skill is {{skill hook-eval}}; shape the report with [the report template](pluginfinity://skill/hook-eval/references/report-template.md).
 <!-- pluginfinity:only claude -->
 - The plugin root is {{plugin_root}}.

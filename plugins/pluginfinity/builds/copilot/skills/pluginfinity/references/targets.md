@@ -12,7 +12,11 @@
 | MCP servers | `mcpServers` in `.claude-plugin/plugin.json` | `mcp.json`, with `$schema` |
 | LSP servers | `lspServers` in `.claude-plugin/plugin.json` | `com.github.copilot/lsp.json` |
 | Server library | `lib/pluginfinity/server.sh` | `lib/pluginfinity/server.sh` |
-| Plugin root in hooks and servers | `${CLAUDE_PLUGIN_ROOT}` | `${PLUGIN_ROOT}` |
+| Monitors file | `monitors/monitors.json` | none: Copilot CLI has no monitors |
+| Plugin root in hooks, servers and monitors | `${CLAUDE_PLUGIN_ROOT}` | `${PLUGIN_ROOT}` |
+| Shared libraries | `lib/pluginfinity/` (`host.sh`, `log.sh`, `server.sh`, `monitor.sh`) and `hooks/lib/pluginfinity/` | the same, without `monitor.sh` |
+| Session env | `lib/pluginfinity/env.sh` and `env-run.sh`, and the runner first under `SessionStart`, when the config declares `env` | the same |
+| A skill's own directory in its body | `${CLAUDE_SKILL_DIR}`, expanded by the host (Claude Code skills docs) | `<skill base directory>`, filled in by the model |
 
 ## Servers
 
@@ -99,6 +103,11 @@ no tool (0 of 6 runs each, two models), while the literal `grep`, `glob`, `web_f
 executed in every run. So those four are written by name, and `TodoWrite` is dropped with a `tool-dropped`
 note. `read`, `edit`, `execute` and `agent` are the documented aliases and are kept.
 
+## Files per host
+
+The base `files` ships to every host. A target's own `files`, `copilot: { files: ["copilot-only/"] }`,
+ships to that host only. A file or directory that one host reads, and the other never opens, goes there.
+
 ## Run-time names
 
 A `{{tool …}}`, `{{agent …}}` or `{{skill …}}` token in a body writes the name the model sees at run
@@ -123,6 +132,15 @@ time, which is not the frontmatter alias. Claude Code writes every name as given
 In the agent and skill rows `<plugin>` is the plugin's Copilot name, the `copilot.name` override, else
 `name`.
 
+`{{skill_dir}}` is not a run-time name: Copilot gets the placeholder `<skill base directory>`, and
+`<skill base directory>/../<skill>` for another skill, which the model resolves from the base-directory line
+above the skill body. See [skill directories](components.md#skill-directories).
+
+A tool token can carry a fallback, `{{tool <name> | <text>}}`: on a host where the tool has a run-time
+name, the token is that name and the text is discarded; where it has none, the text replaces the token
+instead of failing the build. The text is literal prose, trimmed, and may be neither empty nor contain `{`
+or `}`. Only a tool token takes one; `agent`, `skill` and `plugin_root` fail with a fallback.
+
 These were measured once, under Copilot CLI 1.0.92 in non-interactive runs; the built-in names rest on
 the model's own listing of its tools.
 
@@ -138,6 +156,24 @@ last:
   · skills/s/SKILL.md: degraded paths; tool-dropped ToolSearch
   · config: dropped lspServers.md.diagnostics; hook-omitted Setup
 ```
+
+Besides the three above, a build can list these kinds, in this order within a file:
+
+- `hook-matcher-runtime`: the host ignores an event's `matcher` (Copilot on `SessionStart`, `SessionEnd`
+  and `SubagentStop`), so the hook library applies it at run time. Only a `script` entry that sources
+  `hook.sh` is enforced; see [hooks](hooks.md#matchers-a-host-ignores).
+- `hook-output-ignored`: a script calls `hook_context` or `hook_system_message` on an event where the host
+  discards that output. The scan is best effort.
+- `monitor-omitted`: the host has no monitors, so the monitor was left out.
+- `env-shell-unsupported`: the host passes no session env to the model's shell (Copilot), so a skill script
+  sources `env.sh`. See [session env](session-env.md).
+- `env-wait-timeout`: a `SessionStart` entry's `timeout` is under 5 seconds, less than a reader may wait for
+  the env runner plus headroom.
+- `hook-matcher-widened`: Copilot calls a fresh session's source `new` where Claude Code says `startup`, so a
+  `SessionStart` matcher list holding `startup` gains `new` there: `startup|resume` becomes
+  `startup|new|resume`. A list that already holds `new`, an empty or `*` matcher and one without `startup`
+  stay as written.
+- `hook-matcher-regex`: a `SessionStart` regex matcher matches `startup` but not `new`, and is left as written.
 
 A value the host's table drops is not reported, since the host does the same without it: `model: inherit`
 on Copilot is the one today. See [the findings](findings.md) for the kinds and the JSON form.

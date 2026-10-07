@@ -24,6 +24,7 @@ Run these from the plugin root and write down what each finds. Every hit is some
 ```bash
 ls hooks/lib
 grep -rn 'emit_\|hook_error\|HOOK_LOG_PREFIX\|_HOOK_DEBUG\|source_session_env\|_gh' hooks
+grep -rn 'CLAUDE_ENV_FILE\|session-env' hooks scripts skills
 find . -name hooks.json -not -path '*/node_modules/*'
 ls -d */ | grep -i copilot
 grep -rn '\$(cat)\|<&0\|jq .*tool_input\|jq .*\.prompt' hooks
@@ -31,6 +32,7 @@ grep -rn '\$(cat)\|<&0\|jq .*tool_input\|jq .*\.prompt' hooks
 
 - `ls hooks/lib` lists the vendored helpers. Typical names are `hook-output.sh`, `hook-debug.sh`, `gh-wrapper.sh` and `source-session-env.sh`.
 - The `grep` lists every call to an old helper. Each one needs a row in the Mapping table.
+- The `CLAUDE_ENV_FILE` grep finds a hand-rolled session env: a producer that writes exports and a per-session file, and the readers. It becomes the config's `env`.
 - The `find` lists each hand-written `hooks.json`. Every registration in it moves into the config.
 - The `ls | grep` finds a per-host directory such as `copilot/`. Its scripts usually duplicate the Claude ones.
 - The second `grep` finds direct stdin reads and raw `jq` on the payload. The library has already consumed stdin, so each needs `hook_input`.
@@ -43,7 +45,7 @@ Every old name and what replaces it. The library functions are the ones in `hook
 | Old | New | Notes |
 | --- | --- | --- |
 | `emit_noop` | `hook_noop` | The template printed `{}`. Some copies printed `{"continue":true,"suppressOutput":true}` or wrote it to fd 3. The library prints `{}` to stdout. |
-| `emit_allow` | `hook_allow` | The template took an optional rewritten tool input. Some copies took a reason instead. `hook_allow` takes only the optional input JSON and auto-approves the call, so use `hook_noop` to let a call through. Drop the reason: `hook_allow` treats its argument as JSON, so a leftover reason logs "not JSON" and returns 1 with nothing emitted. If Claude should see the reason, emit it with `hook_context` in a separate hook, or leave it out, since a run sends one response. |
+| `emit_allow` | `hook_allow` | The template took an optional rewritten tool input. Some copies took a reason instead. `hook_allow` takes `[reason] [updated-input-json]`, in that order, and auto-approves the call, so use `hook_noop` to let a call through. Keep the reason: pass it first, and `permissionDecisionReason` carries it on both hosts. A call that passed only the rewritten input as the single argument must move it to the second: `hook_allow "" '<json>'`. Left as is, the JSON becomes the reason and nothing is rewritten. A second argument that is not valid JSON logs "not JSON" and returns 1 with nothing emitted. |
 | `emit_deny` | `hook_deny` | Same `<reason>` argument. The library supplies a default reason when none is given. |
 | `emit_context` | `hook_context <text>` | Was `emit_context <event> <text>`. Drop the event argument: the library takes it from the input, so the name always matches the firing event. On an event the host does not honour, such as Setup on Claude, which some old headers listed, `hook_context` answers `{}`. Check `hook_supports context <Event>` or the `hook-events` skill. |
 | `emit_block` | `hook_block` | Not in the plugin-bot template. Consumers added it for a PostToolUse top-level `{"decision":"block"}`. `hook_block` prints the same shape wherever the host honours it. On Copilot it does nothing except on Stop and SubagentStop, so the old PostToolUse block does nothing there. Fall back with `if hook_supports block; then hook_block "…"; else hook_context "…"; fi`, which is sanctioned; see `hook-authoring`'s recipes. |
@@ -51,9 +53,9 @@ Every old name and what replaces it. The library functions are the ones in `hook
 | `emit_raw` | `hook_raw <host> <json>` | The old function copied stdin to the response. The new one takes the host and the JSON as arguments and runs only on that host. Use it for a response only one host understands. |
 | `emit_additional_context` | `hook_context` | The vitest-agent name for `emit_context`. Same change: drop the event argument. |
 | `hook_error` | `hook_log` | Drop the hook-name argument. The library records the script name and the host itself. |
-| `hook_debug` | `hook_debug` | Drop the hook-name argument. It now logs only when `PLUGINFINITY_HOOK_DEBUG=1`. |
-| `HOOK_LOG_PREFIX` | none | Delete it, along with each `<PREFIX>_HOOK_DEBUG`, `<PREFIX>_HOOK_ERROR_LOG` and `<PREFIX>_HOOK_DEBUG_LOG`. Logs go to `$XDG_STATE_HOME/pluginfinity/<plugin>/`, and debugging is `PLUGINFINITY_HOOK_DEBUG=1`. |
-| `source_session_env` | none | No equivalent; keep as a plugin script (Claude only). See the `plugin-scripts` skill for the session-env pattern. |
+| `hook_debug` | `hook_debug` | Drop the hook-name argument. It now logs, to `debug.log`, only when `PLUGINFINITY_DEBUG=1`. |
+| `HOOK_LOG_PREFIX` | none | Delete it, along with each `<PREFIX>_HOOK_DEBUG`, `<PREFIX>_HOOK_ERROR_LOG` and `<PREFIX>_HOOK_DEBUG_LOG`. Logs go to `$XDG_STATE_HOME/pluginfinity/<plugin>/error.log` and `debug.log`, and debugging is `PLUGINFINITY_DEBUG=1`. |
+| `source_session_env` | the config's `env` | Delete the helper and every call. Declare each exported name under `env.vars`, move the code that computed it into `env.setup` or a `hook_env_set` call in the producer, and drop the writes to `CLAUDE_ENV_FILE` and the per-session file. Hooks then read the names directly, on both hosts, and skill scripts source `env.sh`. The recipe is the `pluginfinity` skill's [session env](${CLAUDE_PLUGIN_ROOT}/skills/pluginfinity/references/session-env.md#migrating-a-hand-rolled-session-env). |
 | `_gh` | none | No equivalent; keep as a plugin script. See the `plugin-scripts` skill for the `_gh` wrapper. |
 | `_gh_auth_ok` | none | No equivalent; keep as a plugin script. See the `plugin-scripts` skill. |
 
@@ -79,7 +81,13 @@ The stdout fence, which moved fd 1 to stderr and wrote responses to fd 3, existe
 - The library reads stdin when it is sourced, so a hook that still reads stdin itself gets nothing. Use `hook_input` for every field; raw `jq` on the payload also skips the Copilot key aliases.
 - A missing `jq` now makes the hook a silent no-op, so drop any "jq not found" context the old hook emitted.
 - Old bats tests that assert on a hand-written `hooks.json` need sorting. One that only checks the file exists or parses goes, since the build generates it. One that pins a contract, such as a matcher (`Write|Edit`), a timeout or that SessionStart has no matcher, is rewritten against the generated hooks file of each target: `builds/claude/hooks/hooks.json` and `builds/copilot/com.github.copilot/hooks/hooks.json`. `build --check` proves the build matches the config, not that the config is right.
-- Logs move to `$XDG_STATE_HOME/pluginfinity/<plugin>/hook-error.log` and `hook-debug.log`. Update any doc, test or support script that reads the old path.
+- Logs move to `$XDG_STATE_HOME/pluginfinity/<plugin>/error.log` and `debug.log`, and a line reads `<ISO-8601 UTC> [<host>] <component>/<script>: <message>`. The debug switch is `PLUGINFINITY_DEBUG=1`. Update any doc, test or support script that reads the old files or sets another variable.
+- `hook_project_dir` is now where the call runs (the input's `cwd` walked up to its git root, and never empty), not the session's project. A hook that wants the session's project calls `hook_session_dir`.
+- Empty or garbage stdin now reads as `{}`. A script that needs a payload calls `hook_require_input` at its top level, which answers `{}` and ends the script when stdin was not a JSON object.
+- A `script` entry on Claude Code runs as `env K=V... bash <path> <args>`, and under `scripts.invoke: "exec"` a script path containing `=` fails the build.
+- Decide for each guard whether it fails closed: set `failClosed: true` on its entry. See the `hook-authoring` skill.
+- A `SessionStart` matcher of `startup` now runs on Copilot's fresh sessions too: the build widens it to `startup|new` there, since Copilot reports a fresh session as `new`. An old Copilot-only script that matched `new` by hand can go.
+- Session values that came from `source_session_env` now come from the config's `env`, read from this plugin's declared names only; a value another plugin exported no longer leaks into the hook.
 
 ## Done when
 
@@ -88,8 +96,8 @@ The stdout fence, which moved fd 1 to stderr and wrote responses to fd 3, existe
 - `bats --recursive __test__` passes on both targets.
 - `pluginfinity build --check` is clean.
 - A live check passes on both hosts. Use the `hook-eval` pattern from pluginfinity's dogfood plugin:
-  1. Start a session with only the plugin loaded and `PLUGINFINITY_HOOK_DEBUG=1` set.
+  1. Start a session with only the plugin loaded and `PLUGINFINITY_DEBUG=1` set.
   2. Give each hook a marker string it reacts to, such as a command containing `pf-deny`.
   3. Trigger each marker, and record what the host did next to what you expected.
-  4. Read the new lines in `hook-error.log` and `hook-debug.log`. Expect an `exited` line only from a hook you crash on purpose.
+  4. Read the new lines in `error.log` and `debug.log`. Expect an `exited` line only from a hook you crash on purpose.
   5. Write the observed results to a report, for both hosts.

@@ -17,6 +17,7 @@ export {
 	ShippedPath,
 	makeTargetSetting,
 } from "./config.js";
+export { EnvConfig, EnvVar, EnvVarName } from "./env.js";
 export type { AgentField, SkillField } from "./frontmatter.js";
 export {
 	AGENT_FIELDS,
@@ -35,12 +36,15 @@ export {
 	HookEntry,
 	HookFallback,
 	Hooks,
+	PluginRelativePath,
 	ScriptHook,
 	makeHooks,
 } from "./hooks.js";
 export type { LspField } from "./lsp.js";
 export { LSP_FIELDS, LspServer, LspServers } from "./lsp.js";
 export { McpServer, McpServers, RemoteMcpServer, ServerEnv, StdioMcpServer } from "./mcp.js";
+export { CommandMonitor, MonitorEntry, MonitorName, MonitorWhen, Monitors, ScriptMonitor } from "./monitors.js";
+export { KebabName } from "./name.js";
 export type { DegradeForm } from "./target.js";
 export {
 	Absent,

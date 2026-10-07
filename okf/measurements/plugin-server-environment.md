@@ -15,8 +15,8 @@ sources:
     title: Probe runs by the implementing agent on the owner's machine, first non-interactive under Claude Code 2.1.288 and Copilot CLI 1.0.91, then the dogfood builds under Claude Code 2.1.289 (non-interactive and an interactive tmux session) and Copilot CLI 1.0.91
 generated:
   by: okfit/claude-code
-  at: 2026-10-05T18:06:20Z
-  body_sha256: f0bea6102dc7701fe237bc17c20a60a9936a634f574808508e00a1e508fd9023
+  at: 2026-10-07T06:17:04Z
+  body_sha256: efcd9296d05fe524937cf545d1b05ccedc6de2a038c5c7e9bf1acd61f9ed1a4f
 ---
 
 # Plugin MCP and LSP server environment on Claude Code and Copilot, 2026-10-05
@@ -63,6 +63,7 @@ The same two hosts then ran the committed dogfood builds (`plugins/dogfood/build
 - Copilot's MCP launcher most likely ran with the plugin root as its working directory (inferred from the earlier probe; this run did not record cwd, since the stub never ran). It had no project variable (inferred from the library's `no project directory is known` message), so `server_project_dir` returned nothing and the library went to `npx`. That a published package would start the server on this route is untested. Copilot's own MCP log carried the library's stderr, and `copilot mcp list` showed only `dogfood (local)` with no status.
 - The library's error log `~/.local/state/pluginfinity/pluginfinity-dogfood/server-error.log` was never created: `server_exec_bin` reports on stderr and does not call `server_log`. That directory held only the hook logs.
 - Copilot's installed copy of a local-directory install lives under `~/.config/copilot/installed-plugins/_direct/copilot`. The plugin was uninstalled afterwards; `copilot plugin list` and `copilot mcp list` no longer show it.
+- Finding on 2026-10-07 (Claude Code 2.1.292, Copilot CLI 1.0.92): a Copilot MCP server's client offers no `roots` and the environment has no project variable, so the project cannot be learned there; Claude's client offers roots and `CLAUDE_PROJECT_DIR`. See [the host runtime probes](host-runtime-probes-2026-10-07.md).
 - Not measured: a server that completes the handshake, a marketplace install, Windows, and a Claude MCP server starting without Reconnect.
 
 [^server-probe-run]: conversation with the repository owner, 2026-10-05

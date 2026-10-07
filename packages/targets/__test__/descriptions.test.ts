@@ -137,6 +137,36 @@ describe("the copilot description", () => {
 		assert.strictEqual(names?.Agent, "agent");
 	});
 
+	it("Claude reads monitors from monitors/monitors.json and Copilot has none", () => {
+		assert.deepStrictEqual(TARGETS.find((t) => t.id === "claude")?.target.monitors, {
+			path: "monitors/monitors.json",
+			root: `\${CLAUDE_PLUGIN_ROOT}`,
+		});
+		assert.strictEqual(copilot?.monitors && "note" in copilot.monitors, true);
+	});
+
+	it("lists the events whose matcher the host ignores", () => {
+		assert.deepStrictEqual(copilot?.hooks.matcherIgnored, ["SessionStart", "SessionEnd", "SubagentStop"]);
+		assert.deepStrictEqual(TARGETS.find((t) => t.id === "claude")?.target.hooks.matcherIgnored, []);
+	});
+
+	it("passes hook-exported values to the model's shell from Claude's producer events only", () => {
+		assert.deepStrictEqual(TARGETS.find((t) => t.id === "claude")?.target.hooks.envShell, [
+			"SessionStart",
+			"Setup",
+			"CwdChanged",
+			"FileChanged",
+		]);
+		assert.deepStrictEqual(copilot?.hooks.envShell, []);
+	});
+
+	it("lists the events where Copilot honours hook output", () => {
+		assert.deepStrictEqual(copilot?.hooks.output, {
+			context: ["SessionStart", "SubagentStart", "PostToolUse", "Notification"],
+			system_message: [],
+		});
+	});
+
 	it("keeps its own events out of the Claude event table", () => {
 		const claudeEvents = new Set<string>(CLAUDE_HOOK_EVENTS);
 		assert.deepStrictEqual(

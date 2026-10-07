@@ -17,8 +17,14 @@ export const renderHostFile = (host: KnownTargetId, plugin: string, version: str
 		"",
 	].join("\n");
 
-/** The hook library and its `host.sh`, as one target's build writes them. */
-export const hookLibFiles = (host: KnownTargetId, plugin: string, version: string): ReadonlyArray<EmittedFile> => [
+/** The hook library, its `host.sh` and the `tools.sh` tool map, as one target's build writes them. */
+export const hookLibFiles = (
+	host: KnownTargetId,
+	plugin: string,
+	version: string,
+	toolMap: string,
+): ReadonlyArray<EmittedFile> => [
 	...HOOK_LIB_FILES.map((file) => ({ path: `${HOOK_LIB_DIR}/${file.name}`, content: file.content })),
 	{ path: `${HOOK_LIB_DIR}/host.sh`, content: renderHostFile(host, plugin, version) },
+	{ path: `${HOOK_LIB_DIR}/tools.sh`, content: toolMap },
 ];

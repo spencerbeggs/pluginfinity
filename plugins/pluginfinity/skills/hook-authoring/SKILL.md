@@ -29,6 +29,7 @@ pluginfinity builds one hook script for both hosts. The hook library, sourced at
 
 - Source the library with `. "$(dirname "$0")/lib/pluginfinity/hook.sh"`. Add `../` for each directory depth below `hooks/`.
 - Start with `set -euo pipefail`.
+- Call `hook_require_input` at the top level, right after sourcing, when the script cannot do anything useful without a JSON payload. Empty or garbage stdin otherwise reads as `{}`. `exit` inside a subshell ends only the subshell, so never call it there.
 - Assign input to a variable before you use it: `cmd=$(hook_input tool_input.command)`.
 - Read the event only through `hook_input`; the library has already consumed stdin.
 - Call `hook_cd_project` before running a CLI that finds its project from the working directory. Copilot runs hooks from the plugin root, so without it the CLI finds the plugin, not the user's project.
@@ -36,11 +37,20 @@ pluginfinity builds one hook script for both hosts. The hook library, sourced at
 - Send one response per run.
 - Never `exit 2`. Use `hook_deny` or `hook_block`.
 - Never install your own `trap … EXIT`. The library owns it.
-- Use `hook_noop` to let a call proceed. Use `hook_allow` only to auto-approve or rewrite.
-- Call `hook_fail_closed` only in guards that must not fail open.
+- Use `hook_noop` to let a call proceed. Use `hook_allow` only to auto-approve or rewrite. Its arguments are `[reason] [updated-input-json]`, reason first: `hook_allow "" '{"command":"ls"}'` rewrites with no reason. A script written for the older `hook_allow '<json>'` now sends the JSON as the reason.
+- Fail closed only in guards that must not let a call through when they break. Set `failClosed: true` on the entry in `pluginfinity.config.ts`, which holds even if the script dies before it reaches a call, or call `hook_fail_closed` early. Context, reaction and stop hooks stay open.
+- `hook_project_dir` is where this call runs, and it is never empty: an absolute input `cwd` walked up to its git root, else that `cwd`; with no `cwd`, `CLAUDE_PROJECT_DIR` on Claude Code, else `$PWD` (walked up to `.git` on Claude Code only). `hook_session_dir` is the session's project, which in a git worktree is not the same. Use `hook_cd_project` for the first.
+- `hook_tool_name <claude-name>` prints the host's run-time spelling of a tool, such as `view` for `Read` on Copilot, and returns 1 when the host has none. Branch on its status, not on the host. `hook_tool_prefix <server>` prints the run-time prefix of one of this plugin's own MCP servers (`mcp__plugin_<plugin>_<server>__` on Claude Code, `<server>-` on Copilot) and returns 1 for a server the plugin does not declare.
+- `hook_has <monitor|skill|agent|server> <name>` succeeds when this host's build ships the component, so a hook can name a skill or monitor only where it exists. Branch on its status, not on the host.
+- To hand the decision to a CLI that prints a Claude-shaped response, give it `hook_envelope claude` on stdin and pass its output to `hook_relay`. `hook_relay` picks one answer (permission decision, then block, then context, then system message, then noop), calls the matching helper so each host's rules apply, and logs dropped fields to the debug log.
+- A `matcher` on `SessionStart`, `SessionEnd` or `SubagentStop` is ignored by Copilot, and the library enforces it at run time, but only for a `script` entry that sources `hook.sh`. A `command` entry gets the build note without the enforcement.
+- Write a `SessionStart` matcher in Claude Code's terms. Copilot calls a fresh session `new`, so its build widens `startup` to `startup|new` (`hook-matcher-widened`); a regex it cannot widen gets `hook-matcher-regex`, and needs `new` added by hand.
+- Read a value decided once per session, such as a package manager, from the plugin's session env, not from a file of your own. When the config declares `env`, every declared name is already a variable when the hook body starts. Set one with `hook_env_set NAME value` from `SessionStart` (or Claude Code's `Setup`, `CwdChanged` and `FileChanged`); it always returns 0 and logs a refusal. Never write `CLAUDE_ENV_FILE` yourself. See [session env](pluginfinity://skill/pluginfinity/references/session-env.md).
+- With `env` declared, give every `SessionStart` entry a `timeout` of 5 or more: a `SessionStart` hook may wait up to 3 seconds for the env runner, and a shorter timeout gets an `env-wait-timeout` note.
 - Never vendor the library, never write `hooks.json`, and never edit `builds/`.
 - Branching on `hook_supports` is the sanctioned way to handle a capability one host lacks, such as `if hook_supports block; then hook_block "…"; else hook_context "…"; fi`. Never branch on `hook_host` for that. See [a capability one host lacks](references/recipes.md#a-capability-one-host-lacks).
-- The library needs `jq`, `cat`, `mktemp`, `rm`, `date`, `mkdir`, `basename` and `dirname` on `PATH`. Keep them reachable in a test that narrows `PATH`.
+- Log with `hook_log` (always, to `error.log`) and `hook_debug` (to `debug.log` when `PLUGINFINITY_DEBUG=1`). `PLUGINFINITY_DEBUG=1` is the one switch for hooks, servers, monitors and skill scripts. Read the logs with `pluginfinity logs` (`--debug` for `debug.log`, `--follow` to watch a live session).
+- The library needs `jq`, `cat`, `mktemp`, `rm`, `date`, `mkdir`, `basename`, `dirname` and `grep` on `PATH`. Keep them reachable in a test that narrows `PATH`.
 
 ## Where things live
 
@@ -64,4 +74,5 @@ pluginfinity builds one hook script for both hosts. The hook library, sourced at
 ## Reference
 
 - [Hooks reference](../pluginfinity/references/hooks.md): the API, the per-host table, the failure policy and the testing helper.
+- [Session env](pluginfinity://skill/pluginfinity/references/session-env.md): declared variables, `hook_env_set`, and `run_hook --session-env` to seed a reader's values in a test.
 - The `hook-events` skill: which events each host fires and what each can do.

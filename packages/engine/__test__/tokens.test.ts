@@ -19,6 +19,84 @@ const problems = (result: ReturnType<typeof renderTokens>): ReadonlyArray<{ line
 	return result.problems;
 };
 
+describe("renderTokens: tool fallback", () => {
+	it("uses the spelling when the tool spells and the fallback when it does not", () => {
+		assert.strictEqual(text(renderTokens("{{tool AskUserQuestion | ask the user}}", copilot)), "ask the user");
+		assert.strictEqual(text(renderTokens("{{tool AskUserQuestion | ask the user}}", claude)), "AskUserQuestion");
+		assert.strictEqual(text(renderTokens("{{tool Read | look}}", copilot)), "view");
+		assert.strictEqual(text(renderTokens("a {{tool AskUserQuestion|  ask  }} b", copilot)), "a ask b");
+	});
+
+	it("rejects an empty fallback and a | on any other token", () => {
+		assert.deepStrictEqual(
+			problems(renderTokens("{{tool X |}}", claude)).map((p) => p.message),
+			["{{tool X |}}: the fallback after | is empty"],
+		);
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill a | b}}", claude)).map((p) => p.message),
+			["{{skill a | b}}: only a tool token takes a | fallback"],
+		);
+	});
+});
+
+describe("renderTokens: code-span tool token", () => {
+	it("renders a code span where the tool spells and the plain fallback where it does not", () => {
+		assert.strictEqual(
+			text(renderTokens("Use {{tool `AskUserQuestion` | ask the user}}.", copilot)),
+			"Use ask the user.",
+		);
+		assert.strictEqual(
+			text(renderTokens("Use {{tool `AskUserQuestion` | ask the user}}.", claude)),
+			"Use `AskUserQuestion`.",
+		);
+		assert.strictEqual(text(renderTokens("{{tool `Read`}}", copilot)), "`view`");
+		assert.strictEqual(text(renderTokens("{{tool `Read` | look}}", copilot)), "`view`");
+	});
+
+	it("reports a code span jammed against the kind instead of passing it through", () => {
+		assert.isAbove(problems(renderTokens("{{tool`Read`}}", claude)).length, 0);
+	});
+
+	it("leaves the line's other code spans untouched", () => {
+		assert.strictEqual(
+			text(renderTokens("`a` then {{tool `Read`}} then `b {{tool Read}}`", copilot)),
+			"`a` then `view` then `b view`",
+		);
+	});
+
+	it("follows the usual no-spelling problem without a fallback", () => {
+		assert.deepStrictEqual(
+			problems(renderTokens("{{tool `AskUserQuestion`}}", copilot)).map((p) => p.message),
+			["{{tool `AskUserQuestion`}} has no run-time name on this target"],
+		);
+	});
+
+	it("rejects unbalanced or doubled backticks, and backticks on other kinds", () => {
+		for (const bad of ["{{tool `X}}", "{{tool X`}}", "{{tool ``X``}}", "{{tool `X` `Y`}}", "{{tool ``}}"]) {
+			assert.strictEqual(problems(renderTokens(bad, claude)).length, 1, bad);
+		}
+		assert.strictEqual(problems(renderTokens("{{skill `a`}}", claude)).length, 1);
+		assert.strictEqual(problems(renderTokens("{{agent `a`}}", claude)).length, 1);
+	});
+});
+
+describe("renderTokens: fallback guard", () => {
+	it("rejects a | on plugin_root and agent, and parses tool|x without a space", () => {
+		for (const raw of ["{{plugin_root | x}}", "{{agent a | b}}"]) {
+			assert.deepStrictEqual(
+				problems(renderTokens(raw, claude)).map((p) => p.message),
+				[`${raw}: only a tool token takes a | fallback`],
+			);
+		}
+		// No space before the bar: still a tool token (here missing its name), never silent text.
+		assert.deepStrictEqual(
+			problems(renderTokens("{{tool|x}}", claude)).map((p) => p.message),
+			["{{tool|x}} needs a tool name"],
+		);
+		assert.strictEqual(text(renderTokens("{{tool AskUserQuestion|ask}}", copilot)), "ask");
+	});
+});
+
 describe("renderTokens: tools", () => {
 	it("keeps a built-in name on Claude and spells it at run time on Copilot", () => {
 		assert.strictEqual(text(renderTokens("Use {{tool Read}}.", claude)), "Use Read.");
@@ -452,5 +530,76 @@ describe("renderTokens stays linear on pathological lines", () => {
 			const applied = applyHostBlocks(body, "claude", ["claude", "copilot"]);
 			assert.property(applied, "problem");
 		});
+	});
+});
+
+describe("renderTokens: skill_dir", () => {
+	const inAlpha = (target: typeof CLAUDE) => tokenContext(target, { skill: "alpha" });
+
+	it("spells the own skill's directory per host", () => {
+		assert.strictEqual(
+			text(renderTokens("{{skill_dir}}/scripts/run.sh", inAlpha(CLAUDE))),
+			`\${CLAUDE_SKILL_DIR}/scripts/run.sh`,
+		);
+		assert.strictEqual(text(renderTokens("{{skill_dir}}", inAlpha(COPILOT))), "<skill base directory>");
+	});
+
+	it("treats naming the own skill as the own form", () => {
+		assert.strictEqual(text(renderTokens("{{skill_dir alpha}}", inAlpha(CLAUDE))), `\${CLAUDE_SKILL_DIR}`);
+	});
+
+	it("spells another skill's directory per host", () => {
+		assert.strictEqual(text(renderTokens("{{skill_dir beta}}", inAlpha(CLAUDE))), `${ROOT}/skills/beta`);
+		assert.strictEqual(text(renderTokens("{{skill_dir beta}}", inAlpha(COPILOT))), "<skill base directory>/../beta");
+	});
+
+	it("stays a placeholder with no quotes or parentheses inside a quoted shell command on Copilot", () => {
+		assert.strictEqual(
+			text(renderTokens('bash "{{skill_dir}}/scripts/x.sh"', inAlpha(COPILOT))),
+			'bash "<skill base directory>/scripts/x.sh"',
+		);
+		assert.strictEqual(
+			text(renderTokens('bash "{{skill_dir beta}}/x.sh"', inAlpha(COPILOT))),
+			'bash "<skill base directory>/../beta/x.sh"',
+		);
+	});
+
+	it("is a problem on Copilot in an agent body, which has no skill base directory", () => {
+		const message = "an agent has no skill base directory on copilot; name the path in the skill instead";
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir beta}}", copilot)).map((p) => p.message),
+			[`{{skill_dir beta}} has no spelling on this target: ${message}`],
+		);
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir}}", copilot)).map((p) => p.message),
+			["{{skill_dir}}: an agent has no skill directory; name a skill, {{skill_dir <skill>}}"],
+		);
+	});
+
+	it("is a problem in an agent body unless it names a skill", () => {
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir}}", claude)).map((p) => p.message),
+			["{{skill_dir}}: an agent has no skill directory; name a skill, {{skill_dir <skill>}}"],
+		);
+		assert.strictEqual(text(renderTokens("{{skill_dir beta}}", claude)), `${ROOT}/skills/beta`);
+	});
+
+	it("is a problem for an unknown or unbuilt skill, extra arguments, a fallback or backticks", () => {
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir nope}}", inAlpha(CLAUDE))).map((p) => p.message),
+			['{{skill_dir nope}}: this plugin has no skill "nope"'],
+		);
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir a b}}", inAlpha(CLAUDE))).map((p) => p.message),
+			["{{skill_dir a b}} takes one skill_dir name"],
+		);
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir | x}}", inAlpha(CLAUDE))).map((p) => p.message),
+			["{{skill_dir | x}}: only a tool token takes a | fallback"],
+		);
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir `beta`}}", inAlpha(CLAUDE))).map((p) => p.message),
+			["{{skill_dir `beta`}}: only a tool token takes a backtick-wrapped name"],
+		);
 	});
 });

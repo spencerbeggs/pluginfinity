@@ -128,7 +128,17 @@ export const COPILOT: Target = Target.make({
 		lsp: ROOT,
 		body: unresolved("Copilot documents no plugin-root expansion inside skill or agent bodies"),
 	},
-	skills: { dir: "skills", fields: skillFields, hostFields: [], invoke: "/{plugin}:{skill}" },
+	skills: {
+		dir: "skills",
+		fields: skillFields,
+		hostFields: [],
+		invoke: "/{plugin}:{skill}",
+		dirSpelling: {
+			own: "<skill base directory>",
+			other: "<skill base directory>/../{skill}",
+			agent: unresolved("an agent has no skill base directory on copilot; name the path in the skill instead"),
+		},
+	},
 	agents: {
 		id: "{plugin}:{agent}",
 		dir: "com.github.copilot/agents",
@@ -155,6 +165,12 @@ export const COPILOT: Target = Target.make({
 			CLAUDE_HOOK_EVENTS.map((event) => [event, PASCAL_CASE.has(event) ? event : (CAMEL_CASE[event] ?? absent)]),
 		),
 		ownEvents: [...COPILOT_OWN_EVENTS],
+		// Copilot filters only preToolUse, postToolUse, permissionRequest, subagentStart, preCompact and notification.
+		matcherIgnored: ["SessionStart", "SessionEnd", "SubagentStop"],
+		// Copied from `hook_supports` in the hook library; a test pins the two together. Copilot honours no system message.
+		output: { context: ["SessionStart", "SubagentStart", "PostToolUse", "Notification"], system_message: [] },
+		// No env-file channel is known (hook environment not yet measured): scripts source env.sh.
+		envShell: [],
 	},
 	// Agent Plugins 1.0 forbids mcpServers and lspServers in plugin.json, so Copilot's servers stay in files.
 	mcp: {
@@ -163,6 +179,7 @@ export const COPILOT: Target = Target.make({
 		schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
 	},
 	lsp: { placement: inFile("com.github.copilot/lsp.json"), format: "copilot-lsp-json", fields: lspFields },
+	monitors: unresolved("Copilot CLI has no monitors"),
 	references: { style: "prose" },
 	tools: {
 		// Copilot's frontmatter names, measured: an agent restricted to the

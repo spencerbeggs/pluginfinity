@@ -6,10 +6,17 @@ import { hookLibFiles } from "../src/hook-lib.js";
 import type { BuildNote } from "../src/index.js";
 import { ENGINE_VERSION, build, isBuildError, preparePlugins, validate } from "../src/index.js";
 import {
+	ENVED,
+	ENVED_NO_HOOKS,
+	ENVED_OVERRIDDEN,
+	ENVED_SETUP_MISSING,
+	ENVED_SHORT_TIMEOUT,
 	FILES_BUILDS,
 	FILES_COLLIDE,
 	FILES_MISSING,
 	FILES_OVERLAP,
+	FILES_PER_TARGET,
+	FILES_PER_TARGET_MISSING,
 	FILES_RESERVED,
 	FILES_SHADOW,
 	FILES_SHADOW_SERVER,
@@ -19,6 +26,13 @@ import {
 	HOOKED_EXEC,
 	HOOKED_UNSUPPORTED,
 	LSP_UNRESOLVED,
+	MONITORED,
+	MONITORED_COLLIDE,
+	MONITORED_EXEC_EQUALS,
+	MONITORED_MISSING,
+	MONITOR_SKILL,
+	MONITOR_SKILL_RENAMED,
+	MONITOR_SKILL_UNKNOWN,
 	NOTED,
 	NOTED_AGENT,
 	NOTED_SKILL,
@@ -130,8 +144,8 @@ describe("build", () => {
 				assert.deepStrictEqual(
 					builds.map((entry) => [entry.target, entry.plan.added]),
 					[
-						["claude", [".claude-plugin/plugin.json"]],
-						["copilot", ["plugin.json"]],
+						["claude", [".claude-plugin/plugin.json", "lib/pluginfinity/host.sh", "lib/pluginfinity/log.sh"]],
+						["copilot", ["lib/pluginfinity/host.sh", "lib/pluginfinity/log.sh", "plugin.json"]],
 					],
 				);
 				const claude = JSON.parse(yield* fs.readFileString(path.join(root, CLAUDE_MANIFEST)));
@@ -270,7 +284,7 @@ describe("build", () => {
 			}),
 		);
 
-		it.effect("a remote-only plugin gets no server library", () =>
+		it.effect("a remote-only plugin gets no server library but still gets log.sh and host.sh", () =>
 			Effect.gen(function* () {
 				const fs = yield* FileSystem.FileSystem;
 				const path = yield* Path.Path;
@@ -280,7 +294,9 @@ describe("build", () => {
 					yield* fs.readFileString(path.join(root, "builds/claude/.claude-plugin/plugin.json")),
 				);
 				assert.deepStrictEqual(manifest.mcpServers.docs, { type: "http", url: "https://example.com/mcp" });
-				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/lib/pluginfinity")));
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/lib/pluginfinity/server.sh")));
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/claude/lib/pluginfinity/log.sh")));
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/claude/lib/pluginfinity/host.sh")));
 			}),
 		);
 
@@ -519,6 +535,36 @@ describe("build", () => {
 			}),
 		);
 
+		it.effect("a target's own files ship to that target only, on top of the base files", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_PER_TARGET,
+					"package.json": PACKAGE_JSON,
+					"share/data.json": "{}\n",
+					"copilot-only/x": "x\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/copilot/copilot-only/x")));
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/copilot/share/data.json")));
+				assert.isTrue(yield* fs.exists(path.join(root, "builds/claude/share/data.json")));
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/claude/copilot-only/x")));
+			}),
+		);
+
+		it.effect("a missing target files entry is ShippedFileInvalid naming the target's files", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": FILES_PER_TARGET_MISSING,
+					"package.json": PACKAGE_JSON,
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ShippedFileInvalid");
+				if (error._tag === "ShippedFileInvalid") assert.strictEqual(error.referencedBy, "copilot.files");
+			}),
+		);
+
 		it.effect("a missing files entry is ShippedFileInvalid naming files", () =>
 			Effect.gen(function* () {
 				const root = yield* writeTree({ "pluginfinity.config.ts": FILES_MISSING, "package.json": PACKAGE_JSON });
@@ -679,12 +725,32 @@ describe("build with hooks", () => {
 		});
 
 	layer(NodeServices.layer)((it) => {
+		it.effect("hook_has lists a skill or agent only on the hosts that build it", () =>
+			Effect.gen(function* () {
+				const root = yield* hookedPlugin(HOOKED, {
+					"skills/everyone/SKILL.md": "---\ndescription: x\n---\nBody.\n",
+					"skills/claude-only/SKILL.md": "---\ndescription: x\ntargets:\n  copilot: false\n---\nBody.\n",
+					"agents/everyone.md": "---\nname: everyone\ndescription: x\n---\n",
+					"agents/claude-helper.md": "---\nname: claude-helper\ndescription: x\ntargets:\n  copilot: false\n---\n",
+				});
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const claude = yield* fs.readFileString(path.join(root, "builds/claude/hooks/lib/pluginfinity/tools.sh"));
+				const copilot = yield* fs.readFileString(path.join(root, "builds/copilot/hooks/lib/pluginfinity/tools.sh"));
+				assert.include(claude, "_PF_HAS_SKILLS='claude-only everyone'");
+				assert.include(claude, "_PF_HAS_AGENTS='claude-helper everyone'");
+				assert.include(copilot, "_PF_HAS_SKILLS='everyone'");
+				assert.include(copilot, "_PF_HAS_AGENTS='everyone'");
+			}),
+		);
+
 		it.effect("each target gets its hooks file, its own scripts and the shared helpers, not the other's script", () =>
 			Effect.gen(function* () {
 				const root = yield* hookedPlugin();
 				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
 				const lib = (target: string) =>
-					hookLibFiles(target as "claude" | "copilot", "hooked", ENGINE_VERSION).map((file) => file.path);
+					hookLibFiles(target as "claude" | "copilot", "hooked", ENGINE_VERSION, "").map((file) => file.path);
 				assert.deepStrictEqual(
 					builds.map((entry) => [entry.target, entry.plan.added]),
 					[
@@ -696,6 +762,8 @@ describe("build with hooks", () => {
 								...lib("claude"),
 								"hooks/lib/output.sh",
 								"hooks/start.sh",
+								"lib/pluginfinity/host.sh",
+								"lib/pluginfinity/log.sh",
 							].sort(),
 						],
 						[
@@ -705,6 +773,8 @@ describe("build with hooks", () => {
 								...lib("copilot"),
 								"hooks/lib/output.sh",
 								"hooks/start.copilot.sh",
+								"lib/pluginfinity/host.sh",
+								"lib/pluginfinity/log.sh",
 								"plugin.json",
 							].sort(),
 						],
@@ -719,7 +789,7 @@ describe("build with hooks", () => {
 				const path = yield* Path.Path;
 				const root = yield* hookedPlugin();
 				yield* build({ selection: nearest(root), targets: [], check: false });
-				for (const file of hookLibFiles("claude", "hooked", ENGINE_VERSION)) {
+				for (const file of hookLibFiles("claude", "hooked", ENGINE_VERSION, "")) {
 					yield* fs.chmod(path.join(root, "builds/claude", file.path), 0o755);
 				}
 				const check = yield* build({ selection: nearest(root), targets: [], check: true });
@@ -749,6 +819,7 @@ describe("build with hooks", () => {
 				assert.strictEqual(error._tag, "HookScriptInvalid");
 				if (error._tag !== "HookScriptInvalid") return;
 				assert.deepStrictEqual([error.script, error.problem], ["hooks/start.copilot.sh", "missing"]);
+				assert.strictEqual(error.component, "hooks");
 			}),
 		);
 
@@ -762,6 +833,18 @@ describe("build with hooks", () => {
 				assert.strictEqual(error._tag, "HookScriptInvalid");
 				if (error._tag !== "HookScriptInvalid") return;
 				assert.strictEqual(error.problem, "not-executable");
+			}),
+		);
+
+		it.effect("under exec, a script path with = is HookScriptInvalid equals-in-path", () =>
+			Effect.gen(function* () {
+				const root = yield* hookedPlugin(HOOKED_EXEC.replaceAll("hooks/start.sh", "hooks/a=b.sh"), {
+					"hooks/a=b.sh": "#!/usr/bin/env bash\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookScriptInvalid");
+				if (error._tag !== "HookScriptInvalid") return;
+				assert.deepStrictEqual([error.script, error.problem], ["hooks/a=b.sh", "equals-in-path"]);
 			}),
 		);
 
@@ -1613,6 +1696,8 @@ describe("build notes", () => {
 			"pluginfinity.config.ts": NOTED,
 			"package.json": PACKAGE_JSON,
 			"hooks/setup.sh": "#!/bin/bash\n",
+			"hooks/start.sh": "#!/bin/bash\n",
+			"hooks/guard.sh": '#!/bin/bash\nhook_system_message "careful"\n',
 			"agents/x.md": NOTED_AGENT,
 			"skills/s/SKILL.md": NOTED_SKILL,
 			"skills/plain/SKILL.md": PLAIN_SKILL,
@@ -1621,10 +1706,18 @@ describe("build notes", () => {
 	const EXPECTED: ReadonlyArray<BuildNote> = [
 		{ target: "copilot", path: "agents/x.md", kind: "dropped", name: "color" },
 		{ target: "copilot", path: "agents/x.md", kind: "dropped", name: "maxTurns" },
+		{ target: "copilot", path: "hooks/guard.sh", kind: "hook-output-ignored", name: "PreToolUse:hook_system_message" },
 		{ target: "copilot", path: "skills/s/SKILL.md", kind: "degraded", name: "paths" },
 		{ target: "copilot", path: "skills/s/SKILL.md", kind: "tool-dropped", name: "ToolSearch" },
 		{ target: "copilot", path: "config", kind: "dropped", name: "lspServers.md.diagnostics" },
+		{ target: "copilot", path: "config", kind: "hook-matcher-runtime", name: "SessionStart" },
 		{ target: "copilot", path: "config", kind: "hook-omitted", name: "Setup" },
+		{
+			target: "copilot",
+			path: "config",
+			kind: "hook-matcher-widened",
+			name: "SessionStart startup -> startup|new",
+		},
 	];
 
 	layer(NodeServices.layer)((it) => {
@@ -1639,6 +1732,24 @@ describe("build notes", () => {
 						["copilot", EXPECTED],
 					],
 				);
+			}),
+		);
+
+		it.effect("a regex SessionStart matcher that matches startup but not new is left as written and noted", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": NOTED.replace('matcher: "startup"', 'matcher: "^start.*"'),
+					"package.json": PACKAGE_JSON,
+					"hooks/setup.sh": "#!/bin/bash\n",
+					"hooks/start.sh": "#!/bin/bash\n",
+					"hooks/guard.sh": "#!/bin/bash\n",
+				});
+				const builds = yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+				const kinds = (builds[0]?.notes ?? []).filter((note) => note.kind.startsWith("hook-matcher"));
+				assert.deepStrictEqual(kinds, [
+					{ target: "copilot", path: "config", kind: "hook-matcher-runtime", name: "SessionStart" },
+					{ target: "copilot", path: "config", kind: "hook-matcher-regex", name: "SessionStart ^start.*" },
+				]);
 			}),
 		);
 
@@ -1722,6 +1833,417 @@ describe("build with a plugin's own MCP tools", () => {
 				assert.include(copilot, "x:a /x:k mcp-describe");
 				const claude = yield* fs.readFileString(path.join(root, "builds/claude/agents/a.md"));
 				assert.include(claude, "okfit:a /okfit:k mcp__plugin_okfit_mcp__describe");
+			}),
+		);
+
+		it.effect("spells {{skill_dir}} per target and rejects a skill the target does not build", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": OWN_MCP,
+					"package.json": PACKAGE_JSON,
+					"skills/k/SKILL.md":
+						"---\nname: k\ndescription: Does k.\n---\n\nRun {{skill_dir}}/run.sh and {{skill_dir j}}.\n",
+					"skills/j/SKILL.md": "---\nname: j\ndescription: Does j.\ntargets:\n  copilot: false\n---\n\nBody.\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.include(JSON.stringify(error), 'this plugin has no skill \\"j\\"');
+				const claude = yield* build({ selection: nearest(root), targets: ["claude"], check: false });
+				assert.isAbove(claude.length, 0);
+				const text = yield* fs.readFileString(path.join(root, "builds/claude/skills/k/SKILL.md"));
+				assert.include(text, `Run \${CLAUDE_SKILL_DIR}/run.sh and \${CLAUDE_PLUGIN_ROOT}/skills/j.`);
+			}),
+		);
+	});
+});
+
+describe("build with monitors", () => {
+	const monitoredPlugin = (config: string = MONITORED, extra: Readonly<Record<string, string>> = {}) =>
+		writeTree({
+			"pluginfinity.config.ts": config,
+			"package.json": PACKAGE_JSON,
+			"hooks/mail.sh": "#!/usr/bin/env bash\n",
+			"monitors/issues.mjs": "",
+			...extra,
+		});
+
+	layer(NodeServices.layer)((it) => {
+		it.effect("Claude gets monitors.json, the monitor files and monitor.sh's slot; Copilot gets none of them", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* monitoredPlugin();
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				const claude = builds.find((one) => one.target === "claude");
+				const copilot = builds.find((one) => one.target === "copilot");
+				assert.include(claude?.plan.added ?? [], "monitors/monitors.json");
+				assert.include(claude?.plan.added ?? [], "hooks/mail.sh");
+				assert.include(claude?.plan.added ?? [], "monitors/issues.mjs");
+				assert.include(claude?.plan.added ?? [], "lib/pluginfinity/monitor.sh");
+				assert.isFalse(copilot?.plan.added.includes("lib/pluginfinity/monitor.sh"));
+				// A monitor script under hooks/ does not ride the hooks directory to a target without monitors.
+				assert.isFalse(copilot?.plan.added.some((file) => file.startsWith("monitors/") || file === "hooks/mail.sh"));
+				assert.deepStrictEqual(
+					copilot?.notes.map((note) => [note.kind, note.name]),
+					[
+						["monitor-omitted", "dogfood-mail"],
+						["monitor-omitted", "issues"],
+					],
+				);
+				assert.isFalse(yield* fs.exists(path.join(root, "builds/copilot/monitors")));
+				assert.deepStrictEqual(claude?.notes, []);
+			}),
+		);
+
+		it.effect("a missing monitor script is HookScriptInvalid naming monitors", () =>
+			Effect.gen(function* () {
+				const root = yield* monitoredPlugin(MONITORED_MISSING);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookScriptInvalid");
+				if (error._tag !== "HookScriptInvalid") return;
+				assert.deepStrictEqual([error.script, error.problem], ["monitors/missing.sh", "missing"]);
+				assert.strictEqual(error.component, "monitors");
+			}),
+		);
+
+		it.effect("a missing file a command monitor names is HookScriptInvalid", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* monitoredPlugin();
+				yield* fs.remove(path.join(root, "monitors/issues.mjs"));
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookScriptInvalid");
+				if (error._tag !== "HookScriptInvalid") return;
+				assert.strictEqual(error.script, "monitors/issues.mjs");
+				assert.strictEqual(error.component, "monitors");
+			}),
+		);
+
+		it.effect("under exec, a monitor script path with = builds", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* monitoredPlugin(MONITORED_EXEC_EQUALS, { "monitors/a=b.sh": "#!/usr/bin/env bash\n" });
+				yield* fs.chmod(path.join(root, "monitors/a=b.sh"), 0o755);
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.include(builds[0]?.plan.added ?? [], "monitors/a=b.sh");
+			}),
+		);
+
+		it.effect("a source monitors/monitors.json is PathConflict generated on Claude", () =>
+			Effect.gen(function* () {
+				const root = yield* monitoredPlugin(MONITORED_COLLIDE, {
+					"monitors/mail.sh": "#!/usr/bin/env bash\n",
+					"monitors/monitors.json": "[]\n",
+				});
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.deepStrictEqual([error.file, error.conflict], ["monitors/monitors.json", "reserved-monitors-file"]);
+			}),
+		);
+
+		it.effect("a source monitors/monitors.json fails the build even when no files entry ships it", () =>
+			Effect.gen(function* () {
+				const root = yield* monitoredPlugin(MONITORED, { "monitors/monitors.json": "[]\n" });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.deepStrictEqual(
+					[error.target, error.file, error.conflict],
+					["claude", "monitors/monitors.json", "reserved-monitors-file"],
+				);
+				assert.include(error.remediation.hint, "monitors");
+			}),
+		);
+
+		it.effect("a source monitors/monitors.json fails the build when files ships the directory", () =>
+			Effect.gen(function* () {
+				const config = MONITORED.replace("claude: true,", 'files: ["monitors/"],\n\tclaude: true,');
+				const root = yield* monitoredPlugin(config, { "monitors/monitors.json": "[]\n" });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.strictEqual(error.conflict, "reserved-monitors-file");
+			}),
+		);
+
+		it.effect("monitors set only in a target override still reject a source monitors/monitors.json", () =>
+			Effect.gen(function* () {
+				const config = `export default {
+	name: "monitored",
+	description: "Fixture plugin.",
+	claude: { monitors: { mail: { script: "hooks/mail.sh", description: "Mail." } } },
+	copilot: true,
+};\n`;
+				const root = yield* monitoredPlugin(config, { "monitors/monitors.json": "[]\n" });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.deepStrictEqual([error.target, error.conflict], ["claude", "reserved-monitors-file"]);
+			}),
+		);
+
+		it.effect("without a monitors field, a shipped monitors/monitors.json still builds", () =>
+			Effect.gen(function* () {
+				const config = `export default {
+	name: "monitored",
+	description: "Fixture plugin.",
+	files: ["monitors/"],
+	claude: true,
+};\n`;
+				const root = yield* monitoredPlugin(config, { "monitors/monitors.json": "[]\n" });
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.include(builds[0]?.plan.added ?? [], "monitors/monitors.json");
+			}),
+		);
+
+		it.effect("Copilot builds no monitors, so a source monitors/monitors.json is not a failure there", () =>
+			Effect.gen(function* () {
+				const config = `export default {
+	name: "monitored",
+	description: "Fixture plugin.",
+	monitors: { mail: { script: "hooks/mail.sh", description: "Mail." } },
+	copilot: true,
+};\n`;
+				const root = yield* monitoredPlugin(config, { "monitors/monitors.json": "[]\n" });
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.deepStrictEqual(
+					builds.map((one) => one.target),
+					["copilot"],
+				);
+			}),
+		);
+	});
+});
+
+describe("build with a skill-bound monitor", () => {
+	const skillMonitorPlugin = (config: string, skillFrontmatter = "") =>
+		writeTree({
+			"pluginfinity.config.ts": config,
+			"package.json": PACKAGE_JSON,
+			"monitors/watch.sh": "#!/usr/bin/env bash\n",
+			"skills/hello/SKILL.md": `---\ndescription: Say hello.\n${skillFrontmatter}---\nBody.\n`,
+		});
+	interface Located {
+		readonly target: string;
+		readonly issues: ReadonlyArray<{ readonly key: string }>;
+	}
+	const issueKeys = (error: { readonly _tag: string }) => {
+		const parts: ReadonlyArray<Located> =
+			error._tag === "ComponentsInvalid"
+				? (error as unknown as { readonly components: ReadonlyArray<Located> }).components
+				: [error as unknown as Located];
+		return parts.map((part) => [part.target, part.issues.map((found) => found.key)]);
+	};
+
+	layer(NodeServices.layer)((it) => {
+		it.effect("a skill the Claude target excludes fails the Claude build, naming monitors.<name>.when", () =>
+			Effect.gen(function* () {
+				const root = yield* skillMonitorPlugin(MONITOR_SKILL, "targets:\n  claude: false\n");
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.deepStrictEqual(issueKeys(error), [["claude", ["monitors.watch.when"]]]);
+				// Copilot builds no monitors, so the same skill-less monitor does not fail it.
+				const copilot = yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+				assert.deepStrictEqual(
+					copilot[0]?.notes.map((note) => note.kind),
+					["monitor-omitted"],
+				);
+			}),
+		);
+
+		it.effect("an unknown skill fails the build", () =>
+			Effect.gen(function* () {
+				const root = yield* skillMonitorPlugin(MONITOR_SKILL_UNKNOWN);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.deepStrictEqual(issueKeys(error), [["claude", ["monitors.watch.when"]]]);
+			}),
+		);
+
+		it.effect("a renamed Claude target qualifies the skill with its own name", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* skillMonitorPlugin(MONITOR_SKILL_RENAMED);
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const written = JSON.parse(yield* fs.readFileString(path.join(root, "builds/claude/monitors/monitors.json")));
+				assert.strictEqual(written[0].when, "on-skill-invoke:other:hello");
+			}),
+		);
+	});
+});
+
+describe("build with session env", () => {
+	const envedPlugin = (config: string = ENVED) =>
+		writeTree({
+			"pluginfinity.config.ts": config,
+			"package.json": PACKAGE_JSON,
+			"hooks/start.sh": "#!/usr/bin/env bash\n",
+			"hooks/stop.sh": "#!/usr/bin/env bash\n",
+			"scripts/env-setup.sh": "echo FX_A=x\n",
+		});
+	const readJson = (root: string, file: string) =>
+		Effect.gen(function* () {
+			const fs = yield* FileSystem.FileSystem;
+			const path = yield* Path.Path;
+			return JSON.parse(yield* fs.readFileString(path.join(root, file)));
+		});
+
+	layer(NodeServices.layer)((it) => {
+		it.effect("Claude runs the env runner first among the SessionStart entries", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const hooks = (yield* readJson(root, "builds/claude/hooks/hooks.json")).hooks;
+				assert.deepStrictEqual(hooks.SessionStart[0], {
+					hooks: [
+						{
+							type: "command",
+							command: `export PLUGINFINITY_EVENT='SessionStart'; sh "\${CLAUDE_PLUGIN_ROOT}/lib/pluginfinity/env-run.sh"`,
+							timeout: 15,
+						},
+					],
+				});
+				assert.strictEqual(hooks.SessionStart.length, 2);
+				assert.include(hooks.SessionStart[1].hooks[0].args, `\${CLAUDE_PLUGIN_ROOT}/hooks/start.sh`);
+				assert.strictEqual(hooks.Stop.length, 1);
+			}),
+		);
+
+		it.effect("Copilot runs the env runner first among the SessionStart entries", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const hooks = (yield* readJson(root, "builds/copilot/com.github.copilot/hooks/hooks.json")).hooks;
+				assert.deepStrictEqual(hooks.SessionStart[0], {
+					type: "command",
+					bash: `sh "\${PLUGIN_ROOT}/lib/pluginfinity/env-run.sh"`,
+					timeoutSec: 15,
+					env: { PLUGINFINITY_EVENT: "SessionStart" },
+				});
+				assert.strictEqual(hooks.SessionStart.length, 2);
+			}),
+		);
+
+		it.effect("every target gets env.sh with its declarations, env-run.sh and the setup script", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* envedPlugin();
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				for (const one of builds) {
+					assert.include(one.plan.added, "lib/pluginfinity/env.sh");
+					assert.include(one.plan.added, "lib/pluginfinity/env-run.sh");
+					assert.include(one.plan.added, "scripts/env-setup.sh");
+					const lib = yield* fs.readFileString(path.join(one.out, "lib/pluginfinity/env.sh"));
+					assert.include(
+						lib,
+						[
+							"_pf_env_names='FX_A FX_B'",
+							"_pf_env_default_FX_A='it'\\''s'",
+							"_pf_env_default_FX_B=''",
+							"_pf_env_setup='scripts/env-setup.sh'",
+							"_pf_env_setup_timeout=10",
+							"# <<< pluginfinity env declarations",
+						].join("\n"),
+					);
+				}
+			}),
+		);
+
+		it.effect("Copilot notes env-shell-unsupported; Claude notes nothing", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin();
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				const notes = (id: string) => builds.find((one) => one.target === id)?.notes;
+				assert.deepStrictEqual(notes("copilot"), [
+					{ target: "copilot", path: "config", kind: "env-shell-unsupported", name: "env" },
+				]);
+				assert.deepStrictEqual(notes("claude"), []);
+			}),
+		);
+
+		it.effect("notes a SessionStart hook whose timeout is under the runner wait, on both targets", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin(ENVED_SHORT_TIMEOUT);
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				for (const id of ["claude", "copilot"]) {
+					const notes = builds
+						.find((one) => one.target === id)
+						?.notes.filter((note) => note.kind === "env-wait-timeout");
+					assert.deepStrictEqual(notes, [
+						{ target: id, path: "hooks/start.sh", kind: "env-wait-timeout", name: "SessionStart" },
+					]);
+				}
+			}),
+		);
+
+		it.effect("a SessionStart timeout of 5 or more, or none, gets no env-wait-timeout note", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin();
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				for (const one of builds) assert.isFalse(one.notes.some((note) => note.kind === "env-wait-timeout"));
+			}),
+		);
+
+		it.effect("env with no hooks adds the runner alone, and no hook library", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin(ENVED_NO_HOOKS);
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				const claude = (yield* readJson(root, "builds/claude/hooks/hooks.json")).hooks;
+				assert.deepStrictEqual(Object.keys(claude), ["SessionStart"]);
+				assert.strictEqual(claude.SessionStart.length, 1);
+				const copilot = (yield* readJson(root, "builds/copilot/com.github.copilot/hooks/hooks.json")).hooks;
+				assert.deepStrictEqual(Object.keys(copilot), ["SessionStart"]);
+				for (const one of builds) {
+					assert.isFalse(one.plan.added.some((file) => file.startsWith("hooks/lib/")));
+					assert.include(one.plan.added, "lib/pluginfinity/env.sh");
+				}
+			}),
+		);
+
+		it.effect("a target override that removes SessionStart hooks keeps the runner", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin(ENVED_OVERRIDDEN);
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const hooks = (yield* readJson(root, "builds/claude/hooks/hooks.json")).hooks;
+				assert.strictEqual(hooks.SessionStart.length, 1);
+				assert.include(hooks.SessionStart[0].hooks[0].command, "lib/pluginfinity/env-run.sh");
+			}),
+		);
+
+		it.effect("a missing setup script is HookScriptInvalid naming env", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin(ENVED_SETUP_MISSING);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookScriptInvalid");
+				if (error._tag !== "HookScriptInvalid") return;
+				assert.deepStrictEqual(
+					[error.script, error.problem, error.component],
+					["scripts/missing.sh", "missing", "env"],
+				);
+				assert.include(error.message, "env setup script scripts/missing.sh named in");
+			}),
+		);
+
+		it.effect("no env block: no env library, no runner entry, no note", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": HOOKED,
+					"package.json": PACKAGE_JSON,
+					"hooks/start.sh": "",
+					"hooks/start.copilot.sh": "",
+				});
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				for (const one of builds) {
+					assert.isFalse(one.plan.added.some((file) => file.includes("env.sh") || file.includes("env-run.sh")));
+					assert.isFalse(one.notes.some((note) => note.kind === "env-shell-unsupported"));
+				}
+				const hooks = (yield* readJson(root, "builds/claude/hooks/hooks.json")).hooks;
+				assert.strictEqual(hooks.SessionStart.length, 1);
+				assert.notInclude(JSON.stringify(hooks), "env-run.sh");
 			}),
 		);
 	});
