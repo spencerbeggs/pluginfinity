@@ -20,22 +20,77 @@ _pf_project_dir() {
 	printf '%s\n' "$BATS_TEST_TMPDIR/project"
 }
 
-# run_hook <target> <script> <fixture> [--matcher <m>] [VAR=value...]
+# _pf_seed_session_env <target> <env-file> <session id> [<project dir>]: write
+# the session env library's own state under the test's state dir, so a reader
+# sees the values without SessionStart having run. The file's NAME=value and
+# `export NAME=value` lines are parsed, not sourced. It writes
+# session/<id>/env and, with a project dir, the project pointer a script with no
+# session id uses (the dir walked up to the nearest .git, as the library does).
+# The plugin's name comes from the build's host.sh.
+_pf_seed_session_env() {
+	local target=$1 file=$2 sid=$3 proj=${4:-} root="$PLUGIN_DIR/builds/$1" plugin base dir pair p
+	local filevars=()
+	if [ ! -f "$file" ]; then
+		echo "--session-env $file not found" >&2
+		return 1
+	fi
+	plugin=$(sed -n "s/^PLUGINFINITY_PLUGIN='\\(.*\\)'$/\\1/p" "$root/lib/pluginfinity/host.sh" 2>/dev/null | head -n 1)
+	if [ -z "$plugin" ]; then
+		echo "--session-env: $root/lib/pluginfinity/host.sh not found; run pluginfinity build" >&2
+		return 1
+	fi
+	base="$BATS_TEST_TMPDIR/state/pluginfinity/$plugin"
+	dir="$base/session/$sid"
+	mkdir -p "$dir"
+	_pf_read_env_file "$file"
+	: >"$dir/env"
+	for pair in ${filevars[@]+"${filevars[@]}"}; do
+		printf '%s\n' "$pair" >>"$dir/env"
+	done
+	if [ -n "$proj" ]; then
+		mkdir -p "$proj"
+		p=$(cd "$proj" && pwd -P)
+		local q=$p
+		while [ -n "$q" ] && [ "$q" != / ] && [ "$q" != . ]; do
+			if [ -e "$q/.git" ]; then
+				p=$q
+				break
+			fi
+			q=$(dirname "$q")
+		done
+		mkdir -p "$base/project"
+		printf '%s\n%s\n' "$sid" "$p" >"$base/project/$(printf '%s' "$p" | cksum | awk '{ print $1 "-" $2 }')"
+	fi
+}
+
+# run_hook <target> <script> <fixture> [--matcher <m>] [--session-env <file>] [VAR=value...]
 # Runs builds/<target>/<script> under env -i the way the host runs the built
 # hook entry: the entry in the target's hooks file that runs <script>, under the
 # fixture's hook_event_name (else the event of the first such entry), supplies
 # the environment (Claude: the K=V args before `bash`; Copilot: the `env`
 # object). --matcher picks between entries for one script. Explicit VAR=value
 # arguments override the entry's environment. The fixture is on stdin.
+# --session-env <file> seeds the session values a reader hook sees, as if
+# SessionStart had run: the file's NAME=value lines are written to the session env
+# library's values file for the fixture's session_id, under the test state dir.
 # Sets $status, $output and $stderr.
 run_hook() {
-	local target=$1 script=$2 fixture=$3 matcher="" has_matcher=0
+	local target=$1 script=$2 fixture=$3 matcher="" has_matcher=0 session_env=""
 	shift 3
-	if [ "${1:-}" = "--matcher" ]; then
-		matcher=${2:-}
-		has_matcher=1
-		shift 2
-	fi
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--matcher)
+			matcher=${2:-}
+			has_matcher=1
+			shift 2
+			;;
+		--session-env)
+			session_env=${2:-}
+			shift 2
+			;;
+		*) break ;;
+		esac
+	done
 	local root="$PLUGIN_DIR/builds/$target" project
 	project=$(_pf_project_dir)
 	if [ ! -f "$root/$script" ]; then
@@ -100,6 +155,11 @@ run_hook() {
 	fi
 	if [ "$count" -gt 1 ] && [ "$has_matcher" -eq 0 ]; then
 		echo "run_hook: $count entries run $script; using the first (pass --matcher)" >&2
+	fi
+	if [ -n "$session_env" ]; then
+		local sid
+		sid=$(jq -r '.session_id // .sessionId // empty' "$fixture")
+		_pf_seed_session_env "$target" "$session_env" "${sid:-test-session}" || return 1
 	fi
 	local entry_env=() line
 	while IFS= read -r line; do
@@ -172,7 +232,7 @@ _pf_read_env_file() {
 	done <"$1"
 }
 
-# run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [--env-file <file>] [--interpreter <cmd>] [args...]
+# run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [--env-file <file>] [--session-env <file>] [--interpreter <cmd>] [args...]
 # Runs `<interpreter> builds/<target>/<path> args...` under env -i. The
 # interpreter is `node` for a .mjs, .cjs or .js script and `bash` otherwise;
 # --interpreter <cmd> overrides it (the command may carry arguments, e.g. 'bash -x'). A script under skills/
@@ -183,13 +243,16 @@ _pf_read_env_file() {
 # runs from --cwd (default $BATS_TEST_TMPDIR/project, created) on both hosts.
 # --env-file adds the NAME=value and `export NAME=value` lines of a file, parsed
 # not sourced, to model what a SessionStart hook wrote to CLAUDE_ENV_FILE.
+# --session-env <file> seeds the session env library's own state (see run_hook)
+# for session id test-session and for the project the script runs in, so a
+# script that sources env.sh finds the values through the project pointer.
 # Any other path, a server launcher, gets the host's plugin variables and keeps
 # the host's cwd: the plugin root on Copilot, the caller's on Claude. Each --env
 # adds VAR=value (after --env-file, so it wins); everything after the options, a
 # bare `--` included, is passed to the script as arguments. Sets $status, $output
 # and $stderr.
 run_script() {
-	local target=$1 script=$2 stdin=/dev/null cwd="" interp="" vars=() filevars=()
+	local target=$1 script=$2 stdin=/dev/null cwd="" interp="" vars=() filevars=() session_env=""
 	shift 2
 	while [ $# -gt 0 ]; do
 		case "$1" in
@@ -215,6 +278,10 @@ run_script() {
 				return 1
 			fi
 			_pf_read_env_file "$2"
+			shift 2
+			;;
+		--session-env)
+			session_env=${2:-}
 			shift 2
 			;;
 		--env)
@@ -263,6 +330,9 @@ run_script() {
 	else
 		[ -n "$cwd" ] || { [ "$target" = copilot ] && cwd=$root; }
 	fi
+	if [ -n "$session_env" ]; then
+		_pf_seed_session_env "$target" "$session_env" test-session "${cwd:-$PWD}" || return 1
+	fi
 	if [ -n "$cwd" ]; then
 		run --separate-stderr env -i "${_pf_env[@]}" ${filevars[@]+"${filevars[@]}"} ${vars[@]+"${vars[@]}"} bash -c 'cd "$1" && shift && exec "$@"' _ "$cwd" "${cmd[@]}" "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
 	else
@@ -304,7 +374,7 @@ _pf_run_bounded() {
 	return "$rc"
 }
 
-# run_monitor <target> <name> [--ticks <n>] [--timeout <seconds>] [--cwd <dir>] [VAR=value...]
+# run_monitor <target> <name> [--ticks <n>] [--timeout <seconds>] [--cwd <dir>] [--session-env <file>] [VAR=value...]
 # Runs the monitor's command from builds/claude/monitors/monitors.json the way
 # Claude does: from --cwd (default $BATS_TEST_TMPDIR/project, created, standing
 # in for the session's project dir), with ${CLAUDE_PLUGIN_ROOT} substituted into
@@ -346,6 +416,10 @@ run_monitor() {
 			cwd=$2
 			shift 2
 			;;
+		--session-env)
+			session_env=${2:-}
+			shift 2
+			;;
 		*) break ;;
 		esac
 	done
@@ -359,6 +433,9 @@ run_monitor() {
 	command=${command//"$token"/"$root"}
 	[ -n "$cwd" ] || cwd=$(_pf_project_dir)
 	mkdir -p "$cwd"
+	if [ -n "$session_env" ]; then
+		_pf_seed_session_env claude "$session_env" test-session "$cwd" || return 1
+	fi
 	run --separate-stderr _pf_run_bounded "$timeout" "$name" \
 		env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
 		XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" CLAUDE_CODE_SESSION_ID=test-session \

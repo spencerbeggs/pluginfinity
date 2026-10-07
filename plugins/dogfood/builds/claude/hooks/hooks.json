@@ -2,6 +2,15 @@
 	"hooks": {
 		"SessionStart": [
 			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "export PLUGINFINITY_EVENT='SessionStart'; sh \"${CLAUDE_PLUGIN_ROOT}/lib/pluginfinity/env-run.sh\"",
+						"timeout": 15
+					}
+				]
+			},
+			{
 				"matcher": "startup",
 				"hooks": [
 					{
@@ -107,6 +116,21 @@
 							"PLUGINFINITY_EVENT=PostToolUse",
 							"bash",
 							"${CLAUDE_PLUGIN_ROOT}/hooks/post-read.sh"
+						],
+						"timeout": 5
+					}
+				]
+			},
+			{
+				"matcher": "Grep",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "env",
+						"args": [
+							"PLUGINFINITY_EVENT=PostToolUse",
+							"bash",
+							"${CLAUDE_PLUGIN_ROOT}/hooks/env-reader.sh"
 						],
 						"timeout": 5
 					}

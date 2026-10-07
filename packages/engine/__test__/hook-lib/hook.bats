@@ -1014,3 +1014,145 @@ has_tools() {
 	[ -z "$output" ]
 	[[ "$(debug_log)" == *"matcher startup did not match resume"* ]]
 }
+
+# --- session env ---
+
+@test "env: a reader hook sees a declared value from the session values file, on both hosts" {
+	local host
+	for host in claude copilot; do
+		make_plugin "$host"
+		make_env SILK_PM=npm SILK_X
+		seed_env s-1 SILK_PM=pnpm SILK_X=
+		hook_script 'printf "%s|%s\n" "${SILK_PM-unset}" "${SILK_X-unset}"'
+		run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PreToolUse
+		[ "$status" -eq 0 ]
+		[ "$output" = "pnpm|" ]
+		[ -z "$stderr" ]
+	done
+}
+
+@test "env: a reader hook falls back to the config default with no session values" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	hook_script 'printf "%s\n" "${SILK_PM-unset}"'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$output" = "npm" ]
+}
+
+@test "env: a build without env.sh behaves as before" {
+	make_plugin claude
+	hook_script 'printf "%s|" "${SILK_PM-unset}"; hook_env_set SILK_PM x || echo refused; hook_noop'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$status" -eq 0 ]
+	[ "$output" = $'unset|refused\n{}' ]
+	[[ "$(error_log)" == *"no session env"* ]]
+}
+
+@test "env: the library loads under bash 3.2 style set -eu with nothing on stdout" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	hook_script 'true'
+	run_script "$FIXTURES/pretooluse.bash.json"
+	[ "$status" -eq 0 ]
+	[ -z "$output" ]
+	[ -z "$stderr" ]
+}
+
+@test "env: a matcher-skipped hook does not load the env library" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	hook_script 'echo ran'
+	run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_MATCHER=resume PLUGINFINITY_DEBUG=1
+	[ -z "$output" ]
+	[[ "$(debug_log)" != *"env:"* ]]
+}
+
+@test "env: hook_env_set in SessionStart persists, exports and a later hook sees it, on both hosts" {
+	local host
+	for host in claude copilot; do
+		make_plugin "$host"
+		make_env SILK_PM=npm SILK_X
+		seed_env s-1 SILK_PM=npm SILK_X=
+		hook_script 'hook_env_set SILK_PM bun; echo "in:$SILK_PM"'
+		run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_EVENT=SessionStart
+		[ "$status" -eq 0 ]
+		[ "$output" = "in:bun" ]
+		[[ "$(values_file)" == *"SILK_PM=bun"* ]]
+		hook_script 'printf "later:%s\n" "$SILK_PM"'
+		run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PreToolUse
+		[ "$output" = "later:bun" ]
+	done
+}
+
+@test "env: hook_env_set works in the other producer events" {
+	local ev
+	for ev in Setup CwdChanged FileChanged; do
+		make_plugin claude
+		make_env SILK_PM=npm
+		seed_env s-1 SILK_PM=npm
+		hook_script 'hook_env_set SILK_PM "a b"; echo "$SILK_PM"'
+		run_script '{"session_id":"s-1","cwd":"/tmp"}' PLUGINFINITY_EVENT=$ev
+		[ "$output" = "a b" ]
+		[[ "$(values_file)" == *"SILK_PM=a b"* ]]
+	done
+}
+
+@test "env: hook_env_set is refused outside a producer event and says why in the debug log" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	seed_env s-1 SILK_PM=npm
+	hook_script 'hook_env_set SILK_PM bun && echo set || echo "refused:$?"; echo "$SILK_PM"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PreToolUse PLUGINFINITY_DEBUG=1
+	[ "$output" = $'refused:1\nnpm' ]
+	[[ "$(values_file)" == *"SILK_PM=npm"* ]]
+	[[ "$(debug_log)" == *"hook_env_set"*"PreToolUse"* ]]
+}
+
+@test "env: hook_env_set refuses an undeclared name and a value with a newline, with a log line" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	seed_env s-1 SILK_PM=npm
+	hook_script 'hook_env_set OTHER x || echo r1; hook_env_set SILK_PM $'"'"'a\nb'"'"' || echo r2; echo "$SILK_PM"'
+	run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_EVENT=SessionStart
+	[ "$output" = $'r1\nr2\nnpm' ]
+	[[ "$(error_log)" == *"OTHER"* ]]
+	[[ "$(error_log)" == *"newline"* ]]
+	[[ "$(values_file)" == "SILK_PM=npm" ]]
+}
+
+@test "env: hook_env_set appends to CLAUDE_ENV_FILE on Claude, quoted, and not on Copilot" {
+	local envfile="$BATS_TEST_TMPDIR/envfile"
+	make_plugin claude
+	make_env SILK_PM=npm
+	seed_env s-1 SILK_PM=npm
+	hook_script "hook_env_set SILK_PM \"it's\""
+	run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_EVENT=SessionStart CLAUDE_ENV_FILE="$envfile"
+	[ "$status" -eq 0 ]
+	[ "$(cat "$envfile")" = "export SILK_PM='it'\\''s'" ]
+	[ -z "$output" ]
+	rm -f "$envfile"
+	make_plugin copilot
+	make_env SILK_PM=npm
+	seed_env s-1 SILK_PM=npm
+	hook_script "hook_env_set SILK_PM bun"
+	run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_EVENT=SessionStart CLAUDE_ENV_FILE="$envfile"
+	[ ! -e "$envfile" ]
+	[[ "$(values_file)" == *"SILK_PM=bun"* ]]
+}
+
+@test "env: hook_supports env-shell is true on Claude's producer events and false elsewhere" {
+	make_plugin claude
+	hook_script 'for e in SessionStart Setup CwdChanged FileChanged; do hook_supports env-shell "$e" || echo "missing $e"; done
+for e in PreToolUse Stop SessionEnd UserPromptSubmit; do ! hook_supports env-shell "$e" || echo "extra $e"; done
+hook_supports env-shell || echo "own-event-no"'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PreToolUse
+	[ "$output" = "own-event-no" ]
+	make_plugin claude
+	hook_script 'hook_supports env-shell && echo yes'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "yes" ]
+	make_plugin copilot
+	hook_script 'for e in SessionStart Setup CwdChanged FileChanged PreToolUse; do ! hook_supports env-shell "$e" || echo "extra $e"; done; hook_supports env-shell || echo none'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "none" ]
+}

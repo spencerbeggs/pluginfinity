@@ -59,3 +59,36 @@ no_jq_path() {
 	done
 	printf '%s\n' "$dir"
 }
+
+ENV_SRC="$BATS_TEST_DIRNAME/../../env-lib"
+
+# make_env <declarations...>: add the session env library to the fake build root.
+# Each declaration is NAME or NAME=default. The declarations block is filled in
+# the way the build does it. The state dir is $BATS_TEST_TMPDIR/state.
+make_env() {
+	local decl names="" block="$BATS_TEST_TMPDIR/env-block"
+	: >"$block"
+	for decl in "$@"; do
+		names="$names${names:+ }${decl%%=*}"
+		if [ "$decl" != "${decl%%=*}" ]; then printf "_pf_env_default_%s='%s'\n" "${decl%%=*}" "${decl#*=}" >>"$block"; fi
+	done
+	{
+		printf "_pf_env_names='%s'\n_pf_env_setup=''\n_pf_env_setup_timeout=10\n" "$names"
+	} >>"$block"
+	awk -v block="$block" '
+		/^# >>> pluginfinity env declarations/ { print; while ((getline line < block) > 0) print line; skip = 1; next }
+		/^# <<< pluginfinity env declarations/ { skip = 0 }
+		!skip { print }
+	' "$ENV_SRC/env.sh" >"$PLUGIN/lib/pluginfinity/env.sh"
+}
+
+# seed_env <session id> NAME=value...: write the library's values file for a session.
+seed_env() {
+	local sid=$1 dir
+	shift
+	dir="$BATS_TEST_TMPDIR/state/pluginfinity/${PLUGIN_NAME:-fixture}/session/$sid"
+	mkdir -p "$dir"
+	printf '%s\n' "$@" >"$dir/env"
+}
+
+values_file() { cat "$BATS_TEST_TMPDIR/state/pluginfinity/${PLUGIN_NAME:-fixture}/session/${1:-s-1}/env" 2>/dev/null; }

@@ -375,8 +375,60 @@ hook_supports() {
 	copilot:block)
 		case "$event" in Stop | SubagentStop) return 0 ;; esac
 		;;
+	claude:env-shell)
+		case "$event" in SessionStart | Setup | CwdChanged | FileChanged) return 0 ;; esac
+		;;
 	esac
 	return 1
+}
+
+# --- session env ---------------------------------------------------------
+
+# Whether env.sh is loaded: the build ships it only when the config declares env.
+_pf_env_loaded=0
+
+# Set a declared session variable (the run-time rung of the env chain): record
+# it in the session values file, export it in this hook and, on Claude, append
+# it to CLAUDE_ENV_FILE so the model's shell sees it. Only the events that can
+# produce a value (SessionStart, Setup, CwdChanged, FileChanged) may call it,
+# and only for a name the config declares. Returns 1 with a log line, or a
+# debug line for an event that cannot produce, and changes nothing.
+hook_env_set() {
+	local name=${1:-}
+	if [ "$_pf_env_loaded" != 1 ]; then
+		hook_log "hook_env_set: no session env is declared in this build"
+		return 1
+	fi
+	case "$_pf_event" in
+	SessionStart | Setup | CwdChanged | FileChanged) ;;
+	*)
+		hook_debug "hook_env_set $name ignored: ${_pf_event:-an unknown event} does not produce session values"
+		return 1
+		;;
+	esac
+	_pf_env_set "$name" "${2-}"
+}
+
+# Load env.sh and apply the session values. A failure here never aborts the hook, even under set -e.
+_pf_env_start() {
+	local sid proj errexit=0
+	[ -r "$_pf_log_dir/env.sh" ] || return 0
+	case $- in *e*) errexit=1 ;; esac
+	set +e
+	_pf_env_lib_dir="$_pf_log_dir"
+	_pf_env_manual=1
+	_pf_env_component=hook
+	# shellcheck source=/dev/null
+	if . "$_pf_log_dir/env.sh" 2>/dev/null; then
+		_pf_env_loaded=1
+		sid=$(hook_input session_id)
+		proj=$(_pf_env_project_of "$(hook_project_dir)")
+		env_load "$sid" "$proj"
+	else
+		hook_log "env.sh not loadable; session env skipped"
+	fi
+	[ "$errexit" = 1 ] && set -e
+	return 0
 }
 
 # --- output ---------------------------------------------------------------
@@ -614,3 +666,9 @@ if [ -n "${PLUGINFINITY_MATCHER+x}" ]; then
 		fi
 	fi
 fi
+
+# --- session env ------------------------------------------------------------
+
+# After the matcher, so a skipped hook does not pay for it. A build with no
+# env.sh has no session env and this does nothing.
+_pf_env_start

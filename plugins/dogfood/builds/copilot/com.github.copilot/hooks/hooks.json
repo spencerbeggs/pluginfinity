@@ -4,6 +4,14 @@
 		"SessionStart": [
 			{
 				"type": "command",
+				"bash": "sh \"${PLUGIN_ROOT}/lib/pluginfinity/env-run.sh\"",
+				"timeoutSec": 15,
+				"env": {
+					"PLUGINFINITY_EVENT": "SessionStart"
+				}
+			},
+			{
+				"type": "command",
 				"bash": "bash \"${PLUGIN_ROOT}/hooks/session-start.sh\"",
 				"timeoutSec": 5,
 				"env": {
@@ -66,6 +74,15 @@
 				"type": "command",
 				"bash": "bash \"${PLUGIN_ROOT}/hooks/post-read.sh\"",
 				"matcher": "Read",
+				"timeoutSec": 5,
+				"env": {
+					"PLUGINFINITY_EVENT": "PostToolUse"
+				}
+			},
+			{
+				"type": "command",
+				"bash": "bash \"${PLUGIN_ROOT}/hooks/env-reader.sh\"",
+				"matcher": "Grep",
 				"timeoutSec": 5,
 				"env": {
 					"PLUGINFINITY_EVENT": "PostToolUse"

@@ -119,7 +119,7 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 }
 
 @test "SessionStart runs on a startup source and is skipped for another where Copilot ignores the matcher" {
-	jq -e '.hooks.SessionStart[0].matcher == "startup"' "$BATS_TEST_DIRNAME/../builds/claude/hooks/hooks.json"
+	jq -e '[.hooks.SessionStart[] | select(.matcher == "startup")] | length == 1' "$BATS_TEST_DIRNAME/../builds/claude/hooks/hooks.json"
 	local fx
 	fx=$(hook_fixture SessionStart '{"source":"resume"}')
 	run_hook copilot hooks/session-start.sh "$fx" PLUGINFINITY_MATCHER=startup

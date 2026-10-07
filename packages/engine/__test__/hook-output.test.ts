@@ -75,6 +75,7 @@ describe("hooks.output against hook_supports", () => {
 			assert.isAbove(answers.context.length + answers.system_message.length, 0, "the runner saw the library");
 			assert.deepStrictEqual([...target.hooks.output.context].sort(), [...answers.context].sort());
 			assert.deepStrictEqual([...target.hooks.output.system_message].sort(), [...answers.system_message].sort());
+			assert.deepStrictEqual([...target.hooks.envShell].sort(), [...answers["env-shell"]].sort());
 		});
 	}
 });

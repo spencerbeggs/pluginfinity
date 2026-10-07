@@ -14,9 +14,19 @@ export default defineConfig({
 			{ matcher: "Bash", script: "hooks/post-tool-use.sh", timeout: 5 },
 			{ matcher: "Edit|Write", script: "hooks/post-edit.sh", timeout: 5 },
 			{ matcher: "Read", script: "hooks/post-read.sh", timeout: 5 },
+			{ matcher: "Grep", script: "hooks/env-reader.sh", timeout: 5 },
 		],
 		Stop: [{ script: "hooks/stop.sh", timeout: 5 }],
 		SubagentStart: [{ script: "hooks/subagent-start.sh", timeout: 5 }],
+	},
+	env: {
+		prefix: "PFDOG",
+		vars: {
+			PFDOG_COLOR: { default: "blue", description: "Set by the setup script" },
+			PFDOG_SHAPE: { default: "circle", description: "Set by the setup script" },
+			PFDOG_LEVEL: { default: "1", description: "Only the config default" },
+		},
+		setup: "scripts/env-setup.sh",
 	},
 	mcpServers: { dogfood: { command: "sh", args: ["${PLUGIN_ROOT}/bin/start-mcp.sh"] } },
 	lspServers: {
