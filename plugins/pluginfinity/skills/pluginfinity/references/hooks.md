@@ -84,7 +84,7 @@ overwrites it.
 | `hook_tool_prefix <server>` | The run-time prefix of one of this plugin's own MCP servers, to put in front of a tool name: `mcp__plugin_<claude plugin>_<server>__` on Claude Code, `<server>-` on Copilot. Prints nothing and returns 1 for a server the plugin does not declare |
 | `hook_has <monitor\|skill\|agent\|server> <name>` | Succeeds when this host's build ships the component, so a skill a target leaves out, or a monitor on Copilot, answers 1. An unknown kind logs and returns 2. Read from the build's generated `tools.sh` |
 | `hook_envelope claude` | The input as Claude Code would send it, as one line of JSON. On Copilot it renames `toolName`/`toolArgs` to `tool_name`/`tool_input`, snake_cases the other top-level keys, parses a string `tool_input` and maps Copilot's key names to Claude's where the Claude key is absent. It adds `hook_event_name` when missing. Any other argument logs and returns 1 |
-| `hook_supports <capability> [event]` | Succeeds when the host honours the capability on the event, which defaults to the current one |
+| `hook_supports <capability> [event]` | Succeeds when the host honours the capability on the event, which defaults to the current one. `env-shell` asks whether a value set here reaches the model's shell: Claude Code in `SessionStart`, `Setup`, `CwdChanged` and `FileChanged`, never Copilot |
 
 ```bash
 cmd=$(hook_input tool_input.command)     # a Bash tool's command
@@ -110,7 +110,7 @@ fi
 
 `hook_input` reads stdin when the library is sourced, and caches it; read input only through `hook_input`. It accepts Copilot's camelCase payloads too (`toolName`,
 `toolArgs` as an object or a JSON string), so `hook_input tool_input.command` works on both. The
-capabilities are `context`, `deny`, `allow`, `ask`, `block`, `system_message`, `noop` and `raw`.
+capabilities are `context`, `deny`, `allow`, `ask`, `block`, `system_message`, `noop`, `raw` and `env-shell`.
 
 A `tool_input` key is read by its Claude name on both hosts. Copilot keeps its own key names under Claude
 event and tool names, so a lookup that finds nothing tries Copilot's spelling:
@@ -178,6 +178,24 @@ case "$cmd" in
 esac
 ```
 
+### Session env
+
+When the config declares `env`, the library loads the session's values after the matcher check and before the
+hook body, so every declared name is already a variable in the script. One function changes a value:
+
+| Function | Does |
+| :-- | :-- |
+| `hook_env_set <NAME> <value>` | Sets a declared name for the rest of the session: writes the session's values file, exports it in this hook and, on Claude Code, appends `export NAME='value'` to `CLAUDE_ENV_FILE` for the model's shell. Only in `SessionStart`, `Setup`, `CwdChanged` and `FileChanged`, and only for a declared name with a one-line value; anything else changes nothing and logs. Always returns 0 |
+
+```bash
+pm=$(detect_pm)            # your own function
+hook_env_set MYPLUGIN_PM "$pm"
+hook_context "Package manager: $MYPLUGIN_PM"
+```
+
+The chain, the setup script, `.env` parsing, what each host's shell sees and the tests are in
+[session env](session-env.md).
+
 ### When a hook fails
 
 The library installs an `EXIT` trap. If the script exits non-zero, aborts under `set -e` or finds no `jq`, the
@@ -234,6 +252,14 @@ This holds **only for an entry whose script sources the library**. A plain `comm
 gets the variable and the note, but nothing reads it, so on Copilot the hook runs for every source. Use a
 `script` entry that sources `hook.sh` when the matcher matters.
 
+Copilot reports a fresh session's `source` as `new`, where Claude Code says `startup` (Copilot CLI 1.0.92,
+measured 2026-10-07). So on Copilot the build widens a `SessionStart` matcher list that holds `startup`: it
+inserts `new` after it, `startup` becomes `startup|new` and `startup|resume` becomes `startup|new|resume`, and
+lists a `hook-matcher-widened` note. Write `startup` as on Claude Code; never add `new` for Copilot yourself.
+An empty or `*` matcher, a list that already holds `new` and a matcher without `startup` stay as written. A
+regex that matches `startup` but not `new`, such as `^start`, is left alone with a `hook-matcher-regex` note:
+widen it by hand, or write it as a list.
+
 ### Output a host ignores
 
 Where a host discards a helper's output on an event, such as `hook_context` on a Copilot event it does not
@@ -253,13 +279,13 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 
 | Helper | Does |
 | :-- | :-- |
-| `run_hook <target> <script> <fixture> [--matcher <m>] [VAR=value...]` | Runs `builds/<target>/<script>` under `env -i` with that host's environment and the fixture on stdin, applying the environment of the built entry that runs the script. Sets bats `$status`, `$output` and `$stderr`. A relative fixture is read from `__test__/fixtures/`. See below |
+| `run_hook <target> <script> <fixture> [--matcher <m>] [--session-env <file>] [VAR=value...]` | Runs `builds/<target>/<script>` under `env -i` with that host's environment and the fixture on stdin, applying the environment of the built entry that runs the script. `--session-env` seeds the session values a reader sees, for the fixture's `session_id`; see [session env](session-env.md#testing). Sets bats `$status`, `$output` and `$stderr`. A relative fixture is read from `__test__/fixtures/`. See below |
 | `assert_hook_exit <n>` | The exit code is `n` |
 | `assert_hook_json <jq-filter> <expected>` | The filter's raw value over stdout equals `expected` |
 | `assert_hook_noop` | Exit 0 with no output or `{}` |
 | `hook_fixture <event> [overrides-json]` | Writes a Claude-shaped input for the event to a temp file and prints its path |
-| `run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [--env-file <file>] [--interpreter <cmd>] [args...]` | Runs `builds/<target>/<path>` under `env -i`, with `node` for a `.mjs`, `.cjs` or `.js` script and `bash` for anything else (`--interpreter <cmd>` names another, `bash -x` included): a skill script or a launcher. A path under `skills/` gets what the agent's Bash tool gives a skill script: `PATH`, `HOME`, `XDG_STATE_HOME` and, on Claude Code, `CLAUDE_CODE_SESSION_ID=test-session`, but none of `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_PROJECT_DIR`, `CLAUDE_SKILL_DIR` or `CLAUDE_ENV_FILE` (on Copilot nothing beyond the base). It runs from `--cwd` (default the test project, below) on both hosts. `--env-file` adds the `NAME=value` and `export NAME=value` lines of a file, parsed and not sourced, modelling the exports a SessionStart hook wrote to `CLAUDE_ENV_FILE`. Any other path, a launcher, gets the host's plugin variables and keeps the plugin root as the Copilot directory. Stdin is `/dev/null` unless `--stdin` is given. Each `--env` adds one `VAR=value` and wins over `--env-file`; everything after the options, a bare `--` included, reaches the script as an argument. Sets `$status`, `$output` and `$stderr` |
-| `run_monitor <target> <name> [--ticks <n>] [--timeout <seconds>] [--cwd <dir>] [VAR=value...]` | Runs a monitor's command from `builds/claude/monitors/monitors.json` the way Claude Code starts it: from `--cwd` (default the test project, below), with `${CLAUDE_PLUGIN_ROOT}` substituted into the command text, none of `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` or `CLAUDE_SESSION_ID` set, `CLAUDE_CODE_SESSION_ID=test-session` and stdin `/dev/null`. Bounded to `<n>` ticks (default 1) through `PLUGINFINITY_MONITOR_MAX_TICKS`, and to `--timeout` seconds (default 30) of wall-clock time: past it the process group is killed and `$status` is 124. Any target but `claude` fails with status 1. See [monitors](monitors.md) |
+| `run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [--env-file <file>] [--session-env <file>] [--interpreter <cmd>] [args...]` | Runs `builds/<target>/<path>` under `env -i`, with `node` for a `.mjs`, `.cjs` or `.js` script and `bash` for anything else (`--interpreter <cmd>` names another, `bash -x` included): a skill script or a launcher. A path under `skills/` gets what the agent's Bash tool gives a skill script: `PATH`, `HOME`, `XDG_STATE_HOME` and, on Claude Code, `CLAUDE_CODE_SESSION_ID=test-session`, but none of `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_PROJECT_DIR`, `CLAUDE_SKILL_DIR` or `CLAUDE_ENV_FILE` (on Copilot nothing beyond the base: not measured there, assumed minimal). It runs from `--cwd` (default the test project, below) on both hosts. `--env-file` adds the `NAME=value` and `export NAME=value` lines of a file, parsed and not sourced, modelling the exports a SessionStart hook wrote to `CLAUDE_ENV_FILE`. `--session-env` seeds session `test-session` and points the script's project at it, so a script that sources `env.sh` reads the values. Any other path, a launcher, gets the host's plugin variables and keeps the plugin root as the Copilot directory. Stdin is `/dev/null` unless `--stdin` is given. Each `--env` adds one `VAR=value` and wins over `--env-file`; everything after the options, a bare `--` included, reaches the script as an argument. Sets `$status`, `$output` and `$stderr` |
+| `run_monitor <target> <name> [--ticks <n>] [--timeout <seconds>] [--cwd <dir>] [--session-env <file>] [VAR=value...]` | Runs a monitor's command from `builds/claude/monitors/monitors.json` the way Claude Code starts it: from `--cwd` (default the test project, below), with `${CLAUDE_PLUGIN_ROOT}` substituted into the command text, none of `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` or `CLAUDE_SESSION_ID` set, `CLAUDE_CODE_SESSION_ID=test-session` and stdin `/dev/null`. Bounded to `<n>` ticks (default 1) through `PLUGINFINITY_MONITOR_MAX_TICKS`, and to `--timeout` seconds (default 30, at least 1) of wall-clock time: past it the process group is killed and `$status` is 124. `--session-env` seeds session values as for `run_script`. Any target but `claude` fails with status 1. See [monitors](monitors.md) |
 
 The dogfood plugin tests its `PreToolUse` hook on both targets:
 
@@ -338,7 +364,8 @@ the build fails if one is missing. Clutter such as `.DS_Store` never ships.
 
 pluginfinity also writes the hook library into every build with hooks, as `hooks/lib/pluginfinity/hook.sh`
 plus a generated `host.sh` and `tools.sh` (the host's run-time tool names, read by `hook_tool_name`). The
-log library goes to `lib/pluginfinity/log.sh`. That path is reserved: a source file under `hooks/lib/pluginfinity/` fails
+log library goes to `lib/pluginfinity/log.sh`, and a config that declares `env` adds `lib/pluginfinity/env.sh`,
+the runner `lib/pluginfinity/env-run.sh`, and ships the `env.setup` script. The library paths are reserved: a source file under `hooks/lib/pluginfinity/` fails
 the build, and `build --check` reports a library from a different pluginfinity version as drift.
 
 pluginfinity writes the hooks file itself: `hooks/hooks.json` on Claude Code and

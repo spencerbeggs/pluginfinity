@@ -21,8 +21,12 @@ entry of `builds` or `validations` carries a `notes` array of `{ "path", "kind",
 | `hook-output-ignored` | A script calls `hook_context` or `hook_system_message` on an event where the host ignores that output. `name` is `<Event>:<helper>`; the scan is best effort | Use an event or helper the host honours, or accept that the host shows nothing. See the `hook-events` skill |
 | `hook-omitted` | The host lacks the event and every entry sets `fallback: "omit"` | Nothing, if the hook is optional on that host |
 | `monitor-omitted` | The host has no monitors (Copilot), so the monitor was left out. `name` is the monitor | Nothing, if the monitor is optional. Keep anything the plugin depends on in a hook or skill |
+| `env-shell-unsupported` | The config declares `env`, and the host passes no session values to the model's shell (Copilot). `name` is `env` | Nothing in the config. Have the model run a skill script that sources `env.sh` instead of reading a variable in its own shell; see [session env](session-env.md#what-the-models-shell-sees) |
+| `env-wait-timeout` | A `SessionStart` entry's `timeout` is under 5 seconds while the config declares `env`; its hook may wait up to 3 seconds for the env runner. `path` is the entry's script, else `config` | Raise the `timeout` to 5 or more, or remove it |
+| `hook-matcher-widened` | The host ignores the `SessionStart` matcher and calls a fresh session `new` (Copilot), so a matcher list holding `startup` was given `new` too. `name` is `SessionStart <matcher> -> <widened>` | Nothing. A `startup` hook now runs on Copilot's fresh sessions, as it does on Claude Code's |
+| `hook-matcher-regex` | A `SessionStart` regex matcher matches `startup` but not `new`, and the build does not rewrite a regex. `name` is `SessionStart <matcher>` | Add `new` to the regex, or write the matcher as a `\|` list, which the build widens |
 
-`path` is the source file (`agents/<name>.md`, `skills/<name>/SKILL.md`, or, for `hook-output-ignored` only, a hook script), or `config` for hooks, servers and monitors.
+`path` is the source file (`agents/<name>.md`, `skills/<name>/SKILL.md`, or, for `hook-output-ignored` and `env-wait-timeout` only, a hook script), or `config` for hooks, servers, monitors and session env.
 
 ## Finding the config
 
@@ -31,7 +35,7 @@ entry of `builds` or `validations` carries a `notes` array of `{ "path", "kind",
 | `ConfigNotFound` | No `pluginfinity.config.{ts,mts,js,mjs}` at or above the start, or `--config` names a missing file | Run inside the plugin, pass its directory, or fix `--config` |
 | `ConfigAmbiguous` | One directory holds two configs | Keep one |
 | `ConfigLoadFailed` | Importing the config threw: a syntax error or a bad import | Fix the error the message quotes |
-| `ConfigInvalid` | A field has the wrong shape, or no target is enabled | Fix each listed key |
+| `ConfigInvalid` | A field has the wrong shape, or no target is enabled. Under `env`: a name that is not upper case, digits and `_`, a reserved name (`PATH`, `IFS`, `HOME`, `PWD`, `PLUGINFINITY_*`, `_PF_*`), a name outside the `prefix`, or a `default` holding a newline or another control character but tab | Fix each listed key |
 | `UnknownTarget` | A top-level key is neither a config field nor a target | Fix the spelling or remove the key |
 | `TargetNotEnabled` | `--target` names a target the config does not enable | Enable it, or drop the flag |
 
@@ -42,7 +46,7 @@ entry of `builds` or `validations` carries a `notes` array of `{ "path", "kind",
 | `PackageVersionMissing` | No `package.json` beside the config, or no `version` string in it | Add one |
 | `ComponentsInvalid` | One or more skills or agents are wrong; each is listed with its file and, where it applies, the host | Fix each listed file, as below |
 | `HookEventUnsupported` | A host lacks a hook event the config uses | Set `fallback: "omit"`, or give that host its own hooks for the event |
-| `HookScriptInvalid` | A hook script is missing, or not executable under `scripts.invoke: "exec"` | Create it or fix the path; `chmod +x` it or drop `exec` |
+| `HookScriptInvalid` | A hook script or a monitor script is missing, or not executable under `scripts.invoke: "exec"`; or the `env.setup` script is missing | Create it or fix the path; `chmod +x` it or drop `exec`. The setup script runs under `bash` and needs no executable bit |
 | `ShippedFileInvalid` | A file a server names, or a `files` entry, cannot ship: `missing`, `not-executable` (a whole `command` without the exec bit), `directory` (a whole `command` that is a directory), `outside-root` (it or a symlink under it leaves the plugin) or `not-normal` (a `.`, `..` or empty segment) | Create the file or fix the path; `chmod +x` it or use `command: "sh"` with the path in `args`; name the launcher file, not its directory, as `command`; keep files inside the plugin |
 | `PathConflict` | A source file sits where the build writes a generated file, such as `hooks/hooks.json` or Copilot's `mcp.json`; or on `.mcp.json` or `.lsp.json` in a Claude Code build that declares inline `mcpServers` or `lspServers` (Claude would load the file too); or under the reserved `lib/pluginfinity/` or `hooks/lib/pluginfinity/` | Delete or move the source file; for a server file, move its servers into `mcpServers` or `lspServers` in the config; for a reserved directory, move the file out |
 | `BuildStale` | `build --check` or `validate` found `builds/` out of date; the message names every file | Run `pluginfinity build` and commit the result |
@@ -63,6 +67,9 @@ Common problems inside `ComponentsInvalid`:
   `\{{plugin_root}}` on Copilot, `this plugin has no agent "x"`, a missing argument or a token never
   closed on its line. Fix the name, or move the passage into a host block for the hosts that can spell
   it. For a literal `{{`, write `\{{`.
+- **`\{{skill_dir}}: an agent has no skill directory`.** Name the skill, `\{{skill_dir <skill>}}`, in a
+  `claude` host block; on Copilot the named form fails too, with `an agent has no skill base directory on
+  copilot`, so have the agent invoke the skill, which then names its own directory.
 - **A `pluginfinity://` problem at line N on a host.** The skill, agent or file does not exist in that
   host's build, an agent link has a path or `#anchor`, or the link is not an inline `[text](…)` link with
   no title: a reference definition, an autolink, an image or a bare URL. Write an inline link, or put a

@@ -24,6 +24,7 @@ Run these from the plugin root and write down what each finds. Every hit is some
 ```bash
 ls hooks/lib
 grep -rn 'emit_\|hook_error\|HOOK_LOG_PREFIX\|_HOOK_DEBUG\|source_session_env\|_gh' hooks
+grep -rn 'CLAUDE_ENV_FILE\|session-env' hooks scripts skills
 find . -name hooks.json -not -path '*/node_modules/*'
 ls -d */ | grep -i copilot
 grep -rn '\$(cat)\|<&0\|jq .*tool_input\|jq .*\.prompt' hooks
@@ -31,6 +32,7 @@ grep -rn '\$(cat)\|<&0\|jq .*tool_input\|jq .*\.prompt' hooks
 
 - `ls hooks/lib` lists the vendored helpers. Typical names are `hook-output.sh`, `hook-debug.sh`, `gh-wrapper.sh` and `source-session-env.sh`.
 - The `grep` lists every call to an old helper. Each one needs a row in the Mapping table.
+- The `CLAUDE_ENV_FILE` grep finds a hand-rolled session env: a producer that writes exports and a per-session file, and the readers. It becomes the config's `env`.
 - The `find` lists each hand-written `hooks.json`. Every registration in it moves into the config.
 - The `ls | grep` finds a per-host directory such as `copilot/`. Its scripts usually duplicate the Claude ones.
 - The second `grep` finds direct stdin reads and raw `jq` on the payload. The library has already consumed stdin, so each needs `hook_input`.
@@ -53,7 +55,7 @@ Every old name and what replaces it. The library functions are the ones in `hook
 | `hook_error` | `hook_log` | Drop the hook-name argument. The library records the script name and the host itself. |
 | `hook_debug` | `hook_debug` | Drop the hook-name argument. It now logs, to `debug.log`, only when `PLUGINFINITY_DEBUG=1`. |
 | `HOOK_LOG_PREFIX` | none | Delete it, along with each `<PREFIX>_HOOK_DEBUG`, `<PREFIX>_HOOK_ERROR_LOG` and `<PREFIX>_HOOK_DEBUG_LOG`. Logs go to `$XDG_STATE_HOME/pluginfinity/<plugin>/error.log` and `debug.log`, and debugging is `PLUGINFINITY_DEBUG=1`. |
-| `source_session_env` | none | No equivalent; keep as a plugin script (Claude only). See the `plugin-scripts` skill for the session-env pattern. |
+| `source_session_env` | the config's `env` | Delete the helper and every call. Declare each exported name under `env.vars`, move the code that computed it into `env.setup` or a `hook_env_set` call in the producer, and drop the writes to `CLAUDE_ENV_FILE` and the per-session file. Hooks then read the names directly, on both hosts, and skill scripts source `env.sh`. The recipe is the `pluginfinity` skill's [session env](${CLAUDE_PLUGIN_ROOT}/skills/pluginfinity/references/session-env.md#migrating-a-hand-rolled-session-env). |
 | `_gh` | none | No equivalent; keep as a plugin script. See the `plugin-scripts` skill for the `_gh` wrapper. |
 | `_gh_auth_ok` | none | No equivalent; keep as a plugin script. See the `plugin-scripts` skill. |
 
@@ -84,6 +86,8 @@ The stdout fence, which moved fd 1 to stderr and wrote responses to fd 3, existe
 - Empty or garbage stdin now reads as `{}`. A script that needs a payload calls `hook_require_input` at its top level, which answers `{}` and ends the script when stdin was not a JSON object.
 - A `script` entry on Claude Code runs as `env K=V... bash <path> <args>`, and under `scripts.invoke: "exec"` a script path containing `=` fails the build.
 - Decide for each guard whether it fails closed: set `failClosed: true` on its entry. See the `hook-authoring` skill.
+- A `SessionStart` matcher of `startup` now runs on Copilot's fresh sessions too: the build widens it to `startup|new` there, since Copilot reports a fresh session as `new`. An old Copilot-only script that matched `new` by hand can go.
+- Session values that came from `source_session_env` now come from the config's `env`, read from this plugin's declared names only; a value another plugin exported no longer leaks into the hook.
 
 ## Done when
 

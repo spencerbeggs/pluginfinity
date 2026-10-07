@@ -17,7 +17,7 @@ and `build --check` fails until it does.
 
 ```text
 <plugin>/
-  pluginfinity.config.ts      name, metadata, targets, hooks, servers, monitors, files
+  pluginfinity.config.ts      name, metadata, targets, hooks, env, servers, monitors, files
   package.json                its "version" is every manifest's version
   skills/<skill>/SKILL.md     plus references/, scripts/, assets/
   agents/<agent>.md
@@ -27,8 +27,8 @@ and `build --check` fails until it does.
   builds/<target>/            generated and committed; never edited
 ```
 
-Anything else at the root, such as `__test__/` or `scripts/`, ships only if a server names it or `files`
-lists it.
+Anything else at the root, such as `__test__/` or `scripts/`, ships only if a server names it, `env.setup`
+names it or `files` lists it.
 
 ## Rules that bite
 
@@ -62,6 +62,7 @@ write a token, and each build writes that host's spelling:
 | `{{agent <agent>}}` | `<plugin>:<agent>` | `<plugin>:<agent>` |
 | `{{skill <skill>}}` | `/<plugin>:<skill>` | `/<plugin>:<skill>` |
 | `{{plugin_root}}` | `${CLAUDE_PLUGIN_ROOT}` | fails the build |
+| `{{skill_dir}}`, `{{skill_dir <skill>}}` | the skill's directory, which Claude Code expands | `<skill base directory>`, a placeholder the model fills |
 
 In an agent id or skill command `<plugin>` is the plugin's name on that host (`claude.name` or
 `copilot.name`, else `name`); in an MCP tool name it is the Claude Code name on both.
@@ -77,6 +78,12 @@ In an agent id or skill command `<plugin>` is the plugin's name on that host (`c
   Only a tool token takes one; see [skills and agents](references/components.md#tokens).
 - **Name agents with `{{agent …}}`.** Copilot namespaces agent ids, so a bare `okf-docs` is no agent
   there. On the command line it is `copilot --agent <plugin>:<agent>`.
+- **Name a skill's own directory with `{{skill_dir}}`** in a command the model runs, such as
+  `bash "{{skill_dir}}/scripts/check.sh"`. Copilot expands nothing in a body, so there it writes the
+  placeholder `<skill base directory>`, which the model fills from the "Base directory for this skill" line
+  both hosts put above the body. `{{skill_dir <skill>}}` names a sibling skill. In an agent body only the
+  named form works, and only on Claude Code. For a file the model should read, use a link instead. See
+  [skill directories](references/components.md#skill-directories).
 - **Link to another skill's file or to an agent** with an inline link,
   `[text](pluginfinity://skill/<skill>/<path>)` or `[text](pluginfinity://agent/<agent>)`. Claude Code
   gets a link under `${CLAUDE_PLUGIN_ROOT}`, Copilot gets prose such as "text (the `<skill>` skill's
@@ -84,7 +91,8 @@ In an agent id or skill command `<plugin>` is the plugin's name on that host (`c
 - **A token or link that cannot be spelled fails the build**, with its file, line and host. Put a passage
   only one host can spell in a host block: a token in another host's block is never read.
 - **`\{{` keeps a token literal.** Tokens are replaced in code too. A `{{` that does not start
-  `tool`, `agent`, `skill` or `plugin_root`, such as GitHub Actions' `${{ github.sha }}`, is plain text.
+  `tool`, `agent`, `skill`, `skill_dir` or `plugin_root`, such as GitHub Actions' `${{ github.sha }}`, is
+  plain text.
 
 The full rules are in [skills and agents](references/components.md#tokens-and-links).
 
@@ -119,6 +127,10 @@ files: ["share/"],
   directory. Prefer `command: "sh"` with the launcher in `args`.
 - **`files`** ships what no server names, such as data a launcher reads: files, or directories ending in
   `/`.
+- **A Copilot MCP server cannot learn the user's project.** It starts in the plugin root, its client offers no
+  MCP roots and no variable names the project (Copilot CLI 1.0.92, measured 2026-10-07), so
+  `server_project_dir` returns 1 there. Design such a server to take the project from its tool arguments. A
+  Claude Code server gets `CLAUDE_PROJECT_DIR`, starts in the project and can ask for roots.
 - **Never put a `cwd` on a Claude MCP server.** Claude ignores it and starts the server in the project,
   so the build fails. Set `cwd` under `copilot.mcpServers`, or `cd` in the launcher.
 - **Copilot has no LSP `workspaceFolder` or `settings`.** Setting either fails the Copilot build; give
@@ -132,6 +144,35 @@ files: ["share/"],
   that holds `${PLUGIN_ROOT}` needs the same ignore.
 
 Write the launcher on the server library with the `plugin-scripts` skill.
+
+## Session env
+
+A value decided once per session and read by several hooks or scripts, such as a package manager or a switch
+the user sets in `.env`, goes in the config's `env`:
+
+```ts
+env: {
+  prefix: "MYPLUGIN",
+  vars: { MYPLUGIN_PM: { default: "npm", description: "Package manager detected at session start" } },
+  setup: "scripts/env-setup.sh",
+},
+```
+
+- **The build adds a runner as the first `SessionStart` entry.** It resolves each name once per session, lowest
+  first: the `default`, the `setup` script's `NAME=value` output, the project's `.env`, its `.env.local`, then
+  the environment the host started with. Only declared names are read, and `.env` files are parsed, never
+  sourced.
+- **Every hook sees the values as plain variables**, with no call. A skill script or a monitor sources
+  `lib/pluginfinity/env.sh` with one line.
+- **A hook changes a value with `hook_env_set NAME value`**, only in `SessionStart` (and Claude Code's `Setup`,
+  `CwdChanged` and `FileChanged`).
+- **The model's own shell sees the values on Claude Code only.** On Copilot, have the model run a script that
+  sources `env.sh`; the build notes this as `env-shell-unsupported`.
+- **Keep every other `SessionStart` timeout at 5 seconds or more.** A `SessionStart` hook may wait up to 3 seconds
+  for the runner, and a shorter timeout gets an `env-wait-timeout` note.
+
+The whole contract, the dogfood example, the bats helpers and the migration from a hand-written
+`CLAUDE_ENV_FILE` pattern are in [session env](references/session-env.md).
 
 ## Monitors
 
@@ -155,7 +196,7 @@ for one host takes `targets: { <other host>: false }` in its frontmatter; see th
 | `pluginfinity build --check` | Writes nothing; fails when `builds/` differs from a fresh build |
 | `pluginfinity validate` | Requires current builds, then runs each host's own check |
 | `pluginfinity doctor` | Reports the runtime, the host CLIs and the config |
-| `pluginfinity logs` | Shows the plugin's `error.log` (`--debug` for `debug.log`, `--follow` to keep reading) |
+| `pluginfinity logs` | Shows the last 50 lines of the plugin's `error.log`; `--debug` for `debug.log`, `--lines <n>`, `--plugin <name>` (repeatable), `--follow` to keep reading |
 
 Run `build` after every source change and commit `builds/` with it. `--target <id>` limits a command to
 one host. A finding exits 1 with a message and a hint; read [the findings](references/findings.md) for
@@ -163,11 +204,14 @@ what each means.
 
 - **Read the notes under each target.** `build`, `build --check` and `validate` list, under each target's
   `✓` line, every field the host dropped or degraded, every tool it cannot name, every hook event or
-  monitor it omitted, every matcher it leaves to the hook library at run time and every hook helper whose
-  output it ignores, one line per file: `· agents/x.md: dropped color; tool-dropped ToolSearch`. Notes never
-  fail a command, but a name you meant to keep, such as an MCP tool, shows up there first. A
-  `hook-matcher-runtime` note is honoured only for a script that sources the hook library; a plain `command`
-  entry gets none. See [the findings](references/findings.md).
+  monitor it omitted, every matcher it leaves to the hook library at run time or rewrites, every hook helper
+  whose output it ignores and what session env cannot do there, one line per file:
+  `· agents/x.md: dropped color; tool-dropped ToolSearch`. Notes never fail a command, but a name you meant to
+  keep, such as an MCP tool, shows up there first. A `hook-matcher-runtime` note is honoured only for a script
+  that sources the hook library; a plain `command` entry gets none. See [the findings](references/findings.md).
+- **A Copilot `SessionStart` matcher that holds `startup` also matches `new`.** Copilot reports a fresh session
+  as `new`, so the build widens `startup` to `startup|new` and notes `hook-matcher-widened`. A regex matcher it
+  cannot widen is noted `hook-matcher-regex`: add `new` to it yourself.
 - **Give the plugin folder as `[path]` when it is not a workspace package.** `pnpm exec pluginfinity` run
   inside a folder with no `package.json` of its own fails with `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL`. Run
   from the repository root instead, such as `pluginfinity build plugin` and
@@ -205,6 +249,8 @@ build does:
   links, and support files.
 - [Hooks](references/hooks.md): script and command entries, `scripts.invoke`, `failClosed`, run-time
   matchers, fallbacks and what ships.
+- [Session env](references/session-env.md): declared variables, the setup script, `.env`, `hook_env_set`,
+  what each host's shell sees, testing and migrating.
 - [Monitors](references/monitors.md): the config, the monitor library and a test recipe.
 - [What each host gets](references/targets.md): how every field, tool, model, path and server is
   translated.

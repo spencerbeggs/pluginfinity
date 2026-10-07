@@ -4,9 +4,9 @@ One section per event in the library's set. Field names are Claude Code's. Copil
 
 ## SessionStart
 
-- Input: `source` (`startup`, `resume`, `clear`, `compact` or `fork`), and optionally `model` and `agent_type` (Claude Code hooks docs).
-- `CLAUDE_ENV_FILE` exists only on SessionStart, Setup, CwdChanged and FileChanged. Append `export` lines to it to carry variables into later Bash commands (Claude Code hooks docs).
-- `resume` fires SessionStart again, so guard each write to `CLAUDE_ENV_FILE` against duplicates (plugin-bot hook-scripts).
+- Input: `source` (`startup`, `resume`, `clear`, `compact` or `fork`), and optionally `model` and `agent_type` (Claude Code hooks docs). Copilot reports a fresh session as `new` (Copilot CLI 1.0.92, 2026-10-07); the build widens a `startup` matcher to `startup|new` there.
+- `CLAUDE_ENV_FILE` exists only on SessionStart, Setup, CwdChanged and FileChanged (Claude Code hooks docs). Its exports reach the Bash tool and no later hook (Claude Code 2.1.292, 2026-10-07). Do not write it by hand: declare the values under `env` in the config and set one with `hook_env_set`, which appends to it for you. See [session env](pluginfinity://skill/pluginfinity/references/session-env.md).
+- When the config declares `env`, the build's env runner is the first SessionStart entry. Claude Code runs an event's hooks in parallel, so another SessionStart hook may wait up to 3 seconds for it; keep SessionStart timeouts at 5 seconds or more.
 - Copilot context was delivered in one live run and not in the next. Copilot CLI 1.0.91, 2026-10-03.
 
 ## SessionEnd

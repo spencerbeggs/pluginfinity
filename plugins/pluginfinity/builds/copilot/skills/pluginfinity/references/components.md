@@ -153,6 +153,8 @@ A token is `{{`, a kind, its argument and `}}` on one line, with any whitespace 
 | `{{agent <agent>}}` | `<plugin>:<agent>` | `<plugin>:<agent>` |
 | `{{skill <skill>}}` | `/<plugin>:<skill>` | `/<plugin>:<skill>` |
 | `{{plugin_root}}` | `${CLAUDE_PLUGIN_ROOT}` | fails: Copilot expands no root in a body |
+| `{{skill_dir}}` | `${CLAUDE_SKILL_DIR}` | `<skill base directory>`; see [skill directories](#skill-directories) |
+| `{{skill_dir <skill>}}` | `${CLAUDE_PLUGIN_ROOT}/skills/<skill>` | `<skill base directory>/../<skill>` in a skill; fails in an agent |
 
 In an agent id or a skill command, `<plugin>` is the plugin's name on that host: the `claude.name` or
 `copilot.name` override, else `name`. In an MCP tool name it is always the Claude Code name, the
@@ -162,7 +164,8 @@ bare string; add backticks yourself, as in `` `{{tool Read}}` ``.
 A tool token may carry a fallback after `|`: `{{tool TodoWrite | your task list}}` writes `TodoWrite` on Claude
 Code and `your task list` on Copilot, which has no run-time name for it, instead of failing the build. The
 fallback is literal prose, trimmed, not empty and without `{` or `}`; on a host that has the name it is
-discarded. Only a `tool` token takes one: a `|` on `agent`, `skill` or `plugin_root` fails the build.
+discarded. Only a `tool` token takes one: a `|` on `agent`, `skill`, `skill_dir` or `plugin_root` fails the
+build.
 
 A tool name may be wrapped in exactly one pair of backticks to render as a code span:
 ``{{tool `Read`}}`` writes `` `Read` `` on Claude Code and `` `view` `` on Copilot, and
@@ -175,11 +178,43 @@ There is no wildcard token: prose about "all of this plugin's MCP tools" must na
 - **Tokens are replaced everywhere,** fenced and inline code included.
 - **`\{{` before a token keeps it literal** and drops the backslash, which is how this page shows them.
   Before any other `{{` the backslash stays.
-- **Only the four kinds are tokens.** A `{{` whose first word is something else, such as GitHub Actions'
-  `${{ github.sha }}`, Jinja or Handlebars, is plain text.
+- **Only the five kinds are tokens:** `tool`, `agent`, `skill`, `skill_dir` and `plugin_root`. A `{{` whose
+  first word is something else, such as GitHub Actions' `${{ github.sha }}`, Jinja or Handlebars, is plain
+  text.
 - **These fail the build:** a missing or extra argument, an agent or skill this plugin does not build
-  for that host, a tool that host cannot name, `plugin_root` on Copilot, a token never closed on its
-  line, and a brace inside one.
+  for that host, a tool that host cannot name, `plugin_root` on Copilot, a bare `skill_dir` in an agent, a
+  named `skill_dir` in a Copilot agent, a token never closed on its line, and a brace inside one.
+
+### Skill directories
+
+`{{skill_dir}}` is the directory of the skill whose body it is in; it works in `SKILL.md` and in the skill's
+other `.md` files. `{{skill_dir <skill>}}` is another skill's directory, and naming the own skill is the same
+as the bare form. Use it where the model needs a path to put in a command:
+
+```markdown
+Run `bash "{{skill_dir}}/scripts/check.sh" --strict` and report what it prints.
+```
+
+| Host | The build writes | At run time |
+| :-- | :-- | :-- |
+| Claude Code | `${CLAUDE_SKILL_DIR}`, or `${CLAUDE_PLUGIN_ROOT}/skills/<skill>` | Claude Code expands it to a path when it loads the skill |
+| Copilot | `<skill base directory>`, or `<skill base directory>/../<skill>` | Copilot expands nothing in a body, so the text stays a placeholder. Both hosts put `Base directory for this skill: <absolute path>` above the body when the skill is invoked, and the model reads the path from it (Claude Code 2.1.292 and Copilot CLI 1.0.92, measured 2026-10-07) |
+
+- **On Copilot it is not a path.** It is an instruction to the model to substitute one, so write it where the
+  model reads it as a path, such as in a command, never where a script or another tool reads the text.
+- **Keep commands that use it in `SKILL.md`.** Claude Code expands it in the skill body it loads. A skill
+  script run through the Bash tool has no `CLAUDE_SKILL_DIR` (Claude Code 2.1.291, measured downstream), and
+  whether Claude Code expands it in a reference file the model opens later is not measured.
+- **An agent has no skill directory.** The bare form fails the build on every host. The named form works on
+  Claude Code only, written under `${CLAUDE_PLUGIN_ROOT}`, and fails on Copilot, so put it in a `claude` host block
+  or have the agent invoke the skill.
+- **The named skill must exist in that host's build.** A skill the host leaves out with `targets` fails the
+  build there.
+- **It takes no `|` fallback and no backticks.** Put the backticks around it yourself.
+
+`{{skill_dir}}` and a link do different jobs. A link, `[text](references/x.md)` within the skill or
+`[text](pluginfinity://skill/<skill>/<path>)` across skills, points the model at a file to read; Copilot gets it as
+prose naming the skill's file. `{{skill_dir}}` gives the model a path to type into a command it runs.
 
 ### Links
 

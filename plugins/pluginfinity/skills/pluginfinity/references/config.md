@@ -41,6 +41,7 @@ export default defineConfig({
 | `keywords` | No | A list of strings |
 | `scripts.invoke` | No | How hook scripts run: `"bash"` (the default) or `"exec"`; see [hooks](hooks.md) |
 | `hooks` | No | Hook entries keyed by Claude Code event name; see [hooks](hooks.md) |
+| `env` | No | Session variables: `vars`, optional `prefix` and `setup`. Resolved once per session and read by every hook, skill script and monitor; see [session env](session-env.md) |
 | `mcpServers` | No | MCP servers in Claude Code's `.mcp.json` shape; see below |
 | `lspServers` | No | LSP servers in Claude Code's `.lsp.json` shape; see below |
 | `monitors` | No | Background monitors keyed by name; Claude Code only. See [monitors](monitors.md) |
@@ -71,7 +72,7 @@ overrides:
   The same path rules apply: a canonical relative path, not under `builds/` or `node_modules/`. A file
   that only one host reads, such as a Copilot-only data directory, goes here instead of in the base list.
 
-No other key is accepted. In particular the plugin's `description` has no per-target override: every
+No other key is accepted. In particular `env` has no per-target override, and the plugin's `description` has none: every
 manifest gets the same one, so word it for both hosts. A skill's or agent's own `description` can differ
 per host, through `targets.<id>.description` in that component's frontmatter (see
 [skills and agents](components.md)).

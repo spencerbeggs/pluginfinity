@@ -101,11 +101,33 @@ monitor still runs and the logging functions do nothing.
   reacts to events instead of polling, must read the variable itself and exit after `n` checks, or
   `run_monitor` runs to its `--timeout`. Only a test sets it; never set it in a plugin.
 
+## Session values
+
+A monitor reads the plugin's [session env](session-env.md) by sourcing `env.sh` after `monitor.sh`, so its log
+lines carry the `monitor` component:
+
+```sh
+_pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"
+. "$_pf_lib_dir/monitor.sh"
+. "$_pf_lib_dir/env.sh"
+
+check() {
+	env_reload
+	[ "$MYPLUGIN_WATCH" = off ] || monitor_once watching "watching with $MYPLUGIN_PM"
+}
+
+monitor_every 60 check
+```
+
+A monitor starts in the project, so `env.sh` finds the session that last started there. It loads the values once
+when sourced; call `env_reload` in the polled function to see a value a hook set later with `hook_env_set`.
+
 ## Test one
 
-`run_monitor <target> <name> [--ticks <n>] [--timeout <seconds>] [--cwd <dir>] [VAR=value...]` runs the
+`run_monitor <target> <name> [--ticks <n>] [--timeout <seconds>] [--cwd <dir>] [--session-env <file>] [VAR=value...]` runs the
 monitor's command from the built `monitors.json` under `bash -c`, bounded to `n` ticks (default 1) by
-`PLUGINFINITY_MONITOR_MAX_TICKS`, and sets `$status`, `$output` and `$stderr`. `--timeout` (default 30) is a
+`PLUGINFINITY_MONITOR_MAX_TICKS`, and sets `$status`, `$output` and `$stderr`. `--timeout` (default 30; `0` and
+anything not a whole number fail the call with status 1) is a
 wall-clock bound: after that many seconds the monitor's whole process group is killed, `$status` is 124 and
 stderr says `run_monitor: <name> timed out after <s>s`, so a monitor that never reaches its tick count fails the
 test instead of hanging bats, and nothing is left running. A monitor that waits between polls needs a timeout longer than
@@ -113,7 +135,8 @@ test instead of hanging bats, and nothing is left running. A monitor that waits 
 substitutes `${CLAUDE_PLUGIN_ROOT}` into the command text, and gives the monitor the environment Claude Code
 does: none of `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` or `CLAUDE_SESSION_ID`, and
 `CLAUDE_CODE_SESSION_ID=test-session`, which is the same for every call in a test, so `monitor_once` dedupes across calls (pass `CLAUDE_CODE_SESSION_ID=other` to start a new session). `HOOK_PROJECT_DIR` and the caller's working directory do not apply: use `--cwd`. Only `claude` has monitors: another target, or a missing monitor,
-fails with status 1.
+fails with status 1. `--session-env <file>` seeds the session values a monitor that sources `env.sh` reads, as
+`run_script` does; see [session env](session-env.md#testing).
 
 ```bash
 @test "the heartbeat notifies once and logs where it started" {

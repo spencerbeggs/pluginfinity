@@ -4,8 +4,8 @@ description: >-
   Use when writing a script a pluginfinity plugin ships outside hooks, such as a skill's scripts/ or an
   MCP or LSP server launcher, or any plugin script that calls gh, git, aws, kubectl or another CLI.
   Covers server launchers on the server library, finding the plugin root and data directory on each
-  host, calling CLIs without leaking or misusing credentials, persistent state, the session-env
-  pattern, and testing scripts with bats.
+  host, calling CLIs without leaking or misusing credentials, persistent state, reading the plugin's
+  session env, and testing scripts with bats.
 paths:
   - "**/skills/**/scripts/**"
   - "**/bin/start-*.sh"
@@ -60,7 +60,11 @@ Hooks, server launchers, monitors and skill scripts all log through one standard
 | `error.log` | Failures, always written |
 | `debug.log` | Debug lines, written only when `PLUGINFINITY_DEBUG=1` |
 
-Read them with `pluginfinity logs` (`--debug` for `debug.log`, `--follow` to keep reading).
+Read them with `pluginfinity logs`, from inside the plugin or with `--plugin <name>` (repeatable). It prints the
+last 50 lines of each plugin's `error.log` (`--lines <n>` for more), `--debug` shows `debug.log` instead, and
+`--follow` (`-f`) keeps printing new lines until Ctrl-C, which is how to watch a live session's hooks fire. Under
+`--agent` or `--ci` it prints one JSON object, or one entry per line while following. Run from Claude Code's Bash tool it
+detects an agent and prints the JSON; `--human` gives the sections.
 
 `PLUGINFINITY_DEBUG=1` is the one debug switch. It also logs each hook's raw input, which can hold prompts and
 tool inputs in plaintext, so unset it after a debugging session. A plugin from an earlier pluginfinity that reads a different
@@ -100,7 +104,8 @@ stdout. The config, the library functions, the pitfalls and a bats recipe are in
 Who launches the script decides which variables it has.
 
 - A script a hook runs inherits the host's variables. On Claude Code they are `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` and `CLAUDE_PROJECT_DIR` (Claude Code hooks reference). On Copilot CLI 1.0.91 (measured 2026-10-02, a hook command) `PLUGIN_ROOT`, `COPILOT_PLUGIN_ROOT` and `CLAUDE_PLUGIN_ROOT` were all set to the plugin root, and `COPILOT_PLUGIN_DATA` was set. `PLUGIN_DATA` was unset.
-- A script a skill runs through the Bash tool does not inherit them. Claude Code keeps these variables out of the environment of commands the agent runs through the Bash tool. It substitutes a `${...}` reference written in skill, command or agent Markdown when the skill loads (Claude Code plugins reference). Hand the script its paths: as arguments, or as environment the caller sets on the command line. How Copilot exposes the plugin root to skill scripts is undocumented, so do not rely on a variable there.
+- A script a skill runs through the Bash tool does not inherit them. On Claude Code 2.1.291 such a script had only `CLAUDE_CODE_SESSION_ID`, and none of `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_PROJECT_DIR`, `CLAUDE_SKILL_DIR` or `CLAUDE_ENV_FILE`, plus whatever SessionStart wrote to `CLAUDE_ENV_FILE` (measured downstream, 2026-10-07). Claude Code substitutes a `${...}` reference written in skill, command or agent Markdown when the skill loads (Claude Code plugins reference). On Copilot the skill-script environment is not measured; assume it is minimal and holds none of the plugin variables. Hand the script its paths: as arguments, or as environment the caller sets on the command line.
+- To give the model the script's own path, write the command in `SKILL.md` with the `\{{skill_dir}}` token: `bash "\{{skill_dir}}/scripts/check.sh"`. Claude Code gets its skill-directory variable, which it expands on load; Copilot gets `<skill base directory>`, which the model fills from the base-directory line above the skill body. See the `pluginfinity` skill's [skill directories](pluginfinity://skill/pluginfinity/references/components.md#skill-directories).
 - A script can always find its own plugin's files from `$0`. Never walk up from `$0` to find the user's project: that works only in a local checkout, because an installed plugin lives in a cache.
 
 ```bash
@@ -159,26 +164,28 @@ Call `_gh pr view`, never bare `gh pr view`. The fallback to `GH_TOKEN` and `GIT
 - Do not rebuild `~/.claude/plugins/data/<id>/` by hand. The `<id>` form is the host's business.
 - A script's working directory is whatever the agent last used. Do not assume it is the project root.
 
-<!-- pluginfinity:only claude -->
-## Sharing values between hooks (Claude only)
+## Session values
 
-A `SessionStart` hook can append `export` lines to `$CLAUDE_ENV_FILE`, and Claude Code carries them into later Bash-tool commands. The variable is set only for `SessionStart`, `Setup`, `CwdChanged` and `FileChanged` hooks (Claude Code hooks reference). Other hook subprocesses do not see those exports, so a producer also writes a plugin-owned file that a consumer sources. The pluginfinity hook library has no helper for this yet, so write both halves by hand.
+A value decided once per session, such as a detected package manager or a switch in the project's `.env`, is the
+plugin's session env: declared under `env` in the config, resolved when the session starts, and set by hooks
+with `hook_env_set`. Every hook sees the values with no call. A skill script or a monitor sources `env.sh`, one
+line, which sets every declared name in its shell:
 
 ```bash
-env_dir="${HOME}/.claude/session-env/${session_id}"
-mkdir -p "$env_dir"
-printf 'export MYPLUGIN_PROJECT_DIR=%q\n' "$project_dir" > "$env_dir/myplugin-hook.sh"
-if [ -n "${CLAUDE_ENV_FILE:-}" ] && ! grep -q '^export MYPLUGIN_PROJECT_DIR=' "$CLAUDE_ENV_FILE" 2>/dev/null; then
-	grep '^export MYPLUGIN_PROJECT_DIR=' "$env_dir/myplugin-hook.sh" >> "$CLAUDE_ENV_FILE"
-fi
+_pf_lib_dir="$(dirname "$0")/../../../lib/pluginfinity"; . "$_pf_lib_dir/env.sh"   # skills/<skill>/scripts/x.sh
+printf 'package manager: %s\n' "$MYPLUGIN_PM"
 ```
 
-- Quote every value with `printf '%q'`, so a value with spaces or shell metacharacters cannot break the sourced file or run injected content.
-- Guard each append to `$CLAUDE_ENV_FILE` with `grep -q`. `/resume` fires `SessionStart` again, and a bare `>>` stacks duplicate lines.
-- Overwrite the per-session file with `>`. It belongs to one session and one plugin.
-- A consumer validates the session id (letters, digits, `-`, `_` only) before it builds the path, then runs `. "$env_dir/myplugin-hook.sh"` when the file exists.
-- The `~/.claude/session-env/` layout is plugin-bot's convention, not a host documented path.
-<!-- /pluginfinity:only -->
+- **Source it in every skill script that reads a value.** On Claude Code the model's shell already holds the
+  values, but on Copilot nothing does, so a script that skips `env.sh` works on one host only.
+- **Run the script from the project.** A script has no session id, so `env.sh` finds the session by the project:
+  `CLAUDE_PROJECT_DIR`, else the working directory walked up to its git root. From elsewhere it resolves the
+  defaults live.
+- **Never write a per-session file or `CLAUDE_ENV_FILE` by hand.** A plugin that does is migrated in the
+  `pluginfinity` skill's [session env](pluginfinity://skill/pluginfinity/references/session-env.md#migrating-a-hand-rolled-session-env).
+
+The precedence, the setup script, `.env` parsing, what each host's shell sees and the tests are in
+[session env](pluginfinity://skill/pluginfinity/references/session-env.md).
 
 ## Testing a script
 
@@ -188,23 +195,27 @@ fi
 - `run_hook` is for hooks only. It feeds a hook payload on stdin and reads a hook response, and it runs the
   script with the environment of the built entry that registers it, so a script no entry runs fails the call:
   use `run_script`.
-- `run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [--env-file <file>] [--interpreter <cmd>] [args...]`
+- `run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [--env-file <file>] [--session-env <file>] [--interpreter <cmd>] [args...]`
   runs a built skill script or a launcher under `env -i` with `node` for a `.mjs`, `.cjs` or `.js` file and `bash` for
   anything else (`--interpreter <cmd>` names another). A path under
   `skills/` gets what the agent's Bash tool gives a skill script, which is not the plugin variables: `PATH`,
   `HOME`, `XDG_STATE_HOME` and, on Claude Code, `CLAUDE_CODE_SESSION_ID=test-session` (override it with `--env`),
   and none of `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_PROJECT_DIR`, `CLAUDE_SKILL_DIR` or
-  `CLAUDE_ENV_FILE`. It runs from `--cwd` (default `$BATS_TEST_TMPDIR/project`, created, the same project
+  `CLAUDE_ENV_FILE`. That is what Claude Code was measured to give; on Copilot it gives only the base, which is
+  not measured but assumed minimal. It runs from `--cwd` (default `$BATS_TEST_TMPDIR/project`, created, the same project
   `hook_fixture` and `run_hook` use) on both hosts. `--env-file` adds the `NAME=value` and `export NAME=value`
   lines of a file, parsed and not sourced (quotes stripped, nothing expanded), to model the exports a
-  SessionStart hook wrote to `CLAUDE_ENV_FILE`. Any other path, a launcher, gets the host's plugin variables and
+  SessionStart hook wrote to `CLAUDE_ENV_FILE`. `--session-env` seeds the session env library's own values for
+  session `test-session` and points the script's `--cwd` project at it, so a script that sources `env.sh` reads
+  them; use it to test a reader, and `--env-file` to test what Claude Code's shell exports would do. Any other path, a launcher, gets the host's plugin variables and
   keeps the plugin root as the Copilot directory. Each `--env` adds one
   `VAR=value` and wins over `--env-file`; everything after the options, a bare `--` included, is an argument. It
   sets `$status`, `$output` and `$stderr`. The helper sets `XDG_STATE_HOME` to `$BATS_TEST_TMPDIR/state`, so a
   script that logs writes under the test's temp directory; read `error.log` there.
-- `run_monitor <target> <name> [--ticks <n>] [--timeout <seconds>] [--cwd <dir>] [VAR=value...]` runs a Claude monitor's built
+- `run_monitor <target> <name> [--ticks <n>] [--timeout <seconds>] [--cwd <dir>] [--session-env <file>] [VAR=value...]` runs a Claude monitor's built
   command from the project directory, without `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`
   or `CLAUDE_SESSION_ID`, bounded to `n` ticks by `PLUGINFINITY_MONITOR_MAX_TICKS`, which every monitor must
-  honour, and to `--timeout` seconds (default 30), past which the monitor is killed and `$status` is 124. See [monitors](../pluginfinity/references/monitors.md#test-one).
+  honour, and to `--timeout` seconds (default 30, at least 1), past which the monitor is killed and `$status` is 124.
+  A `--ticks` run that waits between polls needs a `--timeout` above `(n - 1)` intervals. See [monitors](../pluginfinity/references/monitors.md#test-one).
 - macOS ships bash 3.2, so the script must avoid `${var^^}`, `declare -A`, `mapfile` and `local -n`.
 - Run `bats --recursive __test__`.

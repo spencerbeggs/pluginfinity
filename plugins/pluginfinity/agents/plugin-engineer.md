@@ -47,13 +47,33 @@ Nothing loads a skill because a file matches its `paths`. Read `hook-authoring` 
 - Log through the library (`hook_log`, `server_log`, `monitor_log`, `script_log`), never to a file of your own. `PLUGINFINITY_DEBUG=1` is the one debug switch; the logs are `error.log` and `debug.log`.
 - Fail closed (`failClosed: true` on the entry) only for a guard that must not let a call through when it breaks.
 - A matcher on `SessionStart`, `SessionEnd` or `SubagentStop` reaches Copilot only through a `script` entry that sources `hook.sh`.
+- Write a `SessionStart` matcher as Claude Code spells it. The build widens `startup` to `startup|new` for Copilot;
+  a `hook-matcher-regex` note means a regex it could not widen, so add `new` to it.
+
+## Reach for these
+
+- **Session env** when a value is decided once per session and read in more than one place: a package manager, a
+  switch from the project's `.env`, a directory a later hook needs. Declare it under `env` in the config, compute
+  it in `env.setup` or with `hook_env_set` from `SessionStart`, and read it as a plain variable in hooks. A skill
+  script or monitor sources `lib/pluginfinity/env.sh`. Never write `CLAUDE_ENV_FILE` or a per-session file by hand,
+  never tell the model to read the variable in its own shell (Copilot has none), and keep every `SessionStart`
+  `timeout` at 5 or more. A plugin that calls `source_session_env` or writes `CLAUDE_ENV_FILE` gets migrated to it.
+- **`\{{skill_dir}}`** when a skill tells the model to run one of its own scripts: `bash "\{{skill_dir}}/scripts/x.sh"`
+  in `SKILL.md`. On Copilot it is a placeholder the model fills, not a path, and an agent body cannot use the bare
+  form at all. Use a link, not the token, for a file the model should read.
+- **The test helpers' options**: `--session-env <file>` on `run_hook`, `run_script` and `run_monitor` to seed a
+  reader's session values; `--env-file` on `run_script` for what Claude Code's shell exports would give a skill
+  script; `--interpreter` for a script `bash` should not run (`.mjs`, `.cjs` and `.js` already get `node`);
+  `--timeout <seconds>` on `run_monitor` (default 30) when a multi-tick run waits between polls.
+- **`pluginfinity logs`** (`--debug`, `--follow`, `--plugin`, `--lines`) to read `error.log` and `debug.log` instead
+  of finding the files yourself. Under an agent it prints JSON; `--human` gives the sections.
 
 ## Evidence
 
 Settle a question in this order: if there is no build yet, run `pluginfinity build` first, or read
 `node_modules/pluginfinity`; then the library in a build
-(`builds/<target>/hooks/lib/pluginfinity/hook.sh`, `builds/<target>/lib/pluginfinity/`), the `pluginfinity` skill's `references/hooks.md`
-and `references/monitors.md`,
+(`builds/<target>/hooks/lib/pluginfinity/hook.sh`, `builds/<target>/lib/pluginfinity/`), the `pluginfinity` skill's `references/hooks.md`,
+`references/session-env.md` and `references/monitors.md`,
 the `hook-events` skill, then the host's published docs. Never answer from memory.
 
 ## The loop

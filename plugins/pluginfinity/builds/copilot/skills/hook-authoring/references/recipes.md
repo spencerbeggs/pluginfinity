@@ -68,7 +68,7 @@ hook_context "pluginfinity-dogfood is loaded on $(hook_host) ($source)"
 }
 ```
 
-**Change for your plugin:** the context text. Keep it short, since it enters every session. The `startup` matcher limits it to fresh sessions, not `resume` or `clear`. Copilot ignores a `SessionStart` matcher, so the build passes it to the script and the library applies it, which works because this is a `script` entry that sources `hook.sh`; the build lists a `hook-matcher-runtime` note.
+**Change for your plugin:** the context text. Keep it short, since it enters every session. The `startup` matcher limits it to fresh sessions, not `resume` or `clear`. Copilot ignores a `SessionStart` matcher, so the build passes it to the script and the library applies it, which works because this is a `script` entry that sources `hook.sh`; the build lists a `hook-matcher-runtime` note. Copilot calls a fresh session `new`, so its build passes `startup|new` and lists a `hook-matcher-widened` note; keep writing `startup`. The test's fixture says `startup` on both targets, which the widened matcher also accepts. Keep the `timeout` at 5 or more if the plugin declares `env`.
 
 ## Recipe: Post-edit reaction
 
