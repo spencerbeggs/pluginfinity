@@ -17,6 +17,8 @@ export interface LaunchFacts {
 	readonly cwd: string;
 	/** The running Node.js version, without a leading `v`. */
 	readonly nodeVersion: string;
+	/** The XDG state directory (`$XDG_STATE_HOME`, else `~/.local/state`): where `logs` finds `pluginfinity/<plugin>/`. */
+	readonly stateHome: string;
 }
 
 /** `--target <id>`, repeatable. An unknown id is a usage error at parse time. */

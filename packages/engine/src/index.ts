@@ -69,6 +69,16 @@ export {
 } from "./hooks.js";
 export type { LoadedConfig } from "./loader.js";
 export { ConfigLoader } from "./loader.js";
+export type { LogEntry, LogFileName, LogTail, RawLogLine } from "./logs.js";
+export {
+	configPluginNames,
+	listLogPlugins,
+	logDirectory,
+	logRoot,
+	parseLogLine,
+	readLog,
+	readLogFrom,
+} from "./logs.js";
 export type { Manifest } from "./manifest.js";
 export { renderManifest, serializeManifest } from "./manifest.js";
 export type { MonitorContext, MonitorMap, RenderedMonitors } from "./monitors.js";

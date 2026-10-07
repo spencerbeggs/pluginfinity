@@ -49,7 +49,12 @@ export interface RunOptions<RP, EP> extends ProgramDeps {
 export const run = <RP, EP>(args: ReadonlyArray<string>, options: RunOptions<RP, EP>) =>
 	Effect.gen(function* () {
 		const distribution = yield* CurrentDistribution;
-		const deps = { version: options.version, cwd: options.cwd, nodeVersion: options.nodeVersion };
+		const deps = {
+			version: options.version,
+			cwd: options.cwd,
+			nodeVersion: options.nodeVersion,
+			stateHome: options.stateHome,
+		};
 		return yield* CliRuntime.main(program(args, deps).pipe(Effect.provide(options.tools ?? ToolDiscoveryLive)), {
 			platform: options.platform,
 			// A usage error's help goes to stderr beside the errors, so stdout

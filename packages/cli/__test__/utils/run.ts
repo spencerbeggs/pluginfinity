@@ -3,6 +3,8 @@ import type { Layer } from "effect";
 import { Cause, ConfigProvider, Effect, Exit, Runtime } from "effect";
 import { TestConsole } from "effect/testing";
 import { run } from "../../src/cli/run.js";
+import type { FollowControl } from "../../src/commands/logs.js";
+import { CurrentFollow, DEFAULT_FOLLOW } from "../../src/commands/logs.js";
 import { testPlatform } from "./platform.js";
 import { fakeTools } from "./tools.js";
 
@@ -24,7 +26,14 @@ const exitCode = (exit: Exit.Exit<unknown, unknown>): number =>
  */
 export const runCli = (
 	args: ReadonlyArray<string>,
-	options: { readonly cwd?: string; readonly tools?: Layer.Layer<ToolDiscovery> } = {},
+	options: {
+		readonly cwd?: string;
+		readonly tools?: Layer.Layer<ToolDiscovery>;
+		/** The XDG state directory `logs` reads; a directory that does not exist by default. */
+		readonly stateHome?: string;
+		/** Bounds `logs --follow`: when `stop` completes the follow ends. */
+		readonly follow?: Partial<FollowControl>;
+	} = {},
 ): Effect.Effect<CliResult> =>
 	Effect.gen(function* () {
 		const outBefore = (yield* TestConsole.logLines).length;
@@ -33,9 +42,17 @@ export const runCli = (
 			version: "1.2.3",
 			cwd: options.cwd ?? "/nonexistent-pluginfinity-test-cwd",
 			nodeVersion: "24.11.0",
+			stateHome: options.stateHome ?? "/nonexistent-pluginfinity-test-state",
 			platform: testPlatform,
 			tools: options.tools ?? fakeTools({}),
-		}).pipe(Effect.provideService(ConfigProvider.ConfigProvider, ConfigProvider.fromUnknown({})), Effect.exit);
+		}).pipe(
+			Effect.provideService(ConfigProvider.ConfigProvider, ConfigProvider.fromUnknown({})),
+			(self) =>
+				options.follow === undefined
+					? self
+					: Effect.provideService(self, CurrentFollow, { ...DEFAULT_FOLLOW, ...options.follow }),
+			Effect.exit,
+		);
 		return {
 			code: exitCode(exit),
 			stdout: (yield* TestConsole.logLines).slice(outBefore).map(String),

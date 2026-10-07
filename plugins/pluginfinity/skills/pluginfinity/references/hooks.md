@@ -216,7 +216,7 @@ lines, written only when `PLUGINFINITY_DEBUG=1`. A line is
 logs `noop`: the outcome is what was sent, not what you asked for. A second response is ignored and the first
 kind stays the outcome. If the library itself fails to load (no `jq`, or a missing `host.sh`), the hook exits 0, writes one `error.log` line (`host.sh not loadable; hook skipped` or `jq not found; hook skipped`) and writes no `outcome:` line. Use it to see what a host sends and what your hook answered.
 `hook_log` and `hook_debug` append to the logs from your own script. The same files serve the other components:
-see the `plugin-scripts` skill's logging section.
+see the `plugin-scripts` skill's logging section. `pluginfinity logs` prints them (`--debug` for `debug.log`, `--follow` to keep reading).
 
 With `PLUGINFINITY_DEBUG=1`, prompts and tool inputs are written to a plaintext log. Do not leave it set
 outside a debugging session.

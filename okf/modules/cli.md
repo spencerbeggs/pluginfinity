@@ -28,13 +28,16 @@ sources:
   - id: commands
     resource: ../../packages/cli/src/commands
     title: One file per command, plus the shared flags and the plugin-name check
+  - id: logs
+    resource: ../../packages/cli/src/commands/logs.ts
+    title: The logs command and FollowControl, the injectable bound on --follow
   - id: render
     resource: ../../packages/cli/src/render
     title: The audience-aware renderers for config errors, the doctor report and build and validate results
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:43:13Z
-  body_sha256: 6dfbead61ddca6799ae715dbb4c70a01a33c10222996a16a49949542433ec66b
+  at: 2026-10-07T03:22:43Z
+  body_sha256: afed6b22c1f1d93c31c85bccf414c8cec51208203feca117495db02ef5a1c374
 ---
 
 # @pluginfinity/cli
@@ -56,10 +59,14 @@ Behind the entry:
 
 - `src/cli/run.ts` runs the program under `CliRuntime.main` from `@effected/cli`, which reports failures through the logger, maps usage errors to exit 64, and resolves the audience and colour.[^run] The audience and log level can also be set through `PLUGINFINITY_AUDIENCE` and `PLUGINFINITY_LOG_LEVEL`. A usage error's help goes to stderr, so stdout carries only structured output. `main.ts` calls `run` with the real platform; tests in `__test__/` call the same `run` over a test platform, so they exercise the shipped wiring without spawning a process.
 - `src/cli/program.ts` holds the root command, which shares the `--human`, `--agent` and `--ci` audience flags with every subcommand and prints help when run bare.[^program]
-- `src/commands/` holds one file per command (`init`, `plugin add`, `build`, `validate`, `doctor`).[^commands] `shared.ts` holds the `[path]`, `--target`, `--all` and `--config` inputs and turns them into the engine's `ConfigSelection`; `name.ts` checks a plugin name against core's `PluginName`.
+- `src/commands/` holds one file per command (`init`, `plugin add`, `build`, `validate`, `doctor`, `logs`).[^commands] `shared.ts` holds the `[path]`, `--target`, `--all` and `--config` inputs and turns them into the engine's `ConfigSelection`; `name.ts` checks a plugin name against core's `PluginName`.
 - `src/render/` draws engine results for the audience: a config error as a message and a hint on stderr for people or one JSON object on stdout for agents and CI, the doctor report as a grouped checklist or one JSON object, and build and validate results as one `✓` line per target, each followed by its [build notes](../decisions/build-notes-cover-hooks-and-monitors.md) one line per component, or one JSON object whose builds and validations carry a `notes` array.[^render]
 
 The custom `--version` formatter prints the version line as plain text. `@effected/cli` 0.11.0 offers no way to add a suffix while keeping its coloured default.
+
+### Logs and the follow bound
+
+`logs` reads through the engine's `logs.ts` (parsing a line, listing plugin directories, the last lines of a file, what was appended since an offset) and owns only the plugin selection and the drawing. The state directory is a launch fact (`stateHome`), read once in `main.ts` by the rule the log library writes by. `--follow` polls rather than watches, and runs under a `FollowControl` reference: a `stop` effect that ends it, a poll `interval`, and an `onStart` hook. Tests supply a `stop` and a short interval for a bounded follow over a temp directory; `main.ts` supplies `onStart` so an interrupt of a follow exits 0 instead of 130.[^logs]
 
 ### Teardown
 
@@ -80,3 +87,4 @@ Under Claude Code a plain `pluginfinity doctor` prints JSON; see [the audience g
 [^program]: `../../packages/cli/src/cli/program.ts`
 [^commands]: `../../packages/cli/src/commands`
 [^render]: `../../packages/cli/src/render`
+[^logs]: `../../packages/cli/src/commands/logs.ts`

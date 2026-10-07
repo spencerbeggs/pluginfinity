@@ -155,6 +155,7 @@ for one host takes `targets: { <other host>: false }` in its frontmatter; see th
 | `pluginfinity build --check` | Writes nothing; fails when `builds/` differs from a fresh build |
 | `pluginfinity validate` | Requires current builds, then runs each host's own check |
 | `pluginfinity doctor` | Reports the runtime, the host CLIs and the config |
+| `pluginfinity logs` | Shows the plugin's `error.log` (`--debug` for `debug.log`, `--follow` to keep reading) |
 
 Run `build` after every source change and commit `builds/` with it. `--target <id>` limits a command to
 one host. A finding exits 1 with a message and a hint; read [the findings](references/findings.md) for

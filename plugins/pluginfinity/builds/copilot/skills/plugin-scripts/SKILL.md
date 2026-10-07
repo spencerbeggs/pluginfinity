@@ -52,6 +52,8 @@ Hooks, server launchers, monitors and skill scripts all log through one standard
 | `error.log` | Failures, always written |
 | `debug.log` | Debug lines, written only when `PLUGINFINITY_DEBUG=1` |
 
+Read them with `pluginfinity logs` (`--debug` for `debug.log`, `--follow` to keep reading).
+
 `PLUGINFINITY_DEBUG=1` is the one debug switch. It also logs each hook's raw input, which can hold prompts and
 tool inputs in plaintext, so unset it after a debugging session. A plugin from an earlier pluginfinity that reads a different
 log file or sets a different debug variable needs updating to these.
