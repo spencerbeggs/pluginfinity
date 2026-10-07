@@ -37,8 +37,8 @@ sources:
     title: The doctor smoke test that runs inside the fixture
 generated:
   by: okfit/claude-code
-  at: 2026-10-07T00:21:16Z
-  body_sha256: f877fc1cfc4d08654e3eb2f977aaa3683055b792dda9980da0fc8fd8e3539f61
+  at: 2026-10-07T02:45:11Z
+  body_sha256: 615f3fc953327701a6eaf44ca91cd7aa7e9beeebde1a01388bd710c91c505919
 ---
 
 # dogfood plugin fixture
@@ -63,7 +63,7 @@ Eight scripts under `hooks/` exercise every feature of the [hook library](../dec
 
 ## Monitors and logging
 
-Two monitors under `monitors/` exercise the [monitor library](../decisions/monitors-are-a-component.md): `heartbeat` notifies once per session, and `skill-watch` starts with `when: on-skill-invoke:hook-eval`, which the build writes as `on-skill-invoke:pluginfinity-dogfood:hook-eval`, and notifies once. `__test__/monitors.bats` runs them through the bats helper's `run_monitor`, and `hooks.bats` covers `failClosed`, run-time matchers and the Copilot tool names through `run_hook`. The scripts log through the [shared log library](../decisions/one-logging-standard.md). A [live run](../measurements/claude-monitor-environment.md) measured a Claude monitor's working directory and environment, and showed `skill-watch` starts only under the qualified skill name, on a slash command or a model dispatch.
+Two monitors under `monitors/` exercise the [monitor library](../decisions/monitors-are-a-component.md): `heartbeat` notifies once per session, and `skill-watch` starts with `when: on-skill-invoke:hook-eval`, which the build writes as `on-skill-invoke:pluginfinity-dogfood:hook-eval`, and notifies once. `__test__/monitors.bats` runs them through the bats helper's `run_monitor`, and `hooks.bats` covers `failClosed`, run-time matchers and the Copilot tool names through `run_hook`, and `servers.bats` stubs `pnpm`, `yarn`, `bun`, `bunx` and `npx` on a controlled `PATH` so a launcher test can never start a real server. The scripts log through the [shared log library](../decisions/one-logging-standard.md). A [live run](../measurements/claude-monitor-environment.md) measured a Claude monitor's working directory and environment, and showed `skill-watch` starts only under the qualified skill name, on a slash command or a model dispatch; a downstream measurement of the monitor environment agrees.
 
 ## Live evaluation
 

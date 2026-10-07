@@ -4,7 +4,7 @@
 
 ## Breaking Changes
 
-* Hook entries carry `failClosed`, and a source `monitors/monitors.json` is rejected. Declare monitors in `pluginfinity.config.ts`; there is no compatibility shim.
+* Hook entries carry `failClosed`, and a source `monitors/monitors.json` is rejected. Declare monitors in `pluginfinity.config.ts`; there is no compatibility shim. The build error is a `PathConflict` with reason `reserved-monitors-file`.
 
 ## Features
 

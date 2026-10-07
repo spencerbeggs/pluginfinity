@@ -33,8 +33,8 @@ sources:
     title: End-to-end tests that run the built bin
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:43:13Z
-  body_sha256: 49fa5d77b59cd166121333801b4dbf5ea228bf16f9aa483cbde5023505e29a29
+  at: 2026-10-07T02:45:11Z
+  body_sha256: b04c9eb9884c194ef9ec51cd52861488920081a3091b23d6adf863866f0be0a1
 ---
 
 # pluginfinity carrier package
@@ -53,7 +53,7 @@ generated:
 
 ## Bats helper
 
-`bats/pluginfinity.bash` is the helper a plugin's bats tests load from `node_modules/pluginfinity/bats/`. Its `run_hook <target> <script> <fixture>` runs a built hook script from `builds/<target>/` under `env -i` with that host's environment, and for Copilot the `PLUGINFINITY_EVENT` the build writes, so a hook is tested as built. It sets `$status`, `$output` and `$stderr` and needs bats 1.5.0 or later. `run_script <target> <path> [--stdin <file>] [args...]` runs a built skill script or server launcher the same way, under `env -i` with the host's environment, and `run_monitor <target> <name> [--ticks <n>] [VAR=value...]` runs a built monitor's command from `builds/claude/monitors/monitors.json`, bounded by `PLUGINFINITY_MONITOR_MAX_TICKS` (one tick by default) and refusing a target with no monitors.[^bats-helper] The bundler copies only what the exports and bin reach, so `savvy.build.ts` copies `bats/` into `dist/dev/pkg` and `dist/prod/npm/pkg` after the build, and `turbo.json` lists `bats/**` as a build input.[^build-script] A test in `__test__/` covers the helper against a fixture plugin under `__test__/fixtures/`, kept there so CI's repository-wide bats run does not pick up the fixture's own suite. The [dogfood fixture](dogfood.md) is the helper's real user, and the library it tests is in [the engine](engine.md).
+`bats/pluginfinity.bash` is the helper a plugin's bats tests load from `node_modules/pluginfinity/bats/`. Its `run_hook <target> <script> <fixture> [--matcher <m>] [VAR=value...]` runs a built hook script from `builds/<target>/` under `env -i` with that host's environment and the built entry's own environment (a Claude exec-form entry's leading `K=V` arguments, a command entry's leading `export K='V';`, or Copilot's `env` field, including `PLUGINFINITY_EVENT`), so a hook is tested as built; an explicit `VAR=value` wins. With several entries and no `--matcher` it takes the first and says so on stderr, an event with no entry falls back to any entry with a note, and no entry at all fails (use `run_script` for an unregistered script). It sets `$status`, `$output` and `$stderr` and needs bats 1.5.0 or later. `run_script <target> <path> [--stdin <file>] [--cwd <dir>] [args...] [-- VAR=value...]` runs a built skill script or server launcher the same way, under `env -i` with the host's environment; paths under `skills/` run from `--cwd` (default `$BATS_TEST_TMPDIR/project`) on both hosts, other paths keep the plugin root as the Copilot directory, and `run_monitor <target> <name> [--ticks <n>] [--cwd <dir>] [VAR=value...]` runs a built monitor's command from `builds/claude/monitors/monitors.json` as Claude does: it starts in the project directory with no `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` or `CLAUDE_SESSION_ID`, `CLAUDE_CODE_SESSION_ID=test-session` unless overridden, and `${CLAUDE_PLUGIN_ROOT}` substituted textually. It is bounded by `PLUGINFINITY_MONITOR_MAX_TICKS` (one tick by default), and a target with no monitors sets `$status` to 1.[^bats-helper] The bundler copies only what the exports and bin reach, so `savvy.build.ts` copies `bats/` into `dist/dev/pkg` and `dist/prod/npm/pkg` after the build, and `turbo.json` lists `bats/**` as a build input.[^build-script] A test in `__test__/` covers the helper against a fixture plugin under `__test__/fixtures/`, kept there so CI's repository-wide bats run does not pick up the fixture's own suite. The [dogfood fixture](dogfood.md) is the helper's real user, and the library it tests is in [the engine](engine.md).
 
 ## Tests
 

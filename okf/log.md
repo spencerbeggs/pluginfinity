@@ -1,5 +1,11 @@
 # Log
 
+## 2026-10-07
+
+* Updated @pluginfinity/core
+* Updated Monitors are a first-class component
+* Updated Plugin source model
+
 ## 2026-10-06
 
 * Updated @pluginfinity/cli
