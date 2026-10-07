@@ -92,6 +92,30 @@ load "$PLUGINFINITY_BATS_HELPER"
 	done
 }
 
+@test "run_hook reads --matcher anywhere in the trailing list, mixed with VAR=value" {
+	for target in claude copilot; do
+		run_hook "$target" hooks/envhook.sh "$(hook_fixture PreToolUse)" EXTRA=mine --matcher Bash PLUGINFINITY_FAIL_CLOSED=0
+		[[ "$stderr" == "PreToolUse|0|mine" ]]
+		run_hook "$target" hooks/envhook.sh "$(hook_fixture PreToolUse)" PLUGINFINITY_FAIL_CLOSED=0 --matcher Read
+		[[ "$stderr" == "PreToolUse|0|read-b" ]]
+	done
+}
+
+@test "run_hook reads --session-env and --env-wait after a VAR=value" {
+	printf 'FX_A=seeded\n' >"$BATS_TEST_TMPDIR/seed"
+	run_hook claude hooks/startenv.sh "$(hook_fixture SessionStart '{"source":"startup"}')" EXTRA=x --session-env "$BATS_TEST_TMPDIR/seed" --env-wait
+	[ "$status" -eq 0 ]
+	[ -n "$(find "$BATS_TEST_TMPDIR/state/pluginfinity/fixture/session" -name env 2>/dev/null)" ]
+	[[ "$stderr" == "SessionStart||x" ]]
+}
+
+@test "run_hook keeps a VAR=value whose value starts with -- as a VAR=value" {
+	run_hook claude hooks/envhook.sh "$(hook_fixture PreToolUse)" --matcher Bash EXTRA=--matcher
+	[[ "$stderr" == "PreToolUse|1|--matcher" ]]
+	run_hook claude hooks/envhook.sh "$(hook_fixture PreToolUse)" --matcher Bash EXTRA=--env-wait
+	[[ "$stderr" == "PreToolUse|1|--env-wait" ]]
+}
+
 @test "run_script runs a skill script from the project dir on both targets" {
 	for target in claude copilot; do
 		run_script "$target" skills/s/scripts/show.sh --env FOO=1 a=b

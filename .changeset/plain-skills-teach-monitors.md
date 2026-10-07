@@ -12,3 +12,4 @@
 * New monitors reference, plus updated config, targets and findings references.
 * The skills document `hook_has`, `hook_tool_prefix`, the code-span tool token, `run_hook`, `run_script` and `run_monitor`, the `PLUGINFINITY_MONITOR_MAX_TICKS` contract, both monitor command shapes, and the unknown-manager fall-through.
 * The skills build the `env.sh` path from an absolute directory before any `cd` (the one-line form broke after a `cd` from a relative `$0`), show the shellcheck `source` directive and the manual `_pf_env_manual=1` form, and document `hook_supports server-project` beside `server_project_dir`.
+* The `run_hook` reference says its options may stand anywhere among the `VAR=value` arguments.

@@ -113,6 +113,9 @@ _pf_mark_env_done() {
 }
 
 # run_hook <target> <script> <fixture> [--matcher <m>] [--session-env <file>] [--env-wait] [VAR=value...]
+# The three options may stand anywhere in the trailing list, mixed with VAR=value
+# arguments; only the exact words --matcher, --session-env and --env-wait are
+# options, so a VAR=value whose value starts with -- is still a VAR=value.
 # Runs builds/<target>/<script> under env -i the way the host runs the built
 # hook entry: the entry in the target's hooks file that runs <script>, under the
 # fixture's hook_event_name (else the event of the first such entry), supplies
@@ -129,25 +132,32 @@ _pf_mark_env_done() {
 # Sets $status, $output and $stderr.
 run_hook() {
 	local target=$1 script=$2 fixture=$3 matcher="" has_matcher=0 session_env="" env_wait=0
+	local rest=()
 	shift 3
+	# The options may stand anywhere among the VAR=value arguments. Only the exact
+	# words are options, so a VAR=value whose value starts with -- stays a VAR=value.
 	while [ $# -gt 0 ]; do
 		case "$1" in
 		--matcher)
 			matcher=${2:-}
 			has_matcher=1
-			shift 2
+			shift $(($# > 1 ? 2 : 1))
 			;;
 		--session-env)
 			session_env=${2:-}
-			shift 2
+			shift $(($# > 1 ? 2 : 1))
 			;;
 		--env-wait)
 			env_wait=1
 			shift
 			;;
-		*) break ;;
+		*)
+			rest+=("$1")
+			shift
+			;;
 		esac
 	done
+	set -- ${rest[@]+"${rest[@]}"}
 	local root="$PLUGIN_DIR/builds/$target" project
 	project=$(_pf_project_dir)
 	if [ ! -f "$root/$script" ]; then
