@@ -32,7 +32,7 @@ server_exec_bin myplugin-mcp @myplugin/mcp "$@"
 | `server_host` | Prints `claude` or `copilot` |
 | `server_plugin_root` | Prints the build root, found from the library's own location |
 | `server_project_dir` | Prints the user's project and returns 0, or prints nothing and returns 1 when there is none to report. On Claude it is `CLAUDE_PROJECT_DIR`. When the working directory is the plugin root or under it, as for every Copilot MCP server, it returns 1: Copilot gives an MCP server no project directory, so the server should ask its MCP client for roots. Otherwise it is the closest directory above `$PWD` holding `.git`, else `$PWD` |
-| `server_exec_bin <bin> <package> [--install <install-package>] [args]` | Execs the project's `node_modules/.bin/<bin>` when it is executable. Otherwise it prints, on stderr, that the bin is not installed and the install line for the project's package manager, then runs `<package> [args]` with that manager: `pnpm dlx`, `yarn dlx`, `bunx` or `npx --yes`. The manager is the `name` in `package.json`'s `devEngines.packageManager` (an object, or an array whose first entry counts), else `packageManager`, else a lockfile (`pnpm-lock.yaml`, `bun.lock`/`bun.lockb`, `yarn.lock`), else npm; without `jq` only `packageManager` is read. A manager that is not on `PATH` falls back to `npx --yes` with a stderr note. With no project directory it goes straight to `npx --yes`. `--install <install-package>` names a different package in the install line only, for a bin that ships in a package the runner cannot run directly; it is read only straight after the two positionals, and any later `--install` passes through to the server |
+| `server_exec_bin <bin> <package> [--install <install-package>] [args]` | Execs the project's `node_modules/.bin/<bin>` when it is executable. Otherwise it prints, on stderr, that the bin is not installed and the install line for the project's package manager, then runs `<package> [args]` with that manager: `pnpm dlx`, `yarn dlx`, `bunx` or `npx --yes`. The manager is the `name` in `package.json`'s `devEngines.packageManager` (an object, or an array whose first entry counts), else `packageManager`, else a lockfile (`pnpm-lock.yaml`, `bun.lock`/`bun.lockb`, `yarn.lock`), else npm. A declared manager that is not `npm`, `pnpm`, `yarn` or `bun` is ignored and falls through to the lockfiles, then npm; without `jq` only `packageManager` is read. A manager that is not on `PATH` falls back to `npx --yes` with a stderr note. With no project directory it goes straight to `npx --yes`. `--install <install-package>` names a different package in the install line only, for a bin that ships in a package the runner cannot run directly; it is read only straight after the two positionals, and any later `--install` passes through to the server |
 | `server_log <message>` | Appends a line to `error.log` in the plugin's log directory, with component `server`; see Logging |
 | `server_debug <message>` | Appends a line to `debug.log` when `PLUGINFINITY_DEBUG=1`, with component `server` |
 
@@ -46,6 +46,7 @@ server_exec_bin myplugin-mcp @myplugin/mcp "$@"
 - Name it with `${PLUGIN_ROOT}`, never a host spelling such as `${CLAUDE_PLUGIN_ROOT}` or a brace-less `$PLUGIN_ROOT`: only `${PLUGIN_ROOT}` is rewritten per host, and any other spelling in a server's root fields fails the build.
 - A `${PLUGIN_ROOT}/<dir>` reference, such as a data directory in `env`, ships every file under the directory. A reference ends at `:` and `,` too, so `PATH: "${PLUGIN_ROOT}/bin:/usr/bin"` ships `bin/`.
 - Test the built launcher with bats, once per host. Make a fake project holding `.git/` and an executable stub at `node_modules/.bin/<bin>` that echoes its arguments, `cd` into it, and run `sh "$BUILDS/<host>/bin/<launcher>"` under `env -i` with `PATH`, `HOME`, `PLUGINFINITY_HOST=<host>`, `PLUGINFINITY_PLUGIN` and `PLUGINFINITY_LIB="$BUILDS/<host>/lib/pluginfinity"`, where `BUILDS` is the absolute path to `builds/`: after the `cd`, a relative launcher or library path no longer resolves. Assert stdout is exactly the stub's output, so nothing else reached it. The dogfood fixture's `__test__/servers.bats` does this.
+- **Stub every runner on the controlled `PATH`: `pnpm`, `yarn`, `bun`, `bunx` and `npx`.** When the project lacks the bin, `server_exec_bin` runs the package with its package manager, and an unstubbed real runner on the test machine can start a real server. Put a stub for each, that only echoes its arguments, in a directory first on `PATH`.
 
 ## Logging
 
@@ -180,12 +181,18 @@ fi
 - Write plain bats tests in `__test__/`, with fixtures in `__test__/fixtures/`.
 - Run the script under `env -i` and pass every variable it reads (`HOME`, `PATH`, `CLAUDE_PLUGIN_DATA`, `MYPLUGIN_GH_TOKEN`), so the user's real environment never decides a result.
 - Put a stub `gh` first on `PATH` that prints its arguments and `GH_TOKEN`, and assert the stale token never reaches it.
-- `run_hook` is for hooks only. It feeds a hook payload on stdin and reads a hook response.
-- `run_script <target> <path> [--stdin <file>] [args...]` runs a built skill script or a launcher with
-  `bash builds/<target>/<path>` under `env -i` and that host's environment, from the plugin root on Copilot.
-  It sets `$status`, `$output` and `$stderr`. The helper sets `XDG_STATE_HOME` to `$BATS_TEST_TMPDIR/state`, so a
+- `run_hook` is for hooks only. It feeds a hook payload on stdin and reads a hook response, and it runs the
+  script with the environment of the built entry that registers it, so a script no entry runs fails the call:
+  use `run_script`.
+- `run_script <target> <path> [--stdin <file>] [--cwd <dir>] [args...] [-- VAR=value...]` runs a built skill
+  script or a launcher with `bash builds/<target>/<path>` under `env -i` and that host's environment. A path
+  under `skills/` runs from `--cwd` (default `$BATS_TEST_TMPDIR/project`, created) on both hosts, as the agent runs
+  it; any other path keeps the plugin root on Copilot. Everything after a bare `--` is `VAR=value` for the
+  environment. It sets `$status`, `$output` and `$stderr`. The helper sets `XDG_STATE_HOME` to `$BATS_TEST_TMPDIR/state`, so a
   script that logs writes under the test's temp directory; read `error.log` there.
-- `run_monitor <target> <name> [--ticks <n>] [VAR=value...]` runs a Claude monitor's built command, bounded
-  to `n` ticks. See [monitors](../pluginfinity/references/monitors.md#test-one).
+- `run_monitor <target> <name> [--ticks <n>] [--cwd <dir>] [VAR=value...]` runs a Claude monitor's built
+  command from the project directory, without `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`
+  or `CLAUDE_SESSION_ID`, bounded to `n` ticks by `PLUGINFINITY_MONITOR_MAX_TICKS`, which every monitor must
+  honour. See [monitors](../pluginfinity/references/monitors.md#test-one).
 - macOS ships bash 3.2, so the script must avoid `${var^^}`, `declare -A`, `mapfile` and `local -n`.
 - Run `bats --recursive __test__`.

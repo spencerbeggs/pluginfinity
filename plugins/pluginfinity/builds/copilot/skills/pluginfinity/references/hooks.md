@@ -77,10 +77,12 @@ overwrites it.
 | `hook_event` | The event name, in Claude Code's spelling, from `PLUGINFINITY_EVENT` or else the input's `hook_event_name`. Prints nothing and returns 1 when neither is known |
 | `hook_host` | `claude` or `copilot` |
 | `hook_plugin_root` | The build root the script runs from |
-| `hook_project_dir` | Where this call runs: the closest directory at or above the input's `cwd` that holds `.git`, else that `cwd` itself; with no `cwd`, `CLAUDE_PROJECT_DIR` on Claude Code, else `$PWD` walked up to `.git` on Claude Code, else `$PWD` as is (never walked on Copilot, where it is the plugin root) |
+| `hook_project_dir` | Where this call runs, and never empty. In order: an absolute input `cwd` (a relative one is ignored) becomes the closest directory at or above it that holds `.git`, else that `cwd` itself; with no usable `cwd`, `CLAUDE_PROJECT_DIR` on Claude Code, else `$PWD` walked up to `.git` on Claude Code, else `$PWD` as is. On Copilot it is `$PWD` unchanged, never walked, which is the plugin root. A `cwd` in a directory with no `.git` therefore outranks `CLAUDE_PROJECT_DIR` |
 | `hook_session_dir` | The session's project: `CLAUDE_PROJECT_DIR` on Claude Code when set, else `hook_project_dir`. In a git worktree the two differ |
 | `hook_cd_project` | Changes into `hook_project_dir`. Prints nothing; when it cannot, it logs the reason with `hook_log` and returns 1 |
 | `hook_tool_name <claude-name>` | The host's run-time spelling of a Claude Code tool name, such as `view` for `Read` on Copilot, or nothing and return 1 when the host has none. Name this plugin's own MCP tools `mcp__plugin_<plugin>_<server>__<tool>`. Read from the build's generated `tools.sh` |
+| `hook_tool_prefix <server>` | The run-time prefix of one of this plugin's own MCP servers, to put in front of a tool name: `mcp__plugin_<claude plugin>_<server>__` on Claude Code, `<server>-` on Copilot. Prints nothing and returns 1 for a server the plugin does not declare |
+| `hook_has <monitor\|skill\|agent\|server> <name>` | Succeeds when this host's build ships the component, so a skill a target leaves out, or a monitor on Copilot, answers 1. An unknown kind logs and returns 2. Read from the build's generated `tools.sh` |
 | `hook_envelope claude` | The input as Claude Code would send it, as one line of JSON. On Copilot it renames `toolName`/`toolArgs` to `tool_name`/`tool_input`, snake_cases the other top-level keys, parses a string `tool_input` and maps Copilot's key names to Claude's where the Claude key is absent. It adds `hook_event_name` when missing. Any other argument logs and returns 1 |
 | `hook_supports <capability> [event]` | Succeeds when the host honours the capability on the event, which defaults to the current one |
 
@@ -251,13 +253,13 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 
 | Helper | Does |
 | :-- | :-- |
-| `run_hook <target> <script> <fixture> [VAR=value...]` | Runs `builds/<target>/<script>` under `env -i` with that host's environment, the fixture on stdin and any extra variables. Sets bats `$status`, `$output` and `$stderr`. A relative fixture is read from `__test__/fixtures/` |
+| `run_hook <target> <script> <fixture> [--matcher <m>] [VAR=value...]` | Runs `builds/<target>/<script>` under `env -i` with that host's environment and the fixture on stdin, applying the environment of the built entry that runs the script. Sets bats `$status`, `$output` and `$stderr`. A relative fixture is read from `__test__/fixtures/`. See below |
 | `assert_hook_exit <n>` | The exit code is `n` |
 | `assert_hook_json <jq-filter> <expected>` | The filter's raw value over stdout equals `expected` |
 | `assert_hook_noop` | Exit 0 with no output or `{}` |
 | `hook_fixture <event> [overrides-json]` | Writes a Claude-shaped input for the event to a temp file and prints its path |
-| `run_script <target> <path> [--stdin <file>] [args...]` | Runs `bash builds/<target>/<path>` under `env -i` with that host's environment, from the plugin root on Copilot: a skill script or a launcher. Stdin is `/dev/null` unless `--stdin` is given. Sets `$status`, `$output` and `$stderr` |
-| `run_monitor <target> <name> [--ticks <n>] [VAR=value...]` | Runs a monitor's command from `builds/claude/monitors/monitors.json` under `bash -c`, with `CLAUDE_PLUGIN_ROOT` set and stdin `/dev/null`, bounded to `<n>` ticks (default 1). Only `claude` has monitors. See [monitors](monitors.md) |
+| `run_script <target> <path> [--stdin <file>] [--cwd <dir>] [args...] [-- VAR=value...]` | Runs `bash builds/<target>/<path>` under `env -i` with that host's environment: a skill script or a launcher. A path under `skills/` runs from `--cwd` (default `$BATS_TEST_TMPDIR/project`, created) on both hosts, as the agent runs it; any other path keeps the plugin root on Copilot. Stdin is `/dev/null` unless `--stdin` is given. Everything after a bare `--` is `VAR=value` for the environment, so an argument may contain `=`. Sets `$status`, `$output` and `$stderr` |
+| `run_monitor <target> <name> [--ticks <n>] [--cwd <dir>] [VAR=value...]` | Runs a monitor's command from `builds/claude/monitors/monitors.json` the way Claude Code starts it: from `--cwd` (default `$BATS_TEST_TMPDIR/project`, created), with `${CLAUDE_PLUGIN_ROOT}` substituted into the command text, none of `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` or `CLAUDE_SESSION_ID` set, `CLAUDE_CODE_SESSION_ID=test-session` and stdin `/dev/null`. Bounded to `<n>` ticks (default 1) through `PLUGINFINITY_MONITOR_MAX_TICKS`. Any target but `claude` fails with status 1. See [monitors](monitors.md) |
 
 The dogfood plugin tests its `PreToolUse` hook on both targets:
 
@@ -277,9 +279,18 @@ The dogfood plugin tests its `PreToolUse` hook on both targets:
 
 For a quick case without a fixture file, build one: `run_hook claude hooks/stop.sh "$(hook_fixture Stop '{"stop_hook_active":false}')"`.
 
+`run_hook` finds the built entry that runs the script, under the fixture's `hook_event_name`, and runs the script
+with that entry's environment: the leading `K=V` args of a Claude exec-form entry, the leading `export K='V';`
+of a Claude `command` entry, or a Copilot entry's `env` field. An explicit `VAR=value` argument wins over the
+entry. `--matcher <m>` picks between entries that run one script. When several entries match and there is no
+`--matcher`, it uses the first and says so on stderr; when the event has no entry it says so on stderr and uses
+the entries for any event. When no entry runs the script at all, the call fails: use `run_script` for a script
+no entry registers.
+
 `run_hook` on the claude target sets `CLAUDE_PROJECT_DIR` from `HOOK_PROJECT_DIR`, which defaults to the test's
 temp directory (`$BATS_TEST_TMPDIR`). Set it in front of the call to point `hook_project_dir` at a fixture project:
 `HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/proj" run_hook claude hooks/stop.sh stop.json`.
+A fixture's own absolute `cwd` outranks it, as at run time, even when that directory holds no `.git`, and `hook_fixture` sets `cwd` to `$BATS_TEST_TMPDIR`. To point `hook_project_dir` at a fixture project, put the project in the fixture's `cwd`.
 
 Tests run against `builds/`, not the source, so run `pluginfinity build` first. Run them with
 `bats --recursive __test__`.

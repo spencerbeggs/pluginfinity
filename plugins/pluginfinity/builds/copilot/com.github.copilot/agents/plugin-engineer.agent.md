@@ -48,7 +48,8 @@ the `hook-events` skill, then the host's published docs. Never answer from memor
 4. The entry in `pluginfinity.config.ts`.
 5. `pluginfinity build`.
 6. `bats --recursive __test__` green on both targets. Use `run_script` for a skill script and `run_monitor`
-   for a monitor, which exists on Claude Code only.
+   for a monitor, which exists on Claude Code only. A monitor must stop after `PLUGINFINITY_MONITOR_MAX_TICKS`
+   polls, and a launcher test stubs `pnpm`, `yarn`, `bun`, `bunx` and `npx`.
 7. `pluginfinity build --check` clean.
 
 ## Out of scope

@@ -32,15 +32,28 @@ monitors: {
 
 A target's own `monitors` replaces the base monitor of the same name on that host. The build writes
 `monitors/monitors.json` on Claude Code, with each entry's `name`, `command`, `description` and `when`. A
-source file at that path fails the build. Each command sets `PLUGINFINITY_MONITOR=<name>`, which the
-library logs under. A `script` entry runs through `bash` with the variable as a prefix; a `command` entry
-gets an `export` first.
+source file at that path fails the build with `reserved-monitors-file` whenever the target builds monitors, whether
+`files` ships it or not. Copilot builds none, so it is unaffected, and a plugin with no `monitors` field still
+ships a `monitors/monitors.json` it wrote itself. Each command sets `PLUGINFINITY_MONITOR=<name>`, which the
+library logs under. The command is written one of two ways, with the value single-quoted:
+
+| Entry | Command in `monitors.json` |
+| :-- | :-- |
+| `script` | `PLUGINFINITY_MONITOR='<name>' bash "${CLAUDE_PLUGIN_ROOT}/<script>" <args>` |
+| `command` | `export PLUGINFINITY_MONITOR='<name>'; <command>` |
+
+A `command` entry that holds `${PLUGIN_ROOT}` in the config needs the same Biome
+`noTemplateCurlyInString` ignore as a server `command`: keep it a plain string and put
+`// biome-ignore lint/suspicious/noTemplateCurlyInString: pluginfinity placeholder` on the line above.
 
 **Measured on Claude Code 2.1.292:**
 
 - A monitor starts in the project directory, with the launching shell's environment.
-- `CLAUDE_PROJECT_DIR` is unset, so `monitor_project_dir` falls back to the git toplevel.
-- `CLAUDE_SESSION_ID` is unset, so `monitor_once` scopes its marker by the monitor's parent pid.
+- `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` and `CLAUDE_SESSION_ID` are all unset, so
+  `monitor_project_dir` falls back to the git toplevel, and a script must not read the others. `${CLAUDE_PLUGIN_ROOT}`
+  in the command text is still substituted by the host.
+- `CLAUDE_CODE_SESSION_ID`, `CLAUDE_PID`, `CLAUDE_CODE_CHILD_SESSION=1` and `CLAUDE_CODE_ENTRYPOINT=cli` are set.
+  `monitor_once` scopes its marker by `CLAUDE_CODE_SESSION_ID`, then `CLAUDE_SESSION_ID`, then the monitor's parent pid.
 - Claude matches `on-skill-invoke` against the plugin-qualified skill name, which the build writes for you. The monitor starts on the slash command or on a model Skill-tool dispatch; a bare name never matched.
 
 ## The monitor library
@@ -81,14 +94,20 @@ monitor still runs and the logging functions do nothing.
   subshell, which cannot tell `monitor_every` that stdout closed, so the loop would never stop.
 - **A monitor never exits non-zero for an error inside one poll.** The library logs it and the loop goes on.
 - **Print nothing else to stdout.** A stray line is a notification.
-- `PLUGINFINITY_MONITOR_MAX_TICKS=<n>` bounds `monitor_every` to `n` ticks. It exists for the library's own tests
-  and the `run_monitor` helper; never set it in a plugin.
+- **`PLUGINFINITY_MONITOR_MAX_TICKS=<n>` is a contract every monitor honours: stop after `n` polls.** The
+  monitor library does it in `monitor_every`. A monitor that does not use the library, such as a `command`
+  that runs `node`, must read the variable itself and exit after `n` polls, or `run_monitor` never returns. Only
+  a test sets it; never set it in a plugin.
 
 ## Test one
 
-`run_monitor <target> <name> [--ticks <n>] [VAR=value...]` runs the monitor's command from the built
-`monitors.json` under `bash -c`, bounded to `n` ticks (default 1), and sets `$status`, `$output` and
-`$stderr`. Only `claude` has monitors, and a missing monitor or target fails the call.
+`run_monitor <target> <name> [--ticks <n>] [--cwd <dir>] [VAR=value...]` runs the monitor's command from the
+built `monitors.json` under `bash -c`, bounded to `n` ticks (default 1) by `PLUGINFINITY_MONITOR_MAX_TICKS`, and
+sets `$status`, `$output` and `$stderr`. It starts in `--cwd` (default `$BATS_TEST_TMPDIR/project`, created),
+substitutes `${CLAUDE_PLUGIN_ROOT}` into the command text, and gives the monitor the environment Claude Code
+does: none of `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` or `CLAUDE_SESSION_ID`, and
+`CLAUDE_CODE_SESSION_ID=test-session`. Only `claude` has monitors: another target, or a missing monitor,
+fails with status 1.
 
 ```bash
 @test "the heartbeat notifies once and logs where it started" {

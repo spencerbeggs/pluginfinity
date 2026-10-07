@@ -77,7 +77,8 @@ Common problems inside `ComponentsInvalid`:
 - **A script path holding `=` under `scripts.invoke: "exec"`.** `env` would read it as a variable. Rename the
   script or use the default `"bash"`. A monitor's script is exempt.
 - **A source file at `monitors/monitors.json`, `hooks/hooks.json` or a library path.** The build writes
-  those; move or delete the source file.
+  those; move or delete the source file. For `monitors/monitors.json` the finding is `reserved-monitors-file`,
+  raised whenever the target builds monitors, whether `files` ships the file or not.
 - **A `|` fallback on a token that is not `tool`, an empty fallback, or `{` or `}` in one.** Only
   `\{{tool <name> | <text>}}` takes a fallback, and the text is plain prose.
 - **A key starting `claude.` or `copilot.`**, such as `copilot.lspServers.<name>.settings`, names a server

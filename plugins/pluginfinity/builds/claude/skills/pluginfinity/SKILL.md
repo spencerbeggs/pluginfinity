@@ -128,7 +128,8 @@ files: ["share/"],
 - **Biome warns `noTemplateCurlyInString`** on `"${PLUGIN_ROOT}/..."` in the config. It is a warning, and
   the string is meant literally: keep it a plain string, never a template literal. To silence it, put
   `// biome-ignore lint/suspicious/noTemplateCurlyInString: pluginfinity placeholder` on the line
-  above, or turn the rule off for `pluginfinity.config.ts` in a Biome `overrides` entry.
+  above, or turn the rule off for `pluginfinity.config.ts` in a Biome `overrides` entry. A monitor `command`
+  that holds `${PLUGIN_ROOT}` needs the same ignore.
 
 Write the launcher on the server library with the `plugin-scripts` skill.
 

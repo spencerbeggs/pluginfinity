@@ -146,6 +146,12 @@ Code and `your task list` on Copilot, which has no run-time name for it, instead
 fallback is literal prose, trimmed, not empty and without `{` or `}`; on a host that has the name it is
 discarded. Only a `tool` token takes one: a `|` on `agent`, `skill` or `plugin_root` fails the build.
 
+A tool name may be wrapped in exactly one pair of backticks to render as a code span:
+``\{{tool `Read`}}`` writes `` `Read` `` on Claude Code and `` `view` `` on Copilot, and
+``\{{tool `TodoWrite` | your task list}}`` writes `` `TodoWrite` `` on Claude Code and the plain fallback,
+without backticks, on a host that has no name for it. Only a `tool` token takes backticks; any other kind fails
+the build.
+
 There is no wildcard token: prose about "all of this plugin's MCP tools" must name the tools, each as `\{{tool …}}`.
 
 - **Tokens are replaced everywhere,** fenced and inline code included.

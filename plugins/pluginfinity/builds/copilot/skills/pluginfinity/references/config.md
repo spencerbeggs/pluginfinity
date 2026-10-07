@@ -93,5 +93,6 @@ per host, through `targets.<id>.description` in that component's frontmatter (se
 - **A `files` entry** is a canonical relative path: no empty, `.` or `..` segment, not the plugin root,
   and not under `builds/` or `node_modules/`. The base `files` ships to every host and a target's own
   `files` to that host.
-- **A source file at `monitors/monitors.json` fails the build.** The build writes that path on Claude Code;
-  see [monitors](monitors.md).
+- **A source file at `monitors/monitors.json` fails the build** (`reserved-monitors-file`) whenever the target
+  builds monitors, set at the base or in the target's own `monitors`, shipped by `files` or not. The build
+  writes that path on Claude Code; see [monitors](monitors.md). Copilot builds none, so it is unaffected.
