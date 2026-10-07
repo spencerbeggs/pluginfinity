@@ -536,7 +536,11 @@ const planPlugin = (
 						id,
 						String(manifest.name),
 						ENGINE_VERSION,
-						renderToolMap(target, pluginName(config.config, "claude"), [...mcpServerNames(id, config.config)]),
+						renderToolMap(target, pluginName(config.config, "claude"), [...mcpServerNames(id, config.config)], {
+							skills: skills.filter((skill) => skill.frontmatter.targets?.[id] !== false).map((skill) => skill.name),
+							agents: agents.filter((agent) => agent.frontmatter.targets?.[id] !== false).map((agent) => agent.name),
+							monitors: Object.keys(targetMonitors(id, config.config)),
+						}),
 					),
 				);
 			}

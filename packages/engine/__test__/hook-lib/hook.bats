@@ -888,6 +888,62 @@ exit 7'
 	[ "$output" = Whatever ]
 }
 
+# --- component presence and tool prefix ---
+
+has_tools() {
+	printf "_PF_TOOLS=''\n_PF_TOOLS_PLUGIN='silk'\n_PF_TOOLS_MCP='%s'\n_PF_TOOLS_SERVERS='savvy-mcp'\n_PF_TOOLS_UNLISTED=keep\n_PF_HAS_SKILLS='build lint'\n_PF_HAS_AGENTS='reviewer'\n_PF_HAS_MONITORS='%s'\n_PF_HAS_SERVERS='savvy-mcp'\n" "$1" "$2"
+}
+
+@test "hook_has answers for each kind on Claude, with a monitor present" {
+	make_plugin claude silk "$(has_tools 'mcp__plugin_{plugin}_{server}__{tool}' watch)"
+	hook_script 'for a in "skill build" "skill nope" "agent reviewer" "agent x" "monitor watch" "server savvy-mcp" "server x"; do hook_has $a && echo "$a yes" || echo "$a no"; done'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'skill build yes\nskill nope no\nagent reviewer yes\nagent x no\nmonitor watch yes\nserver savvy-mcp yes\nserver x no')" ]
+}
+
+@test "hook_has finds no monitor on Copilot" {
+	make_plugin copilot silk "$(has_tools '{server}-{tool}' '')"
+	hook_script 'hook_has monitor watch && echo yes || echo "rc=$?"; hook_has skill lint && echo yes'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'rc=1\nyes')" ]
+}
+
+@test "hook_has returns 2 and logs for an unknown kind" {
+	make_plugin claude silk "$(has_tools 'mcp__plugin_{plugin}_{server}__{tool}' watch)"
+	hook_script 'hook_has widget x || echo "rc=$?"'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = rc=2 ]
+}
+
+@test "hook_has without tools.sh finds nothing" {
+	make_plugin claude silk
+	rm "$PLUGIN/hooks/lib/pluginfinity/tools.sh"
+	hook_script 'hook_has skill build || echo "rc=$?"'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = rc=1 ]
+}
+
+@test "hook_tool_prefix on Claude" {
+	make_plugin claude silk "$(has_tools 'mcp__plugin_{plugin}_{server}__{tool}' '')"
+	hook_script 'hook_tool_prefix savvy-mcp'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = mcp__plugin_silk_savvy-mcp__ ]
+}
+
+@test "hook_tool_prefix on Copilot uses the Claude plugin name only for Claude spellings" {
+	make_plugin copilot renamed "$(has_tools '{server}-{tool}' '')"
+	hook_script 'hook_tool_prefix savvy-mcp'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = savvy-mcp- ]
+}
+
+@test "hook_tool_prefix prints nothing and returns 1 for an undeclared server" {
+	make_plugin claude silk "$(has_tools 'mcp__plugin_{plugin}_{server}__{tool}' '')"
+	hook_script 'p=$(hook_tool_prefix other) || echo "rc=$? [$p]"'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "rc=1 []" ]
+}
+
 # --- matchers a host ignores ---
 
 @test "a matcher passed by the build skips a non-matching SessionStart" {

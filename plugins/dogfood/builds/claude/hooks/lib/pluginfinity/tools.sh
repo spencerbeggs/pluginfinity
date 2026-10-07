@@ -4,3 +4,7 @@ _PF_TOOLS_PLUGIN='pluginfinity-dogfood'
 _PF_TOOLS_MCP='mcp__plugin_{plugin}_{server}__{tool}'
 _PF_TOOLS_SERVERS='dogfood'
 _PF_TOOLS_UNLISTED=keep
+_PF_HAS_SKILLS='hook-eval'
+_PF_HAS_AGENTS='eval-subagent'
+_PF_HAS_MONITORS='heartbeat skill-watch'
+_PF_HAS_SERVERS='dogfood'

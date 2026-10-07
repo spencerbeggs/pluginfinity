@@ -64,6 +64,10 @@ _PF_TOOLS_PLUGIN=""
 _PF_TOOLS_MCP=""
 _PF_TOOLS_SERVERS=""
 _PF_TOOLS_UNLISTED=keep
+_PF_HAS_SKILLS=""
+_PF_HAS_AGENTS=""
+_PF_HAS_MONITORS=""
+_PF_HAS_SERVERS=""
 # A failed `.` aborts a shell on bash 3.2, so test the file first.
 if [ -r "$_pf_lib_dir/tools.sh" ]; then
 	# shellcheck source=/dev/null
@@ -300,6 +304,46 @@ hook_tool_name() {
 	esac
 	[ "$_PF_TOOLS_UNLISTED" = keep ] || return 1
 	printf '%s\n' "$name"
+}
+
+# Whether this build ships a component: hook_has <monitor|skill|agent|server> <name>.
+# Returns 0 when it does, 1 when it does not (or tools.sh is missing), 2 for an
+# unknown kind. The lists are built per target, so a skill a target excludes and
+# a monitor on a host without monitors are absent.
+hook_has() {
+	local kind=${1:-} name=${2:-} list
+	case "$kind" in
+	skill) list=$_PF_HAS_SKILLS ;;
+	agent) list=$_PF_HAS_AGENTS ;;
+	monitor) list=$_PF_HAS_MONITORS ;;
+	server) list=$_PF_HAS_SERVERS ;;
+	*)
+		hook_log "hook_has: unknown kind '$kind'"
+		return 2
+		;;
+	esac
+	[ -n "$name" ] || return 1
+	case " $list " in
+	*" $name "*) return 0 ;;
+	esac
+	return 1
+}
+
+# Print the run-time tool-name prefix of an own MCP server (Claude
+# mcp__plugin_<plugin>_<server>__, Copilot <server>-) and return 0, or print
+# nothing and return 1 for a server this plugin does not declare.
+hook_tool_prefix() {
+	local server=${1:-} template plugin
+	[ -n "$server" ] && [ -n "$_PF_TOOLS_MCP" ] || return 1
+	case " $_PF_TOOLS_SERVERS " in
+	*" $server "*) ;;
+	*) return 1 ;;
+	esac
+	plugin=${_PF_TOOLS_PLUGIN:-${PLUGINFINITY_PLUGIN:-}}
+	template=$_PF_TOOLS_MCP
+	template=${template//\{plugin\}/$plugin}
+	template=${template//\{server\}/$server}
+	printf '%s\n' "${template%%\{tool\}*}"
 }
 
 # Whether the host honours capability $1 on event $2 (default: this event).

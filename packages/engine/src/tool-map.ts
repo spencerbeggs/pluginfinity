@@ -3,6 +3,17 @@ import type { Target } from "@pluginfinity/core";
 const singleQuote = (value: string): string => `'${value.replaceAll("'", `'\\''`)}'`;
 
 /**
+ * The component names a target builds, as `hook_has` answers them.
+ *
+ * @internal
+ */
+export interface ToolMapComponents {
+	readonly skills: ReadonlyArray<string>;
+	readonly agents: ReadonlyArray<string>;
+	readonly monitors: ReadonlyArray<string>;
+}
+
+/**
  * The generated `tools.sh` the hook library sources to spell a Claude tool
  * name the way the host spells it at run time.
  *
@@ -15,7 +26,12 @@ const singleQuote = (value: string): string => `'${value.replaceAll("'", `'\\''`
  *
  * @internal
  */
-export const renderToolMap = (target: Target, plugin: string, servers: ReadonlyArray<string>): string => {
+export const renderToolMap = (
+	target: Target,
+	plugin: string,
+	servers: ReadonlyArray<string>,
+	has: ToolMapComponents,
+): string => {
 	const runtime = target.tools.runtime;
 	const pairs = Object.entries(runtime.names).flatMap(([name, spelled]) =>
 		typeof spelled === "string" ? [`${name}=${spelled}`] : [],
@@ -27,6 +43,10 @@ export const renderToolMap = (target: Target, plugin: string, servers: ReadonlyA
 		`_PF_TOOLS_MCP=${singleQuote(runtime.mcp)}`,
 		`_PF_TOOLS_SERVERS=${singleQuote(servers.join(" "))}`,
 		`_PF_TOOLS_UNLISTED=${runtime.unlisted}`,
+		`_PF_HAS_SKILLS=${singleQuote(has.skills.join(" "))}`,
+		`_PF_HAS_AGENTS=${singleQuote(has.agents.join(" "))}`,
+		`_PF_HAS_MONITORS=${singleQuote(("path" in target.monitors ? has.monitors : []).join(" "))}`,
+		`_PF_HAS_SERVERS=${singleQuote(servers.join(" "))}`,
 		"",
 	].join("\n");
 };
