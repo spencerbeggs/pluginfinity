@@ -39,6 +39,43 @@ describe("renderTokens: tool fallback", () => {
 	});
 });
 
+describe("renderTokens: code-span tool token", () => {
+	it("renders a code span where the tool spells and the plain fallback where it does not", () => {
+		assert.strictEqual(
+			text(renderTokens("Use {{tool `AskUserQuestion` | ask the user}}.", copilot)),
+			"Use ask the user.",
+		);
+		assert.strictEqual(
+			text(renderTokens("Use {{tool `AskUserQuestion` | ask the user}}.", claude)),
+			"Use `AskUserQuestion`.",
+		);
+		assert.strictEqual(text(renderTokens("{{tool `Read`}}", copilot)), "`view`");
+		assert.strictEqual(text(renderTokens("{{tool `Read` | look}}", copilot)), "`view`");
+	});
+
+	it("leaves the line's other code spans untouched", () => {
+		assert.strictEqual(
+			text(renderTokens("`a` then {{tool `Read`}} then `b {{tool Read}}`", copilot)),
+			"`a` then `view` then `b view`",
+		);
+	});
+
+	it("follows the usual no-spelling problem without a fallback", () => {
+		assert.deepStrictEqual(
+			problems(renderTokens("{{tool `AskUserQuestion`}}", copilot)).map((p) => p.message),
+			["{{tool `AskUserQuestion`}} has no run-time name on this target"],
+		);
+	});
+
+	it("rejects unbalanced or doubled backticks, and backticks on other kinds", () => {
+		for (const bad of ["{{tool `X}}", "{{tool X`}}", "{{tool ``X``}}", "{{tool `X` `Y`}}", "{{tool ``}}"]) {
+			assert.strictEqual(problems(renderTokens(bad, claude)).length, 1, bad);
+		}
+		assert.strictEqual(problems(renderTokens("{{skill `a`}}", claude)).length, 1);
+		assert.strictEqual(problems(renderTokens("{{agent `a`}}", claude)).length, 1);
+	});
+});
+
 describe("renderTokens: fallback guard", () => {
 	it("rejects a | on plugin_root and agent, and parses tool|x without a space", () => {
 		for (const raw of ["{{plugin_root | x}}", "{{agent a | b}}"]) {

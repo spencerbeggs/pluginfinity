@@ -104,6 +104,18 @@ const token = (inner: string, raw: string, ctx: TokenContext): Spelled => {
 		.trim()
 		.split(/\s+/)
 		.filter((part) => part.length > 0);
+	// The name of a tool token may be wrapped in exactly one pair of backticks, to render as a code span.
+	let code = false;
+	if (head.includes("`")) {
+		if (kind !== "tool") return { problem: `${raw}: only a tool token takes a backtick-wrapped name` };
+		const wrapped = /^\s*tool\s+`([^`\s]+)`\s*$/.exec(head);
+		if (wrapped === null) {
+			return { problem: `${raw}: wrap the tool name in exactly one pair of backticks, as {{tool \`Name\`}}` };
+		}
+		code = true;
+		args[0] = wrapped[1] as string;
+		args.length = 1;
+	}
 	if (fallback !== undefined && kind !== "tool") return { problem: `${raw}: only a tool token takes a | fallback` };
 	if (kind === "plugin_root") {
 		if (args.length > 0) return { problem: `${raw}: plugin_root takes no argument` };
@@ -115,7 +127,8 @@ const token = (inner: string, raw: string, ctx: TokenContext): Spelled => {
 	if (kind === "tool") {
 		if (fallback === "") return { problem: `${raw}: the fallback after | is empty` };
 		const spelled = tool(name, raw, ctx);
-		return fallback !== undefined && "problem" in spelled ? { value: fallback } : spelled;
+		if (fallback !== undefined && "problem" in spelled) return { value: fallback };
+		return code && "value" in spelled ? { value: `\`${spelled.value}\`` } : spelled;
 	}
 	if (kind === "agent") {
 		if (!ctx.agents.has(name)) return { problem: `${raw}: this plugin has no agent "${name}"` };
@@ -264,7 +277,12 @@ const links = (line: string, ctx: TokenContext, problems: Array<string>): string
  * @remarks
  * A token is `{{tool <name>}}`, `{{tool <name> | <fallback>}}`,
  * `{{agent <name>}}`, `{{skill <name>}}` or `{{plugin_root}}`, with
- * whitespace allowed inside the braces, on one line. Only a tool token takes
+ * whitespace allowed inside the braces, on one line. A tool token may wrap its
+ * name in exactly one pair of backticks, ``{{tool `Name`}}`` or
+ * ``{{tool `Name` | <fallback>}}``: it then renders as a code span, `` `spelling` ``,
+ * where the tool spells, and as the fallback in plain text where it does not;
+ * unbalanced or doubled backticks, and backticks on any other kind, are
+ * problems. Only a tool token takes
  * a `|` fallback: literal prose, trimmed, that replaces the token on a target
  * where the tool has no spelling (and is discarded where it has one). It may
  * not be empty or contain `{` or `}`.
