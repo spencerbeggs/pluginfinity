@@ -7,4 +7,4 @@ description: >-
 
 # Session env probe
 
-Run `${CLAUDE_PLUGIN_ROOT}/skills/env-probe/scripts/print-env.sh` and report its output. It sources the plugin's `env.sh`, so it prints the session's values on both hosts.
+Run `bash "${CLAUDE_SKILL_DIR}/scripts/print-env.sh"` and report its output. It sources the plugin's `env.sh`, so it prints the session's values on both hosts.

@@ -53,3 +53,14 @@ setup() {
 		[ "$output" = $'PFDOG_COLOR=blue\nPFDOG_SHAPE=circle\nPFDOG_LEVEL=7' ]
 	done
 }
+
+@test "the setup script's values reach a skill script" {
+	local target
+	for target in claude copilot; do
+		run_hook "$target" lib/pluginfinity/env-run.sh "$(hook_fixture SessionStart '{"source":"startup"}')" \
+			CLAUDE_ENV_FILE="$BATS_TEST_TMPDIR/claude-env.sh"
+		run_script "$target" skills/env-probe/scripts/print-env.sh
+		[ "$output" = $'PFDOG_COLOR=green\nPFDOG_SHAPE=square\nPFDOG_LEVEL=1' ]
+	done
+	grep -qx "export PFDOG_COLOR='green'" "$BATS_TEST_TMPDIR/claude-env.sh"
+}
