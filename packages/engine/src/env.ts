@@ -113,3 +113,31 @@ export const envNotes = (target: Target, id: KnownTargetId): ReadonlyArray<Build
 	target.hooks.envShell.includes("SessionStart")
 		? []
 		: [{ target: id, path: CONFIG_NOTE_PATH, kind: "env-shell-unsupported", name: "env" }];
+
+/**
+ * Seconds a SessionStart reader may wait for the env runner (3) plus headroom;
+ * a SessionStart hook with a smaller `timeout` can be killed while it waits.
+ *
+ * @public
+ */
+export const ENV_WAIT_TIMEOUT_FLOOR = 5;
+
+/**
+ * An `env-wait-timeout` note for each SessionStart entry (other than the
+ * runner, which is added later) whose `timeout` is set and under
+ * {@link ENV_WAIT_TIMEOUT_FLOOR}: its hook library waits up to 3 s for the
+ * runner before it reads. The note's path is the entry's script, else `config`.
+ *
+ * @public
+ */
+export const envWaitNotes = (id: KnownTargetId, events: ReadonlyArray<TargetHookEvent>): ReadonlyArray<BuildNote> =>
+	events
+		.filter((event) => event.event === "SessionStart")
+		.flatMap((event) => event.entries)
+		.filter((entry) => entry.timeout !== undefined && entry.timeout < ENV_WAIT_TIMEOUT_FLOOR)
+		.map((entry) => ({
+			target: id,
+			path: "script" in entry ? entry.script : CONFIG_NOTE_PATH,
+			kind: "env-wait-timeout" as const,
+			name: "SessionStart",
+		}));

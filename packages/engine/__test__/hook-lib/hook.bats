@@ -1041,10 +1041,10 @@ has_tools() {
 
 @test "env: a build without env.sh behaves as before" {
 	make_plugin claude
-	hook_script 'printf "%s|" "${SILK_PM-unset}"; hook_env_set SILK_PM x || echo refused; hook_noop'
+	hook_script 'printf "%s|" "${SILK_PM-unset}"; hook_env_set SILK_PM x; echo "rc=$?"; hook_noop'
 	run_script "$FIXTURES/pretooluse.bash.json"
 	[ "$status" -eq 0 ]
-	[ "$output" = $'unset|refused\n{}' ]
+	[ "$output" = $'unset|rc=0\n{}' ]
 	[[ "$(error_log)" == *"no session env"* ]]
 }
 
@@ -1058,13 +1058,50 @@ has_tools() {
 	[ -z "$stderr" ]
 }
 
-@test "env: a matcher-skipped hook does not load the env library" {
+@test "env: a matcher-skipped hook does not load the env library, and a matching run does" {
 	make_plugin claude
 	make_env SILK_PM=npm
 	hook_script 'echo ran'
 	run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_MATCHER=resume PLUGINFINITY_DEBUG=1
 	[ -z "$output" ]
 	[[ "$(debug_log)" != *"env:"* ]]
+	run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_MATCHER=startup PLUGINFINITY_DEBUG=1
+	[ "$output" = ran ]
+	[[ "$(debug_log)" == *"env:"* ]]
+}
+
+@test "env: hook_env_set returns 0 under set -e and fail-closed, so a refusal never aborts or denies" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	seed_env s-1 SILK_PM=npm
+	hook_script 'hook_fail_closed; hook_env_set SILK_PM bun; hook_env_set OTHER x; hook_noop'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PreToolUse
+	[ "$status" -eq 0 ]
+	[ "$output" = "{}" ]
+}
+
+@test "env: a fail-closed hook still runs with an unreadable env.sh" {
+	make_plugin claude
+	make_env SILK_PM=npm
+	chmod 000 "$PLUGIN/lib/pluginfinity/env.sh"
+	hook_script 'hook_fail_closed; hook_noop'
+	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_FAIL_CLOSED=1
+	chmod 644 "$PLUGIN/lib/pluginfinity/env.sh"
+	[ "$status" -eq 0 ]
+	[ "$output" = "{}" ]
+}
+
+@test "env: a fail-closed hook still runs when env.sh errors as it loads" {
+	local body
+	for body in 'false' ': "${unbound_name_pf}"; false' 'return 3'; do
+		make_plugin claude
+		make_env SILK_PM=npm
+		printf '%s\n' "$body" >>"$PLUGIN/lib/pluginfinity/env.sh"
+		hook_script 'hook_noop'
+		run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_FAIL_CLOSED=1
+		[ "$status" -eq 0 ]
+		[ "$output" = "{}" ]
+	done
 }
 
 @test "env: hook_env_set in SessionStart persists, exports and a later hook sees it, on both hosts" {
@@ -1101,18 +1138,18 @@ has_tools() {
 	make_plugin claude
 	make_env SILK_PM=npm
 	seed_env s-1 SILK_PM=npm
-	hook_script 'hook_env_set SILK_PM bun && echo set || echo "refused:$?"; echo "$SILK_PM"'
+	hook_script 'hook_env_set SILK_PM bun; echo "rc=$?"; echo "$SILK_PM"'
 	run_script "$FIXTURES/pretooluse.bash.json" PLUGINFINITY_EVENT=PreToolUse PLUGINFINITY_DEBUG=1
-	[ "$output" = $'refused:1\nnpm' ]
+	[ "$output" = $'rc=0\nnpm' ]
 	[[ "$(values_file)" == *"SILK_PM=npm"* ]]
 	[[ "$(debug_log)" == *"hook_env_set"*"PreToolUse"* ]]
 }
 
-@test "env: hook_env_set refuses an undeclared name and a value with a newline, with a log line" {
+@test "env: hook_env_set refuses an undeclared name and a value with a newline, and returns 0, with a log line" {
 	make_plugin claude
 	make_env SILK_PM=npm
 	seed_env s-1 SILK_PM=npm
-	hook_script 'hook_env_set OTHER x || echo r1; hook_env_set SILK_PM $'"'"'a\nb'"'"' || echo r2; echo "$SILK_PM"'
+	hook_script 'hook_env_set OTHER x && echo r1; hook_env_set SILK_PM $'"'"'a\nb'"'"' && echo r2; echo "$SILK_PM"'
 	run_script "$FIXTURES/sessionstart.startup.json" PLUGINFINITY_EVENT=SessionStart
 	[ "$output" = $'r1\nr2\nnpm' ]
 	[[ "$(error_log)" == *"OTHER"* ]]

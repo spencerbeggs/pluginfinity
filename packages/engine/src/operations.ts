@@ -11,7 +11,7 @@ import { readAgents, renderAgent } from "./agents.js";
 import { isJunk } from "./component.js";
 import type { EmitPlan, EmittedFile } from "./emit.js";
 import { applyEmit, planEmit } from "./emit.js";
-import { envNotes, envRunnerEntry, withEnvRunner } from "./env.js";
+import { envNotes, envRunnerEntry, envWaitNotes, withEnvRunner } from "./env.js";
 import type { ConfigError } from "./errors.js";
 import {
 	BuildStale,
@@ -566,7 +566,7 @@ const planPlugin = (
 			);
 			generated.push(...rendered.files);
 			notes.push(...rendered.notes);
-			if (env !== undefined) notes.push(...envNotes(target, id));
+			if (env !== undefined) notes.push(...envNotes(target, id), ...envWaitNotes(id, events));
 			if (rendered.stdio) generated.push(...serverLibFiles());
 			const tokens = tokenContext(target, id, config.config, skills, agents);
 			for (const skill of skills) {

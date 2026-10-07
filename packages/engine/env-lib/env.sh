@@ -65,6 +65,8 @@
 #                     Returns 1, with a log line, for an undeclared name, a
 #                     value holding a newline, or no valid session from the last
 #                     env_load. It does not check the event: the caller does.
+#                     The hook library's hook_env_set wraps it and always
+#                     returns 0, so a refusal can never fail a hook.
 #   _pf_env_declared NAME   0 when NAME is declared.
 
 # >>> pluginfinity env declarations (the build replaces this block)

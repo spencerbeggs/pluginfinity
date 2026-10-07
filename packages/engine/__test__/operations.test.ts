@@ -10,6 +10,7 @@ import {
 	ENVED_NO_HOOKS,
 	ENVED_OVERRIDDEN,
 	ENVED_SETUP_MISSING,
+	ENVED_SHORT_TIMEOUT,
 	FILES_BUILDS,
 	FILES_COLLIDE,
 	FILES_MISSING,
@@ -2117,6 +2118,29 @@ describe("build with session env", () => {
 					{ target: "copilot", path: "config", kind: "env-shell-unsupported", name: "env" },
 				]);
 				assert.deepStrictEqual(notes("claude"), []);
+			}),
+		);
+
+		it.effect("notes a SessionStart hook whose timeout is under the runner wait, on both targets", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin(ENVED_SHORT_TIMEOUT);
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				for (const id of ["claude", "copilot"]) {
+					const notes = builds
+						.find((one) => one.target === id)
+						?.notes.filter((note) => note.kind === "env-wait-timeout");
+					assert.deepStrictEqual(notes, [
+						{ target: id, path: "hooks/start.sh", kind: "env-wait-timeout", name: "SessionStart" },
+					]);
+				}
+			}),
+		);
+
+		it.effect("a SessionStart timeout of 5 or more, or none, gets no env-wait-timeout note", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin();
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				for (const one of builds) assert.isFalse(one.notes.some((note) => note.kind === "env-wait-timeout"));
 			}),
 		);
 

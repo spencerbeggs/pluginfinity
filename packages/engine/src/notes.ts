@@ -14,6 +14,7 @@ export const BUILD_NOTE_KINDS = [
 	"hook-omitted",
 	"monitor-omitted",
 	"env-shell-unsupported",
+	"env-wait-timeout",
 ] as const;
 
 /**
@@ -25,7 +26,9 @@ export const BUILD_NOTE_KINDS = [
  * (`hook-output-ignored`), `hook-omitted` an event it lacks whose entries all set `fallback: "omit"`,
  * `monitor-omitted` a monitor on a host that has none, or noted that the host
  * passes no session env to the model's shell (`env-shell-unsupported`), so a
- * skill script must source `env.sh`.
+ * skill script must source `env.sh`, or a SessionStart hook whose `timeout`
+ * is under the 3 seconds a reader may wait for the env runner plus headroom
+ * (`env-wait-timeout`).
  *
  * @public
  */

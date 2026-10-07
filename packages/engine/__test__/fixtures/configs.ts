@@ -356,3 +356,18 @@ export const ENVED_SETUP_MISSING = `export default {
 	env: { vars: { FX_A: {} }, setup: "scripts/missing.sh" },
 	claude: true,
 };\n`;
+
+export const ENVED_SHORT_TIMEOUT = `export default {
+	name: "enved",
+	description: "Fixture plugin.",
+	env: { vars: { FX_A: {} } },
+	hooks: {
+		SessionStart: [
+			{ script: "hooks/start.sh", timeout: 2 },
+			{ script: "hooks/start.sh", matcher: "resume", timeout: 5 },
+			{ script: "hooks/start.sh", matcher: "clear" },
+		],
+	},
+	claude: true,
+	copilot: true,
+};\n`;

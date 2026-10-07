@@ -391,30 +391,34 @@ _pf_env_loaded=0
 # it in the session values file, export it in this hook and, on Claude, append
 # it to CLAUDE_ENV_FILE so the model's shell sees it. Only the events that can
 # produce a value (SessionStart, Setup, CwdChanged, FileChanged) may call it,
-# and only for a name the config declares. Returns 1 with a log line, or a
-# debug line for an event that cannot produce, and changes nothing.
+# and only for a name the config declares. It always returns 0: a refusal (any
+# other event, an undeclared name, a value with a newline, a build with no env)
+# is a log line, or a debug line for an event that cannot produce, and changes
+# nothing, so it never aborts a `set -e` hook or denies a fail-closed one.
 hook_env_set() {
 	local name=${1:-}
 	if [ "$_pf_env_loaded" != 1 ]; then
 		hook_log "hook_env_set: no session env is declared in this build"
-		return 1
+		return 0
 	fi
 	case "$_pf_event" in
 	SessionStart | Setup | CwdChanged | FileChanged) ;;
 	*)
 		hook_debug "hook_env_set $name ignored: ${_pf_event:-an unknown event} does not produce session values"
-		return 1
+		return 0
 		;;
 	esac
-	_pf_env_set "$name" "${2-}"
+	_pf_env_set "$name" "${2-}" || true
+	return 0
 }
 
 # Load env.sh and apply the session values. A failure here never aborts the hook, even under set -e.
 _pf_env_start() {
-	local sid proj errexit=0
+	local sid proj errexit=0 nounset=0
 	[ -r "$_pf_log_dir/env.sh" ] || return 0
 	case $- in *e*) errexit=1 ;; esac
-	set +e
+	case $- in *u*) nounset=1 ;; esac
+	set +eu
 	_pf_env_lib_dir="$_pf_log_dir"
 	_pf_env_manual=1
 	_pf_env_component=hook
@@ -428,6 +432,7 @@ _pf_env_start() {
 		hook_log "env.sh not loadable; session env skipped"
 	fi
 	[ "$errexit" = 1 ] && set -e
+	[ "$nounset" = 1 ] && set -u
 	return 0
 }
 

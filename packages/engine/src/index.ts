@@ -31,9 +31,11 @@ export { EmitPlan, GENERATED_MODE, applyEmit, planEmit } from "./emit.js";
 export {
 	ENV_RUNNER_TIMEOUT,
 	ENV_SETUP_TIMEOUT,
+	ENV_WAIT_TIMEOUT_FLOOR,
 	envLibFiles,
 	envNotes,
 	envRunnerEntry,
+	envWaitNotes,
 	renderEnvLib,
 	withEnvRunner,
 } from "./env.js";
