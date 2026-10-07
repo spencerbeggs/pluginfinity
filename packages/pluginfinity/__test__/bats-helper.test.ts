@@ -17,6 +17,28 @@ set -euo pipefail
 hook_block "stop on $(hook_host)"
 `;
 
+const CRASH = `#!/usr/bin/env bash
+set -euo pipefail
+. "$(dirname "$0")/lib/pluginfinity/hook.sh"
+hook_require_input
+false
+`;
+
+const ENVHOOK = `#!/usr/bin/env bash
+set -euo pipefail
+. "$(dirname "$0")/lib/pluginfinity/hook.sh"
+hook_noop
+printf '%s|%s|%s\\n' "\${PLUGINFINITY_EVENT:-}" "\${PLUGINFINITY_FAIL_CLOSED:-}" "\${EXTRA:-}" >&2
+`;
+
+const SHOW = `#!/usr/bin/env bash
+printf 'pwd=%s foo=%s args=%s\\n' "$PWD" "\${FOO:-}" "$*"
+`;
+
+const SHOWMON = `#!/usr/bin/env bash
+printf 'pwd=%s project=%s root=%s plugin=%s session=%s ticks=%s\\n' "$PWD" "\${CLAUDE_PROJECT_DIR-unset}" "\${CLAUDE_PLUGIN_ROOT-unset}" "\${CLAUDE_PLUGIN_DATA-unset}" "\${CLAUDE_CODE_SESSION_ID-unset}" "\${PLUGINFINITY_MONITOR_MAX_TICKS-unset}"
+`;
+
 const CAT = "#!/usr/bin/env bash\ncat\necho done\n";
 const MONITOR = `#!/usr/bin/env bash
 _pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"
@@ -37,10 +59,61 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 			}
 			writeFileSync(join(lib, "host.sh"), `PLUGINFINITY_HOST=${host}\nPLUGINFINITY_PLUGIN='fixture'\n`);
 			writeFileSync(join(plugin, "builds", host, "hooks", "stop.sh"), STOP);
+			writeFileSync(join(plugin, "builds", host, "hooks", "crash.sh"), CRASH);
+			writeFileSync(join(plugin, "builds", host, "hooks", "envhook.sh"), ENVHOOK);
 			const scripts = join(plugin, "builds", host, "skills", "s", "scripts");
 			mkdirSync(scripts, { recursive: true });
 			writeFileSync(join(scripts, "cat.sh"), CAT);
+			writeFileSync(join(scripts, "show.sh"), SHOW);
+			mkdirSync(join(plugin, "builds", host, "servers"), { recursive: true });
+			writeFileSync(join(plugin, "builds", host, "servers", "show.sh"), SHOW);
 		}
+		// The built hook entries each host runs, in the shapes the targets emit.
+		const claudeEntry = (script: string, event: string, env: string[], matcher?: string) => ({
+			...(matcher === undefined ? {} : { matcher }),
+			hooks: [
+				{
+					type: "command",
+					command: "env",
+					args: [`PLUGINFINITY_EVENT=${event}`, ...env, "bash", `\${CLAUDE_PLUGIN_ROOT}/hooks/${script}`],
+				},
+			],
+		});
+		const copilotEntry = (script: string, event: string, env: Record<string, string>, matcher?: string) => ({
+			type: "command",
+			bash: `bash "\${PLUGIN_ROOT}/hooks/${script}"`,
+			...(matcher === undefined ? {} : { matcher }),
+			env: { PLUGINFINITY_EVENT: event, ...env },
+		});
+		mkdirSync(join(plugin, "builds", "claude", "hooks"), { recursive: true });
+		writeFileSync(
+			join(plugin, "builds", "claude", "hooks", "hooks.json"),
+			JSON.stringify({
+				hooks: {
+					Stop: [claudeEntry("stop.sh", "Stop", [])],
+					PreToolUse: [
+						claudeEntry("crash.sh", "PreToolUse", ["PLUGINFINITY_FAIL_CLOSED=1"], "Bash"),
+						claudeEntry("envhook.sh", "PreToolUse", ["PLUGINFINITY_FAIL_CLOSED=1", "EXTRA=bash-a"], "Bash"),
+						claudeEntry("envhook.sh", "PreToolUse", ["EXTRA=read-b"], "Read"),
+					],
+				},
+			}),
+		);
+		mkdirSync(join(plugin, "builds", "copilot", "com.github.copilot", "hooks"), { recursive: true });
+		writeFileSync(
+			join(plugin, "builds", "copilot", "com.github.copilot", "hooks", "hooks.json"),
+			JSON.stringify({
+				version: 1,
+				hooks: {
+					Stop: [copilotEntry("stop.sh", "Stop", {})],
+					PreToolUse: [
+						copilotEntry("crash.sh", "PreToolUse", { PLUGINFINITY_FAIL_CLOSED: "1" }, "Bash"),
+						copilotEntry("envhook.sh", "PreToolUse", { PLUGINFINITY_FAIL_CLOSED: "1", EXTRA: "bash-a" }, "Bash"),
+						copilotEntry("envhook.sh", "PreToolUse", { EXTRA: "read-b" }, "Read"),
+					],
+				},
+			}),
+		);
 		const claude = join(plugin, "builds", "claude");
 		const claudeLib = join(claude, "lib", "pluginfinity");
 		mkdirSync(claudeLib, { recursive: true });
@@ -53,9 +126,13 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 			);
 		}
 		writeFileSync(join(claude, "monitors", "m.sh"), MONITOR);
+		writeFileSync(join(claude, "monitors", "show.sh"), SHOWMON);
 		writeFileSync(
 			join(claude, "monitors", "monitors.json"),
-			JSON.stringify([{ name: "m", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/m.sh"', description: "fixture" }]),
+			JSON.stringify([
+				{ name: "m", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/m.sh"', description: "fixture" },
+				{ name: "show", command: 'bash "${CLAUDE_PLUGIN_ROOT}/monitors/show.sh"', description: "fixture" },
+			]),
 		);
 		const result = spawnSync("bats", ["--tap", join(plugin, "__test__")], {
 			env: { ...process.env, PLUGINFINITY_BATS_HELPER: HELPER },

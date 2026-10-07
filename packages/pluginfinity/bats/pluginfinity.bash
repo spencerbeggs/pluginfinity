@@ -11,12 +11,22 @@ bats_require_minimum_version 1.5.0
 
 : "${PLUGIN_DIR:=$(cd "$BATS_TEST_DIRNAME/.." && pwd)}"
 
-# run_hook <target> <script> <fixture> [VAR=value...]
-# Runs builds/<target>/<script> under env -i with the host's environment and
-# the fixture on stdin. Sets $status, $output and $stderr.
+# run_hook <target> <script> <fixture> [--matcher <m>] [VAR=value...]
+# Runs builds/<target>/<script> under env -i the way the host runs the built
+# hook entry: the entry in the target's hooks file that runs <script>, under the
+# fixture's hook_event_name (else the event of the first such entry), supplies
+# the environment (Claude: the K=V args before `bash`; Copilot: the `env`
+# object). --matcher picks between entries for one script. Explicit VAR=value
+# arguments override the entry's environment. The fixture is on stdin.
+# Sets $status, $output and $stderr.
 run_hook() {
-	local target=$1 script=$2 fixture=$3
+	local target=$1 script=$2 fixture=$3 matcher="" has_matcher=0
 	shift 3
+	if [ "${1:-}" = "--matcher" ]; then
+		matcher=${2:-}
+		has_matcher=1
+		shift 2
+	fi
 	local root="$PLUGIN_DIR/builds/$target"
 	if [ ! -f "$root/$script" ]; then
 		echo "run_hook: $root/$script not found; run pluginfinity build" >&2
@@ -26,24 +36,66 @@ run_hook() {
 	/*) ;;
 	*) fixture="$PLUGIN_DIR/__test__/fixtures/$fixture" ;;
 	esac
-	local event
-	event=$(jq -r '.hook_event_name // empty' "$fixture")
+	local hooks_file entries
 	case "$target" in
 	claude)
-		run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
-			XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" CLAUDE_PLUGIN_ROOT="$root" \
-			CLAUDE_PROJECT_DIR="${HOOK_PROJECT_DIR:-$BATS_TEST_TMPDIR}" "$@" bash "$root/$script" <"$fixture"
+		hooks_file="$root/hooks/hooks.json"
+		entries='[(.hooks // {}) | to_entries[] | .key as $ev | .value[] | (.matcher // "") as $m | (.hooks // [])[]
+			| select((.args // []) | map(type == "string" and endswith("/" + $s)) | any)
+			| {event: $ev, matcher: $m, env: (.args | (index("bash") // length) as $i | .[:$i]
+				| map(select(test("^[A-Za-z_][A-Za-z0-9_]*=")) | {key: sub("=.*$"; ""; "s"), value: sub("^[^=]*="; ""; "s")}) | from_entries)}]'
 		;;
 	copilot)
-		# Copilot runs hooks from the plugin root, and the build sets
-		# PLUGINFINITY_EVENT on every entry.
-		run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
-			XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" PLUGIN_ROOT="$root" \
-			PLUGINFINITY_EVENT="$event" "$@" bash -c 'cd "$1" && shift && exec bash "$@"' _ "$root" "$root/$script" <"$fixture"
+		hooks_file="$root/com.github.copilot/hooks/hooks.json"
+		entries='[(.hooks // {}) | to_entries[] | .key as $ev | .value[]
+			| select((.bash // "") | (contains("/" + $s + "\"") or contains("/" + $s + " ") or endswith("/" + $s)))
+			| {event: $ev, matcher: (.matcher // ""), env: (.env // {})}]'
 		;;
 	*)
 		echo "run_hook: unknown target $target" >&2
 		return 1
+		;;
+	esac
+	if [ ! -f "$hooks_file" ]; then
+		echo "run_hook: $hooks_file not found; run pluginfinity build" >&2
+		return 1
+	fi
+	local event picked count
+	event=$(jq -r '.hook_event_name // empty' "$fixture")
+	picked=$(jq -c --arg s "$script" --arg e "$event" --arg m "$matcher" --argjson hm "$has_matcher" "$entries"'
+		| (if $e == "" then . else (map(select((.event | ascii_downcase) == ($e | ascii_downcase))) as $x | if ($x | length) > 0 then $x else . end) end)
+		| (if $hm == 1 then map(select(.matcher == $m)) else . end)' "$hooks_file") || {
+		echo "run_hook: cannot read $hooks_file" >&2
+		return 1
+	}
+	count=$(jq 'length' <<<"$picked")
+	if [ "$count" -eq 0 ]; then
+		if [ "$has_matcher" -eq 1 ]; then
+			echo "run_hook: no entry in $hooks_file runs $script with matcher '$matcher'" >&2
+		else
+			echo "run_hook: no entry in $hooks_file runs $script" >&2
+		fi
+		return 1
+	fi
+	if [ "$count" -gt 1 ] && [ "$has_matcher" -eq 0 ]; then
+		echo "run_hook: $count entries run $script; using the first (pass --matcher)" >&2
+	fi
+	local entry_env=() line
+	while IFS= read -r line; do
+		entry_env+=("$line")
+	done < <(jq -r '.[0].env | to_entries[] | "\(.key)=\(.value)"' <<<"$picked")
+	case "$target" in
+	claude)
+		run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
+			XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" CLAUDE_PLUGIN_ROOT="$root" \
+			CLAUDE_PROJECT_DIR="${HOOK_PROJECT_DIR:-$BATS_TEST_TMPDIR}" \
+			${entry_env[@]+"${entry_env[@]}"} "$@" bash "$root/$script" <"$fixture"
+		;;
+	copilot)
+		# Copilot runs hooks from the plugin root.
+		run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
+			XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" PLUGIN_ROOT="$root" \
+			${entry_env[@]+"${entry_env[@]}"} "$@" bash -c 'cd "$1" && shift && exec bash "$@"' _ "$root" "$root/$script" <"$fixture"
 		;;
 	esac
 }

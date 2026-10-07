@@ -39,10 +39,48 @@ load "$PLUGINFINITY_BATS_HELPER"
 }
 
 @test "run_monitor fails clearly for an unknown monitor or a target without monitors" {
-	run --separate-stderr run_monitor claude nope
-	[ "$status" -ne 0 ]
-	[[ "$stderr" == *"run_monitor: no monitor nope"* ]]
 	run --separate-stderr run_monitor copilot m
 	[ "$status" -ne 0 ]
 	[[ "$stderr" == *"run_monitor: copilot has no monitors"* ]]
+	run --separate-stderr run_monitor claude nope
+	[ "$status" -ne 0 ]
+	[[ "$stderr" == *"run_monitor: no monitor nope"* ]]
 }
+
+@test "run_hook applies fail-closed from the entry, so a crash denies, on both targets" {
+	run_hook claude hooks/crash.sh "$(hook_fixture PreToolUse '{"tool_name":"Bash"}')"
+	assert_hook_json .hookSpecificOutput.permissionDecision deny
+	run_hook copilot hooks/crash.sh "$(hook_fixture PreToolUse '{"tool_name":"Bash"}')"
+	assert_hook_json .permissionDecision deny
+}
+
+@test "run_hook gives Claude PLUGINFINITY_EVENT from the entry, not the payload" {
+	run_hook claude hooks/envhook.sh "$(hook_fixture Bogus)" --matcher Read
+	[[ "$stderr" == "PreToolUse||read-b" ]]
+}
+
+@test "run_hook --matcher picks between entries for one script" {
+	run_hook claude hooks/envhook.sh "$(hook_fixture PreToolUse)" --matcher Bash
+	[[ "$stderr" == "PreToolUse|1|bash-a" ]]
+	run_hook copilot hooks/envhook.sh "$(hook_fixture PreToolUse)" --matcher Read
+	[[ "$stderr" == "PreToolUse||read-b" ]]
+}
+
+@test "run_hook warns and uses the first entry without --matcher" {
+	run --separate-stderr run_hook copilot hooks/envhook.sh "$(hook_fixture PreToolUse)"
+	[[ "$stderr" == *"run_hook: 2 entries run hooks/envhook.sh; using the first (pass --matcher)"* ]]
+}
+
+@test "run_hook fails when --matcher matches no entry" {
+	run --separate-stderr run_hook claude hooks/envhook.sh "$(hook_fixture PreToolUse)" --matcher Nope
+	[ "$status" -ne 0 ]
+	[[ "$stderr" == *"matcher 'Nope'"* ]]
+}
+
+@test "run_hook lets an explicit VAR=value override the entry's environment" {
+	for target in claude copilot; do
+		run_hook "$target" hooks/envhook.sh "$(hook_fixture PreToolUse)" --matcher Bash PLUGINFINITY_FAIL_CLOSED=0 EXTRA=mine
+		[[ "$stderr" == "PreToolUse|0|mine" ]]
+	done
+}
+

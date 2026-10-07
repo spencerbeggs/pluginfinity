@@ -92,14 +92,14 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 	grep -q "PLUGINFINITY_FAIL_CLOSED" "$BATS_TEST_DIRNAME/../builds/copilot/com.github.copilot/hooks/hooks.json"
 }
 
-@test "a crash in the failClosed hook denies when the build's variable is set, on both targets" {
+@test "a crash in the failClosed hook denies on both targets, as the built entry sets the variable" {
 	local fx
 	fx=$(hook_fixture PreToolUse '{"tool_name":"Bash","tool_input":{"command":"echo pf-dogfood-closed-crash"}}')
-	run_hook claude hooks/pre-tool-use.sh "$fx" PLUGINFINITY_FAIL_CLOSED=1
-	assert_hook_json .hookSpecificOutput.permissionDecision deny
-	run_hook copilot hooks/pre-tool-use.sh "$fx" PLUGINFINITY_FAIL_CLOSED=1
-	assert_hook_json .permissionDecision deny
 	run_hook claude hooks/pre-tool-use.sh "$fx"
+	assert_hook_json .hookSpecificOutput.permissionDecision deny
+	run_hook copilot hooks/pre-tool-use.sh "$fx"
+	assert_hook_json .permissionDecision deny
+	run_hook claude hooks/pre-tool-use.sh "$fx" PLUGINFINITY_FAIL_CLOSED=0
 	assert_hook_exit 0
 	[ -z "$output" ]
 }
