@@ -348,6 +348,9 @@ hook_tool_prefix() {
 
 # Whether the host honours capability $1 on event $2 (default: this event).
 # Mirrors okf/references/{claude-code,copilot-cli}-plugin-format.md.
+# server-project asks about the host, not an event: whether an MCP server can
+# learn the project (Claude gives it CLAUDE_PROJECT_DIR and roots; Copilot
+# gives none, measured 2026-10-07), the question server_project_dir answers.
 hook_supports() {
 	local cap="${1:-}" event="${2:-$_pf_event}"
 	case "$PLUGINFINITY_HOST:$cap" in
@@ -375,6 +378,7 @@ hook_supports() {
 	copilot:block)
 		case "$event" in Stop | SubagentStop) return 0 ;; esac
 		;;
+	claude:server-project) return 0 ;;
 	claude:env-shell)
 		case "$event" in SessionStart | Setup | CwdChanged | FileChanged) return 0 ;; esac
 		;;

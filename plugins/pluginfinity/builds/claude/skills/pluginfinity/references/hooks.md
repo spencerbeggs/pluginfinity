@@ -84,7 +84,7 @@ overwrites it.
 | `hook_tool_prefix <server>` | The run-time prefix of one of this plugin's own MCP servers, to put in front of a tool name: `mcp__plugin_<claude plugin>_<server>__` on Claude Code, `<server>-` on Copilot. Prints nothing and returns 1 for a server the plugin does not declare |
 | `hook_has <monitor\|skill\|agent\|server> <name>` | Succeeds when this host's build ships the component, so a skill a target leaves out, or a monitor on Copilot, answers 1. An unknown kind logs and returns 2. Read from the build's generated `tools.sh` |
 | `hook_envelope claude` | The input as Claude Code would send it, as one line of JSON. On Copilot it renames `toolName`/`toolArgs` to `tool_name`/`tool_input`, snake_cases the other top-level keys, parses a string `tool_input` and maps Copilot's key names to Claude's where the Claude key is absent. It adds `hook_event_name` when missing. Any other argument logs and returns 1 |
-| `hook_supports <capability> [event]` | Succeeds when the host honours the capability on the event, which defaults to the current one. `env-shell` asks whether a value set here reaches the model's shell: Claude Code in `SessionStart`, `Setup`, `CwdChanged` and `FileChanged`, never Copilot |
+| `hook_supports <capability> [event]` | Succeeds when the host honours the capability on the event, which defaults to the current one. `env-shell` asks whether a value set here reaches the model's shell: Claude Code in `SessionStart`, `Setup`, `CwdChanged` and `FileChanged`, never Copilot. `server-project` asks whether an MCP server of this plugin can learn the user's project, the question `server_project_dir` answers on the server side: it succeeds on Claude Code for any event, which gives a server `CLAUDE_PROJECT_DIR` and roots, and fails on Copilot, where a server has neither (measured 2026-10-07), so a hook can tell the model to pass the project in each tool call |
 
 ```bash
 cmd=$(hook_input tool_input.command)     # a Bash tool's command
@@ -110,7 +110,7 @@ fi
 
 `hook_input` reads stdin when the library is sourced, and caches it; read input only through `hook_input`. It accepts Copilot's camelCase payloads too (`toolName`,
 `toolArgs` as an object or a JSON string), so `hook_input tool_input.command` works on both. The
-capabilities are `context`, `deny`, `allow`, `ask`, `block`, `system_message`, `noop`, `raw` and `env-shell`.
+capabilities are `context`, `deny`, `allow`, `ask`, `block`, `system_message`, `noop`, `raw`, `env-shell` and `server-project`.
 
 A `tool_input` key is read by its Claude name on both hosts. Copilot keeps its own key names under Claude
 event and tool names, so a lookup that finds nothing tries Copilot's spelling:

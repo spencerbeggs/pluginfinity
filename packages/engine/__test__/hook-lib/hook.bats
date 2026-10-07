@@ -1193,6 +1193,17 @@ has_tools() {
 	[[ "$(values_file)" == *"SILK_PM=bun"* ]]
 }
 
+@test "hook_supports server-project is true on Claude, false on Copilot, for any event" {
+	make_plugin claude
+	hook_script 'hook_supports server-project && echo own; hook_supports server-project PreToolUse && echo pre; hook_supports server-project SessionEnd && echo end'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'own\npre\nend')" ]
+	make_plugin copilot
+	hook_script 'hook_supports server-project || echo none; hook_supports server-project SessionStart || echo none-start'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'none\nnone-start')" ]
+}
+
 @test "env: hook_supports env-shell is true on Claude's producer events and false elsewhere" {
 	make_plugin claude
 	hook_script 'for e in SessionStart Setup CwdChanged FileChanged; do hook_supports env-shell "$e" || echo "missing $e"; done

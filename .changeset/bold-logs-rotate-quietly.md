@@ -39,6 +39,7 @@ Monitors build from the config's `monitors` component into Claude Code's `monito
 * A Copilot event with no `cwd` has no project, so a reader hook reads no `.env` from the plugin root.
 * New `hook_env_set NAME value` (producer events and declared names only, always returns 0, appends to `CLAUDE_ENV_FILE` on Claude) and `hook_supports env-shell`.
 * An `env.setup` script that is missing or not a file fails the build as `HookScriptInvalid` with component `env`.
+* The session env runner (`env-run.sh`) writes nothing to stderr: bash as `sh` no longer prints a job-control notice when the timeout watcher is stopped, so a SessionStart run is silent.
 
 ### Skill directories
 
@@ -55,6 +56,7 @@ Monitors build from the config's `monitors` component into Claude Code's `monito
 * Copilot reports a fresh session's SessionStart source as `new`, so a SessionStart matcher that holds `startup` is widened to hold `new` as well on a host that ignores the matcher (`hook-matcher-widened`), and a regex matcher that matches `startup` but not `new` is left as written with a `hook-matcher-regex` note.
 * New build notes `env-shell-unsupported` (the host passes no session env to the model's shell, so a skill script must source `env.sh`) and `env-wait-timeout` (a SessionStart entry with a `timeout` under 5 s).
 * `PLUGINFINITY_MONITOR_MAX_TICKS` must be a positive integer and counts every check, however triggered; anything else, `0` included, is logged once and treated as unbounded.
+* New `hook_supports server-project` succeeds on Claude Code and fails on Copilot, answering whether an MCP server can learn the project, so a hook branches on a capability instead of the host.
 
 ### Build
 
