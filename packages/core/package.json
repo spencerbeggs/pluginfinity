@@ -1,6 +1,6 @@
 {
 	"name": "@pluginfinity/core",
-	"version": "0.2.1",
+	"version": "0.3.0",
 	"private": true,
 	"description": "The pluginfinity domain model: the host-neutral plugin source, the Target capability schema and the pluginfinity config shape. Platform-free.",
 	"keywords": ["pluginfinity", "agent-plugin", "effect"],
