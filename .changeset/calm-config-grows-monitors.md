@@ -8,5 +8,5 @@
 
 ## Features
 
-* New `monitors` config component, keyed by name, with the `Monitors` schema exported.
+* New `monitors` config component, keyed by name, with the `Monitors` schema exported. A monitor's `when` takes the bare skill name, so `on-skill-invoke:a:b` is rejected.
 * Targets can describe monitor support and hook matcher and output behavior, which drives the new build notes.

@@ -24,8 +24,8 @@ sources:
     title: ServerEnv and the reserved PLUGINFINITY_ prefix
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:43:13Z
-  body_sha256: 041251644e4800c633b8cc2cba6d178b5dffdc63199769bdceed272ee551d533
+  at: 2026-10-07T00:21:16Z
+  body_sha256: 23ccc8bb906521a3d0765edbe3db1cc426c2399fc0cff822614654958beabf17
 ---
 
 # Plugin source model
@@ -91,7 +91,7 @@ export default defineConfig({
 - **Metadata.** `description` is required; `author`, `homepage`, `repository`, `license` and `keywords` are optional. `version` is still copied from `package.json`.
 - **A hook entry** has exactly one of `script` (a path from the plugin root) or `command` (a string whose one placeholder is `${PLUGIN_ROOT}`), and optional `matcher`, `args` (with `script` only), `timeout` in seconds and `fallback`. HTTP and prompt hook types are out of scope.
 - **`failClosed`** on a hook entry makes a script that fails before answering deny or block instead of failing open. The build hands the event, the fail policy and, where the host ignores the matcher, the matcher to the script as environment variables ([decision](../decisions/entry-facts-travel-as-env.md)).
-- **`monitors`** keys kebab-case names to a `script` or `command` entry with a `description` and an optional `when` (`"always"` or `on-skill-invoke:<skill>`). A host with no monitors drops them with a note, and a source `monitors/monitors.json` is a build error.
+- **`monitors`** keys kebab-case names to a `script` or `command` entry with a `description` and an optional `when` (`"always"` or `on-skill-invoke:<skill>`, the bare skill name that the build qualifies with the plugin name on Claude). A host with no monitors drops them with a note, and a source `monitors/monitors.json` is a build error.
 - **Files a `command` names** as `${PLUGIN_ROOT}/<path>` ship and are checked like `script` paths.
 - **The `hooks/` directory** ships whole to every target, so a script can source helpers the config never names, except scripts that only another target's hooks run. Test data belongs outside it. A script outside `hooks/` ships to the targets that run it.
 - **`fallback`** says what a target that lacks the event does: `"fail"` (the default) or `"omit"`.

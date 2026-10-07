@@ -36,8 +36,8 @@ sources:
     title: The Target class and its entries
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:43:13Z
-  body_sha256: 841861b0c744c9f380babc68bc25537a1923034b9fd4213cf2813a895b6a4131
+  at: 2026-10-07T00:21:16Z
+  body_sha256: efda88467c683a727b027cdcbf624ebe07fb453e2fa3e3aab6d6b3da0ffe49e9
 ---
 
 # @pluginfinity/core
@@ -53,7 +53,7 @@ The plugin-wide half of the [config](../interfaces/config.md):[^config]
 - `PluginName`, the kebab-case name every host accepts. The CLI checks `--name` and `plugin add <name>` against it too.
 - `BaseConfigFields` and `BASE_CONFIG_KEYS`, the config fields that are not target keys, which are `name`, `description`, `author`, `homepage`, `repository`, `license`, `keywords`, `scripts`, `hooks`, `mcpServers`, `lspServers`, `monitors` and `files`. Base keys and target ids share one key space in the config, so a base key must never equal a target id.
 - `Hooks`, `HookEntry`, `makeHooks` and `CLAUDE_HOOK_EVENTS`: hooks keyed by Claude Code's 33 event names, where an entry may set `failClosed`.[^hooks]
-- `Monitors`, `MonitorEntry`, `MonitorName` and `MonitorWhen`: background monitors keyed by kebab-case name, each a `script` or a `command` with a `description` and an optional `when` (`"always"` or `on-skill-invoke:<skill>`) ([decision](../decisions/monitors-are-a-component.md)).[^monitors]
+- `Monitors`, `MonitorEntry`, `MonitorName` and `MonitorWhen`: background monitors keyed by kebab-case name, each a `script` or a `command` with a `description` and an optional `when` (`"always"` or `on-skill-invoke:<skill>` with a bare skill name) ([decision](../decisions/monitors-are-a-component.md)).[^monitors]
 - `KebabName`, the one kebab-case schema `PluginName` and `MonitorName` share, and `PluginRelativePath`, the plugin-relative script path hooks and monitors use.
 - `ShippedPath`, the canonical plugin-relative path a `files` entry must be: no empty, `.` or `..` segment, not the plugin root, and not under `builds/` or `node_modules/`.
 - `McpServers`: MCP servers in Claude Code's `.mcp.json` server shape. `ServerEnv`, the `env` record of MCP and LSP servers, rejects keys starting with `PLUGINFINITY_`, which the build reserves for the variables it injects.[^mcp]

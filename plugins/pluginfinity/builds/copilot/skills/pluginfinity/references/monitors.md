@@ -28,7 +28,7 @@ monitors: {
 | `args` | Arguments to a `script` |
 | `command` | A shell command as written. Its one placeholder is `${PLUGIN_ROOT}`, and a file it names after that ships |
 | `description` | What the monitor watches, shown by the host. Required |
-| `when` | `"always"`, the default, or `on-skill-invoke:<skill>`, which starts the monitor the first time that skill is invoked |
+| `when` | `"always"`, the default, or `on-skill-invoke:<skill>`, which starts the monitor the first time that skill is invoked. Write the bare skill name; the build qualifies it as `<plugin>:<skill>` for Claude. A skill the plugin does not build fails the build |
 
 A target's own `monitors` replaces the base monitor of the same name on that host. The build writes
 `monitors/monitors.json` on Claude Code, with each entry's `name`, `command`, `description` and `when`. A
@@ -41,9 +41,7 @@ gets an `export` first.
 - A monitor starts in the project directory, with the launching shell's environment.
 - `CLAUDE_PROJECT_DIR` is unset, so `monitor_project_dir` falls back to the git toplevel.
 - `CLAUDE_SESSION_ID` is unset, so `monitor_once` scopes its marker by the monitor's parent pid.
-- Invoking the skill as a user slash command does not start an `on-skill-invoke` monitor.
-
-Still unverified: whether a model Skill-tool dispatch starts it, and whether the bare name or `<plugin>:<skill>` matches. Do not depend on `on-skill-invoke` until that is measured.
+- Claude matches `on-skill-invoke` against the plugin-qualified skill name, which the build writes for you. The monitor starts on the slash command or on a model Skill-tool dispatch; a bare name never matched.
 
 ## The monitor library
 

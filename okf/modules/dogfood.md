@@ -37,8 +37,8 @@ sources:
     title: The doctor smoke test that runs inside the fixture
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T23:52:26Z
-  body_sha256: d6e21d6d3aeab2dd5b7cbbbb9297ce795a4735f3a7c4597b0aa62224317c4b51
+  at: 2026-10-07T00:21:16Z
+  body_sha256: f877fc1cfc4d08654e3eb2f977aaa3683055b792dda9980da0fc8fd8e3539f61
 ---
 
 # dogfood plugin fixture
@@ -63,7 +63,7 @@ Eight scripts under `hooks/` exercise every feature of the [hook library](../dec
 
 ## Monitors and logging
 
-Two monitors under `monitors/` exercise the [monitor library](../decisions/monitors-are-a-component.md): `heartbeat` notifies once per session, and `skill-watch` starts with `when: on-skill-invoke:hook-eval` and notifies once, so a live run can show whether the bare skill name matches. `__test__/monitors.bats` runs them through the bats helper's `run_monitor`, and `hooks.bats` covers `failClosed`, run-time matchers and the Copilot tool names through `run_hook`. The scripts log through the [shared log library](../decisions/one-logging-standard.md). A [live run](../measurements/claude-monitor-environment.md) measured a Claude monitor's working directory and environment, and showed a slash-command invocation does not start `skill-watch`; a model Skill-tool dispatch is not yet measured.
+Two monitors under `monitors/` exercise the [monitor library](../decisions/monitors-are-a-component.md): `heartbeat` notifies once per session, and `skill-watch` starts with `when: on-skill-invoke:hook-eval`, which the build writes as `on-skill-invoke:pluginfinity-dogfood:hook-eval`, and notifies once. `__test__/monitors.bats` runs them through the bats helper's `run_monitor`, and `hooks.bats` covers `failClosed`, run-time matchers and the Copilot tool names through `run_hook`. The scripts log through the [shared log library](../decisions/one-logging-standard.md). A [live run](../measurements/claude-monitor-environment.md) measured a Claude monitor's working directory and environment, and showed `skill-watch` starts only under the qualified skill name, on a slash command or a model dispatch.
 
 ## Live evaluation
 

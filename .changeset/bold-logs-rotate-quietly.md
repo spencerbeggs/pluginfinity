@@ -18,7 +18,7 @@ The hook, server and monitor libraries now share one logging standard and a new 
 
 ### Monitors
 
-Monitors build from the config's `monitors` component into Claude Code's `monitors/monitors.json`, with the new `lib/pluginfinity/monitor.sh` library. Copilot, which has no monitors, gets a `monitor-omitted` build note.
+Monitors build from the config's `monitors` component into Claude Code's `monitors/monitors.json`, with the new `lib/pluginfinity/monitor.sh` library. Copilot, which has no monitors, gets a `monitor-omitted` build note. A monitor's `on-skill-invoke:<skill>` is written for Claude as `on-skill-invoke:<plugin>:<skill>`, and a skill the plugin does not build fails the build.
 
 ### Shared logging
 

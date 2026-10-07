@@ -28,8 +28,8 @@ sources:
     title: Claude Code plugin format, monitors
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T23:52:26Z
-  body_sha256: 51fa8dd162319090064fc4b0405a194d325b0adfbfe7d0c7e719cdeb66a63ff1
+  at: 2026-10-07T00:21:16Z
+  body_sha256: 93211f0c0d69dc9ceea9c75ae237f54904cfc31447432eb99558d6f22ef5932c
 ---
 
 # Monitors are a first-class component
@@ -49,7 +49,7 @@ Claude Code runs a plugin's background monitors from `monitors/monitors.json` an
 ## Consequences
 
 - A monitor is built, checked and tested like a hook: `run_monitor` in the bats helper runs a built monitor's command.
-- A [live run](../measurements/claude-monitor-environment.md) measured a Claude monitor: it starts in the project directory with the launching shell's environment, `CLAUDE_PROJECT_DIR` and `CLAUDE_SESSION_ID` unset, and a slash-command invocation of a skill does not start an `on-skill-invoke` monitor.[^claude-monitor-env] Still open: whether a model Skill-tool dispatch starts one, and whether the bare skill name or `<plugin>:<skill>` matches.
+- A [live run](../measurements/claude-monitor-environment.md) measured a Claude monitor: it starts in the project directory with the launching shell's environment, `CLAUDE_PROJECT_DIR` and `CLAUDE_SESSION_ID` unset, and an `on-skill-invoke` monitor starts only under the plugin-qualified skill name `<plugin>:<skill>`, on a slash command or a model dispatch.[^claude-monitor-env] Authors write the bare skill name, which keeps the source host-neutral; the build qualifies it with the plugin's name on Claude and fails when the plugin has no such skill.
 - A skill's `monitor_notify` call inside a subshell cannot tell the loop that stdout closed, so a monitor calls it directly.
 
 ## Alternatives rejected
