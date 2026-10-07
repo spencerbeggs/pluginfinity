@@ -15,12 +15,16 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 	f="$BATS_TEST_DIRNAME/../builds/claude/monitors/monitors.json"
 	jq -e '[.[] | select(.name == "heartbeat")][0] | (.when // "always") == "always"' "$f"
 	jq -e '[.[] | select(.name == "skill-watch")][0].when == "on-skill-invoke:hook-eval"' "$f"
+	jq -e '[.[] | select(.name == "skill-watch-qualified")][0].when == "on-skill-invoke:pluginfinity-dogfood:hook-eval"' "$f"
 }
 
 @test "the skill-bound monitor notifies once" {
 	run_monitor claude skill-watch PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_HOST=claude
 	assert_hook_exit 0
 	[ "$output" = "pluginfinity-dogfood skill-watch: the hook-eval skill was invoked" ]
+	run_monitor claude skill-watch-qualified PLUGINFINITY_PLUGIN=pluginfinity-dogfood PLUGINFINITY_HOST=claude
+	assert_hook_exit 0
+	[ "$output" = "pluginfinity-dogfood skill-watch-qualified: the hook-eval skill was invoked" ]
 }
 
 @test "copilot builds no monitors" {

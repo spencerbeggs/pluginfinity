@@ -8,7 +8,7 @@ _pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"
 monitor_debug "started: PWD=$PWD"
 
 watch() {
-	monitor_once skill-watch "pluginfinity-dogfood skill-watch: the hook-eval skill was invoked"
+	monitor_once "$(monitor_name)" "pluginfinity-dogfood $(monitor_name): the hook-eval skill was invoked"
 }
 
 monitor_every 300 watch

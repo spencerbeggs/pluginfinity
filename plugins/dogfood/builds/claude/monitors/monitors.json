@@ -9,5 +9,11 @@
 		"command": "PLUGINFINITY_MONITOR='skill-watch' bash \"${CLAUDE_PLUGIN_ROOT}/monitors/skill-watch.sh\"",
 		"description": "Notifies once when the hook-eval skill is invoked",
 		"when": "on-skill-invoke:hook-eval"
+	},
+	{
+		"name": "skill-watch-qualified",
+		"command": "PLUGINFINITY_MONITOR='skill-watch-qualified' bash \"${CLAUDE_PLUGIN_ROOT}/monitors/skill-watch.sh\"",
+		"description": "Notifies once when pluginfinity-dogfood:hook-eval is invoked (qualified when)",
+		"when": "on-skill-invoke:pluginfinity-dogfood:hook-eval"
 	}
 ]
