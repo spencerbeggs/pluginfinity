@@ -109,7 +109,7 @@ lines carry the `monitor` component. With this in the config:
 ```ts
 env: {
   vars: {
-    MYPLUGIN_PM: { default: "npm" },
+    MYPLUGIN_PM: { default: "", description: "Package manager setup detects; empty when it finds none" },
     MYPLUGIN_WATCH: { default: "on", description: "off silences the monitor" },
   },
 },
@@ -124,13 +124,14 @@ _pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"
 
 check() {
 	env_reload
-	[ "$MYPLUGIN_WATCH" = off ] || monitor_once watching "watching with $MYPLUGIN_PM"
+	[ "$MYPLUGIN_WATCH" = off ] || monitor_once watching "watching with ${MYPLUGIN_PM:-no package manager}"
 }
 
 monitor_every 60 check
 ```
 
-A monitor starts in the project, so `env.sh` finds the session that last started there. It loads the values once
+A monitor gets `CLAUDE_CODE_SESSION_ID`, so `env.sh` reads its own session when that session has a values file,
+else the session that last started in the project, where a monitor starts. It loads the values once
 when sourced; call `env_reload` in the polled function to see a value a hook set later with `hook_env_set`.
 
 ## Test one

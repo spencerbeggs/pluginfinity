@@ -41,7 +41,7 @@ export default defineConfig({
 | `keywords` | No | A list of strings |
 | `scripts.invoke` | No | How hook scripts run: `"bash"` (the default) or `"exec"`; see [hooks](hooks.md) |
 | `hooks` | No | Hook entries keyed by Claude Code event name; see [hooks](hooks.md) |
-| `env` | No | Session variables: `vars`, optional `prefix` and `setup`. Resolved once per session; every hook that sources `hook.sh` reads them, and a skill script or monitor sources `env.sh`; see [session env](session-env.md) |
+| `env` | No | Session variables: `vars`, optional `prefix` and `setup`. Resolved once per session; every hook that sources `hook.sh` reads them, and a skill script or monitor sources `env.sh`. Reserved names fail: `PATH`, `IFS`, `HOME`, `PWD`, `XDG_STATE_HOME`, `TMPDIR`, `SHELL`, `BASH_ENV`, `ENV`, `CDPATH`, `SHELLOPTS`, `BASHOPTS`, `PS4`, and any name starting `PLUGINFINITY_`, `_PF_`, `CLAUDE_`, `COPILOT_`, `LD_` or `DYLD_`; see [session env](session-env.md) |
 | `mcpServers` | No | MCP servers in Claude Code's `.mcp.json` shape; see below |
 | `lspServers` | No | LSP servers in Claude Code's `.lsp.json` shape; see below |
 | `monitors` | No | Background monitors keyed by name; Claude Code only. See [monitors](monitors.md) |

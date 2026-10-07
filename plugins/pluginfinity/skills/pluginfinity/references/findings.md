@@ -35,7 +35,7 @@ entry of `builds` or `validations` carries a `notes` array of `{ "path", "kind",
 | `ConfigNotFound` | No `pluginfinity.config.{ts,mts,js,mjs}` at or above the start, or `--config` names a missing file | Run inside the plugin, pass its directory, or fix `--config` |
 | `ConfigAmbiguous` | One directory holds two configs | Keep one |
 | `ConfigLoadFailed` | Importing the config threw: a syntax error or a bad import | Fix the error the message quotes |
-| `ConfigInvalid` | A field has the wrong shape, or no target is enabled. Under `env`: a name that is not upper case, digits and `_`, a reserved name (`PATH`, `IFS`, `HOME`, `PWD`, `PLUGINFINITY_*`, `_PF_*`), a name outside the `prefix`, or a `default` holding a newline or another control character but tab | Fix each listed key |
+| `ConfigInvalid` | A field has the wrong shape, or no target is enabled. Under `env`: a name that is not upper case, digits and `_`, a reserved name (`PATH`, `IFS`, `HOME`, `PWD`, `XDG_STATE_HOME`, `TMPDIR`, `SHELL`, `BASH_ENV`, `ENV`, `CDPATH`, `SHELLOPTS`, `BASHOPTS`, `PS4`, `PLUGINFINITY_*`, `_PF_*`, `CLAUDE_*`, `COPILOT_*`, `LD_*`, `DYLD_*`), a name outside the `prefix`, or a `default` holding a newline or another control character but tab | Fix each listed key |
 | `UnknownTarget` | A top-level key is neither a config field nor a target | Fix the spelling or remove the key |
 | `TargetNotEnabled` | `--target` names a target the config does not enable | Enable it, or drop the flag |
 

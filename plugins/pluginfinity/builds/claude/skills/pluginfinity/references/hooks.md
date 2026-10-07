@@ -279,7 +279,7 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 
 | Helper | Does |
 | :-- | :-- |
-| `run_hook <target> <script> <fixture> [--matcher <m>] [--session-env <file>] [VAR=value...]` | Runs `builds/<target>/<script>` under `env -i` with that host's environment and the fixture on stdin, applying the environment of the built entry that runs the script. `--session-env` seeds the session values a reader sees, for the fixture's `session_id`; see [session env](session-env.md#testing). Sets bats `$status`, `$output` and `$stderr`. A relative fixture is read from `__test__/fixtures/`. See below |
+| `run_hook <target> <script> <fixture> [--matcher <m>] [--session-env <file>] [--env-wait] [VAR=value...]` | Runs `builds/<target>/<script>` under `env -i` with that host's environment and the fixture on stdin, applying the environment of the built entry that runs the script. `--session-env` seeds the session values a reader sees, for the fixture's `session_id`. An unseeded `SessionStart` hook resolves at once, without the library's wait for the runner, unless `--env-wait` is given; see [session env](session-env.md#testing). Sets bats `$status`, `$output` and `$stderr`. A relative fixture is read from `__test__/fixtures/`. See below |
 | `assert_hook_exit <n>` | The exit code is `n` |
 | `assert_hook_json <jq-filter> <expected>` | The filter's raw value over stdout equals `expected` |
 | `assert_hook_noop` | Exit 0 with no output or `{}` |

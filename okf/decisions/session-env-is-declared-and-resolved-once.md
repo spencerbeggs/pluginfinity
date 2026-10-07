@@ -38,8 +38,8 @@ sources:
     title: The prior art, whose .env loading takes the first file that exists
 generated:
   by: okfit/claude-code
-  at: 2026-10-07T06:53:05Z
-  body_sha256: dcae0a9e9534f17453b4949427fb3c86f31a736d591241e231dd80bda2767672
+  at: 2026-10-07T07:34:27Z
+  body_sha256: c065c712ec0b076eca399155a782d6749718929925f44722f26e017a87cafaf6
 ---
 
 # Session env is declared in the config and resolved once at SessionStart
@@ -50,9 +50,9 @@ The downstream plugin silk kept per-session values (a detected package manager, 
 
 ## Decision
 
-- **An `env` config block** declares `vars` (each with an optional `default`, default `""`, and a `description`), an optional `prefix` every name must start with, and an optional plugin-relative `setup` script. Names are `[A-Z_][A-Z0-9_]*`; `PATH`, `IFS`, `HOME`, `PWD` and names starting `PLUGINFINITY_` or `_PF_` are reserved, and a missing `setup` script fails the build. Values are strings, and it is plugin-wide with no per-target override.[^core-env]
+- **An `env` config block** declares `vars` (each with an optional `default`, default `""`, and a `description`), an optional `prefix` every name must start with, and an optional plugin-relative `setup` script. Names are `[A-Z_][A-Z0-9_]*`; `PATH`, `IFS`, `HOME`, `PWD`, `XDG_STATE_HOME`, `TMPDIR`, `SHELL`, `BASH_ENV`, `ENV`, `CDPATH`, `SHELLOPTS`, `BASHOPTS`, `PS4` and names starting `PLUGINFINITY_`, `_PF_`, `CLAUDE_`, `COPILOT_`, `LD_` or `DYLD_` are reserved, and a missing `setup` script fails the build. Values are strings, and it is plugin-wide with no per-target override.[^core-env]
 - **One precedence chain**, lowest first: the config default, the `setup` script's stdout, `<project>/.env`, `<project>/.env.local`, the ambient environment, then `hook_env_set` at run time. The owner approved this order.[^owner-direction] Only declared names are read from `.env` files, which are parsed, never sourced: `KEY=value` or `export KEY=value`, quotes stripped, nothing expanded.[^env-lib]
-- **Resolved once.** A generated SessionStart entry runs `env-run.sh`, which evaluates the first five rungs once and writes the resolved values under `${XDG_STATE_HOME:-$HOME/.local/state}/pluginfinity/<plugin>/session/<session id>/`, with a project pointer so a script with no session id finds the latest session. Readers take that file as authoritative, so a value Claude passes into a later process natively is never mistaken for an ambient override; a reader with no file resolves live.[^env-run]
+- **Resolved once.** A generated SessionStart entry runs `env-run.sh`, which evaluates the first five rungs once and writes the resolved values under `${XDG_STATE_HOME:-$HOME/.local/state}/pluginfinity/<plugin>/session/<session id>/`, with a project pointer so a script with no session id finds the latest session. On Claude a script or monitor first takes `CLAUDE_CODE_SESSION_ID` when it names a session with a values file, so two sessions in one project keep their own values; whether that id always equals the hooks' `session_id` is unmeasured, so any other id falls back to the pointer, and Copilot, which sets no such variable for a script, always uses it. A Copilot event with no `cwd` has no project, for the runner and for a reader hook alike, so neither reads a `.env` from the plugin root. Readers take that file as authoritative, so a value Claude passes into a later process natively is never mistaken for an ambient override; a reader with no file resolves live.[^env-run]
 - **Readers.** The hook library sources `env.sh` before every hook body, so a hook sees the values with no code. A skill script or monitor sources `lib/pluginfinity/env.sh` with one documented line.[^hook-lib]
 - **`hook_env_set NAME value`** works only in producer events (SessionStart, Setup, CwdChanged, FileChanged) and for declared names, always returns 0 (a refusal is a log line, so it never aborts a `set -e` script), and appends to `CLAUDE_ENV_FILE` on Claude so the model's shell sees it. `hook_supports env-shell` reports whether the host does that; Copilot gets an `env-shell-unsupported` build note, because there a skill script must source `env.sh`.[^engine-env]
 - **Setup** runs once per SessionStart under `bash` in the project directory, is bounded at 10 s, keeps its valid lines on a non-zero exit, and is skipped with a log line when there is no project. The runner's own entry has a 15 s timeout so it outlives setup.
@@ -70,6 +70,7 @@ The downstream plugin silk kept per-session values (a detected package manager, 
 ## Consequences
 
 - A plugin gets the same values in hooks and scripts on both hosts, and the hand-written sourcing script and its exports go away; the bats helper seeds session values with `--session-env` and models `CLAUDE_ENV_FILE` with `--env-file`.
+- Every declared name is exported, at worst as `""`, and on Claude appended to `CLAUDE_ENV_FILE`, so a migration declares a name its readers detect when empty with `default: ""`, and leaves a per-command override (such as a `*_PROJECT_DIR`) undeclared rather than pin the model's shell to its session-start value.
 - Values changed after SessionStart by anything but `hook_env_set` are not seen by later hooks; a resumed session gets a new session id and a fresh file, so earlier `hook_env_set` values are not carried over.
 - Whether Copilot has an env-file mechanism is unmeasured (the hook-environment probe was skipped by the old matcher); the design assumes none, and `envShell` in the Copilot target description is empty until a run says otherwise.
 

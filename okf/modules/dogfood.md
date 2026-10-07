@@ -37,8 +37,8 @@ sources:
     title: The doctor smoke test that runs inside the fixture
 generated:
   by: okfit/claude-code
-  at: 2026-10-07T06:53:05Z
-  body_sha256: 8b3bfd65f116bc8ae1c392d2bfe59f63452a0d088ac2e8378477d6ff2ccf70f7
+  at: 2026-10-07T07:34:27Z
+  body_sha256: 1a729786f6dc3040ac18677e068950f86299cde00b691824bf8e745c8702d2c0
 ---
 
 # dogfood plugin fixture
@@ -67,7 +67,7 @@ Two monitors under `monitors/` exercise the [monitor library](../decisions/monit
 
 ## Session env
 
-The `env` block declares `PFDOG_COLOR` and `PFDOG_SHAPE` (both set by the setup script, which prints `green` and `square`) and `PFDOG_LEVEL` (only its config default), and exercises [session env](../decisions/session-env-is-declared-and-resolved-once.md) on both hosts. A reader hook, `hooks/env-reader.sh` on `PostToolUse` for `Grep` (timeout 5), prints the values the library applied, and the `env-probe` skill runs `scripts/print-env.sh` from its own directory through `{{skill_dir}}`; that script sources the plugin's `env.sh` with the documented one-liner. `__test__/env.bats` seeds values with the helper's `--session-env` for both targets. The round-3 host probes were removed after they ran, and their results are in [the measurement](../measurements/host-runtime-probes-2026-10-07.md).
+The `env` block declares `PFDOG_COLOR` and `PFDOG_SHAPE` (both set by the setup script, which prints `green` and `square`) and `PFDOG_LEVEL` (only its config default), and exercises [session env](../decisions/session-env-is-declared-and-resolved-once.md) on both hosts. A reader hook, `hooks/env-reader.sh` on `PostToolUse` for `Grep` (timeout 5), prints the values the library applied, and the `env-probe` skill runs `scripts/print-env.sh` from its own directory through `{{skill_dir}}`; that script sources the plugin's `env.sh` with the documented one-liner. `scripts/print-env.sh`, shipped through `files`, does the same from outside `skills/`, for the helper's `run_script --session-env` on a non-skill script. `__test__/env.bats` seeds values with the helper's `--session-env` for both targets. The round-3 host probes were removed after they ran, and their results are in [the measurement](../measurements/host-runtime-probes-2026-10-07.md).
 
 ## Live evaluation
 

@@ -41,9 +41,10 @@ env: {
 | `prefix` | Optional. Every declared name must then start with `<prefix>_` |
 | `setup` | Optional. A plugin-relative script whose output sets values at session start; see [the setup script](#the-setup-script). It ships to every target |
 
-- A name is upper-case letters, digits and `_`, not starting with a digit. `PATH`, `IFS`, `HOME`, `PWD` and
-  every name starting `PLUGINFINITY_` or `_PF_` are reserved and fail the config with `ConfigInvalid`, as does a
-  name outside the `prefix`.
+- A name is upper-case letters, digits and `_`, not starting with a digit. `PATH`, `IFS`, `HOME`, `PWD`,
+  `XDG_STATE_HOME`, `TMPDIR`, `SHELL`, `BASH_ENV`, `ENV`, `CDPATH`, `SHELLOPTS`, `BASHOPTS`, `PS4` and every name
+  starting `PLUGINFINITY_`, `_PF_`, `CLAUDE_`, `COPILOT_`, `LD_` or `DYLD_` are reserved and fail the config with
+  `ConfigInvalid`, as does a name outside the `prefix`.
 - A `default` is one line with no control character but tab.
 - A missing `setup` script fails the build with `HookScriptInvalid`. It runs under `bash`, so it needs no
   executable bit.
@@ -135,14 +136,19 @@ Add one `..` per extra directory between the script and the plugin root. `env.sh
 to stdout and never fails the script. It also loads `log.sh`, so `script_log` works after it. A monitor sources
 `monitor.sh` first, so its log lines carry the `monitor` component.
 
-A script has no session id, so `env.sh` finds the session through the project: the runner records, per
-project, the latest session that started there. The project is `CLAUDE_PROJECT_DIR` when set, else the working
-directory, walked up to its git root. Two consequences:
+A script is not handed a session id the way a hook is. On Claude Code a skill script and a monitor get
+`CLAUDE_CODE_SESSION_ID`, and `env.sh` reads that session when the id is valid and the session has a values
+file. Whether it always equals the hooks' `session_id` is not measured, so any other id falls back to the
+project. Copilot sets no such variable for a script (its MCP server environment names none; a hook's is not
+measured), so there `env.sh` always finds the session through the project: the runner records, per project, the
+latest session that started there. The project is `CLAUDE_PROJECT_DIR` when set, else the working directory,
+walked up to its git root. Two consequences:
 
 - **Run the script from inside the project.** An agent's working directory is wherever it last went; from
-  outside the project the script finds no session and resolves live (defaults, that directory's `.env`, the
-  ambient environment).
-- **Two sessions in one project share the pointer.** A script reads the session that started there last.
+  outside the project a script with no session of its own finds none and resolves live (defaults, that
+  directory's `.env`, the ambient environment).
+- **Two sessions in one project share the pointer.** On Copilot, and on Claude Code when
+  `CLAUDE_CODE_SESSION_ID` names no values file, a script reads the session that started there last.
 
 `env_reload` loads the values again. A monitor that runs for the whole session calls it in each tick to pick up
 a `hook_env_set` made after it started.
@@ -245,7 +251,9 @@ touches the user's sessions.
 - **`--session-env <file>`** seeds the session's values as if `SessionStart` had run. The file holds
   `NAME=value` or `export NAME=value` lines, parsed and not sourced. `run_hook` seeds the fixture's
   `session_id`; `run_script` and `run_monitor` seed session `test-session` and point the project they run in at
-  it.
+  it (for a Claude Code script outside `skills/`, the project its `CLAUDE_PROJECT_DIR` names).
+- **An unseeded `SessionStart` hook does not wait.** `run_hook` writes the runner's done marker for the
+  fixture's session, so the hook resolves live at once; pass `--env-wait` to keep the 3 second wait and test it.
 - **`--env-file <file>`** on `run_script` puts a file's lines in the script's environment, as the exports a
   `SessionStart` hook wrote to `CLAUDE_ENV_FILE` are on Claude Code. They are ambient values (rung 5), not a
   session.
@@ -319,9 +327,15 @@ A plugin-bot-era plugin, such as silk with its `source-session-env.sh`, shares v
 call at the top of every reader hook, and, on Copilot, nothing. Replace all three:
 
 1. **List the variables.** `grep -rn 'CLAUDE_ENV_FILE\|session-env\|source_session_env' hooks scripts skills`
-   finds the producer and the readers; every name the producer exports becomes a `vars` entry, with its old
-   fallback as the `default`. Drop names the library already answers: the plugin root is `hook_plugin_root`, and
-   the session id is `hook_input session_id`.
+   finds the producer and the readers; every name the producer exports becomes a `vars` entry. Drop names the
+   library already answers: the plugin root is `hook_plugin_root`, and the session id is `hook_input session_id`.
+   An old fallback becomes the `default`, except under these two rules:
+   - **A name whose readers detect a value when it is empty gets `default: ""`.** A non-empty default fills the
+     name whenever there is no values file, so the readers' detection never runs.
+   - **Never declare a name that works as a deliberate per-command override**, such as a `*_PROJECT_DIR` a user
+     sets for one command. Every declared name is resolved and exported, at worst as `""`, and on Claude Code
+     appended to `CLAUDE_ENV_FILE`, which pins the model's shell to the session-start value. Leave such a name
+     ambient-only: the scripts read it from their environment, as before.
 2. **Move the computing into `setup`.** A function such as `detect_package_manager` moves to a script that
    prints `NAME=value` and is named as `env.setup`. A value only a hook can compute stays in that hook, which
    calls `hook_env_set NAME "$value"` instead of writing exports.

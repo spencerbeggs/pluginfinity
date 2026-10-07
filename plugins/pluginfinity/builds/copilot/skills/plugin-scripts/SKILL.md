@@ -172,9 +172,10 @@ printf 'package manager: %s\n' "$MYPLUGIN_PM"
 
 - **Source it in every skill script that reads a value.** On Claude Code the model's shell already holds the
   values, but on Copilot nothing does, so a script that skips `env.sh` works on one host only.
-- **Run the script from the project.** A script has no session id, so `env.sh` finds the session by the project:
-  `CLAUDE_PROJECT_DIR`, else the working directory walked up to its git root. From elsewhere it resolves the
-  defaults live.
+- **Run the script from the project.** On Claude Code `env.sh` first reads the session `CLAUDE_CODE_SESSION_ID`
+  names, when that session has a values file. Otherwise, and always on Copilot, which sets no such variable for
+  a script, it finds the session by the project: `CLAUDE_PROJECT_DIR`, else the working directory walked up to
+  its git root, and reads the session that started there last. From elsewhere it resolves the defaults live.
 - **Never write a per-session file or `CLAUDE_ENV_FILE` by hand.** A plugin that does is migrated in the
   `pluginfinity` skill's session env (the `pluginfinity` skill's `references/session-env.md`).
 

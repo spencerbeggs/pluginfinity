@@ -153,7 +153,7 @@ the user sets in `.env`, goes in the config's `env`:
 ```ts
 env: {
   prefix: "MYPLUGIN",
-  vars: { MYPLUGIN_PM: { default: "npm", description: "Package manager detected at session start" } },
+  vars: { MYPLUGIN_PM: { default: "", description: "Package manager setup detects; empty when it finds none" } },
   setup: "scripts/env-setup.sh",
 },
 ```

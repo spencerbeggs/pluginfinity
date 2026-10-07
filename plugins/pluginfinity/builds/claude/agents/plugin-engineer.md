@@ -52,11 +52,14 @@ Nothing loads a skill because a file matches its `paths`. Read `hook-authoring` 
   script or monitor sources `lib/pluginfinity/env.sh`. Never write `CLAUDE_ENV_FILE` or a per-session file by hand,
   never tell the model to read the variable in its own shell (Copilot has none), and keep every `SessionStart`
   `timeout` at 5 or more. A plugin that calls `source_session_env` or writes `CLAUDE_ENV_FILE` gets migrated to it.
+  When migrating, a name whose readers detect a value when it is empty gets `default: ""`, and a name that works
+  as a per-command override (a `*_PROJECT_DIR`, say) stays undeclared: every declared name is exported, and on
+  Claude Code pinned in the model's shell at its session-start value.
 - **`{{skill_dir}}`** when a skill tells the model to run one of its own scripts: `bash "{{skill_dir}}/scripts/x.sh"`
   in `SKILL.md`. On Copilot it is a placeholder the model fills, not a path, and an agent body cannot use the bare
   form at all. Use a link, not the token, for a file the model should read.
 - **The test helpers' options**: `--session-env <file>` on `run_hook`, `run_script` and `run_monitor` to seed a
-  reader's session values; `--env-file` on `run_script` for what Claude Code's shell exports would give a skill
+  reader's session values; `--env-wait` on `run_hook` to keep a `SessionStart` reader's 3 s wait for the runner; `--env-file` on `run_script` for what Claude Code's shell exports would give a skill
   script; `--interpreter` for a script `bash` should not run (`.mjs`, `.cjs` and `.js` already get `node`);
   `--timeout <seconds>` on `run_monitor` (default 30) when a multi-tick run waits between polls.
 - **`pluginfinity logs`** (`--debug`, `--follow`, `--plugin`, `--lines`) to read `error.log` and `debug.log` instead
