@@ -28,7 +28,14 @@ import {
 import { HOOK_LIB_DIR, hookLibFiles } from "./hook-lib.js";
 import { ignoredOutput } from "./hook-output.js";
 import type { TargetHookEvent } from "./hooks.js";
-import { hookCommandFiles, hookScripts, renderHooks, sessionStartMatcher, targetHooks } from "./hooks.js";
+import {
+	hookCommandFiles,
+	hookScripts,
+	renderHooks,
+	sessionStartMatcher,
+	targetHooks,
+	widensSessionStart,
+} from "./hooks.js";
 import { LIB_DIR, libFiles } from "./lib-files.js";
 import type { LoadedConfig } from "./loader.js";
 import { pluginName, renderManifest, serializeManifest } from "./manifest.js";
@@ -478,7 +485,7 @@ const planPlugin = (
 				if (target.hooks.matcherIgnored.includes(event) && entries.some((entry) => entry.matcher !== undefined)) {
 					notes.push({ target: id, path: CONFIG_NOTE_PATH, kind: "hook-matcher-runtime", name: event });
 				}
-				if (target.hooks.matcherIgnored.includes(event) && event === "SessionStart") {
+				if (widensSessionStart(target.hooks.matcherIgnored, event)) {
 					for (const entry of entries) {
 						if (entry.matcher === undefined) continue;
 						const spelled = sessionStartMatcher(entry.matcher);

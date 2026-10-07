@@ -38,7 +38,7 @@ const minimalTarget = {
 		fields: { description: keep },
 		hostFields: [],
 		invoke: "/{plugin}:{skill}",
-		dirSpelling: { own: "here", other: "there {skill}" },
+		dirSpelling: { own: "here", other: "there {skill}", agent: "agent {skill}" },
 	},
 	agents: {
 		dir: "agents",

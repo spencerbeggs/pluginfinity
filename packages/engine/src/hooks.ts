@@ -211,7 +211,9 @@ const EXACT_LIST = /^[A-Za-z0-9_| ,-]*$/;
  * becomes `startup|new|resume`); one that already holds `new`, an empty or `*`
  * matcher and any matcher not matching `startup` stay as written. A regex
  * that matches `startup` but not `new` also stays as written, reported as
- * `unwidened` so the build can note it.
+ * `unwidened` so the build can note it. The regex is tried as a JavaScript
+ * `RegExp` while the hook library matches with `grep -E`, so exotic syntax
+ * may differ.
  *
  * @public
  */
@@ -235,10 +237,19 @@ export const sessionStartMatcher = (
 	}
 };
 
+/**
+ * Whether a host that ignores matchers on `event` (`ignored` is its list) is
+ * given a widened SessionStart matcher.
+ *
+ * @public
+ */
+export const widensSessionStart = (ignored: ReadonlyArray<string>, event: string): boolean =>
+	event === "SessionStart" && ignored.includes(event);
+
 // An entry's matcher runs in the hook library, not the host, on an event the host ignores matchers for.
 const runtimeMatcher = (ignored: ReadonlyArray<string>, event: string, entry: HookEntry): string | undefined =>
 	ignored.includes(event)
-		? entry.matcher !== undefined && event === "SessionStart"
+		? entry.matcher !== undefined && widensSessionStart(ignored, event)
 			? sessionStartMatcher(entry.matcher).matcher
 			: entry.matcher
 		: undefined;

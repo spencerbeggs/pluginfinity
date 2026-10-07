@@ -539,23 +539,40 @@ describe("renderTokens: skill_dir", () => {
 	it("spells the own skill's directory per host", () => {
 		assert.strictEqual(
 			text(renderTokens("{{skill_dir}}/scripts/run.sh", inAlpha(CLAUDE))),
-			"${CLAUDE_SKILL_DIR}/scripts/run.sh",
+			`\${CLAUDE_SKILL_DIR}/scripts/run.sh`,
 		);
-		assert.strictEqual(
-			text(renderTokens("{{skill_dir}}", inAlpha(COPILOT))),
-			'this skill\'s base directory (the "Base directory for this skill" line above)',
-		);
+		assert.strictEqual(text(renderTokens("{{skill_dir}}", inAlpha(COPILOT))), "<skill base directory>");
 	});
 
 	it("treats naming the own skill as the own form", () => {
-		assert.strictEqual(text(renderTokens("{{skill_dir alpha}}", inAlpha(CLAUDE))), "${CLAUDE_SKILL_DIR}");
+		assert.strictEqual(text(renderTokens("{{skill_dir alpha}}", inAlpha(CLAUDE))), `\${CLAUDE_SKILL_DIR}`);
 	});
 
 	it("spells another skill's directory per host", () => {
 		assert.strictEqual(text(renderTokens("{{skill_dir beta}}", inAlpha(CLAUDE))), `${ROOT}/skills/beta`);
+		assert.strictEqual(text(renderTokens("{{skill_dir beta}}", inAlpha(COPILOT))), "<skill base directory>/../beta");
+	});
+
+	it("stays a placeholder with no quotes or parentheses inside a quoted shell command on Copilot", () => {
 		assert.strictEqual(
-			text(renderTokens("{{skill_dir beta}}", inAlpha(COPILOT))),
-			"the beta skill's directory (a sibling of this skill's base directory)",
+			text(renderTokens('bash "{{skill_dir}}/scripts/x.sh"', inAlpha(COPILOT))),
+			'bash "<skill base directory>/scripts/x.sh"',
+		);
+		assert.strictEqual(
+			text(renderTokens('bash "{{skill_dir beta}}/x.sh"', inAlpha(COPILOT))),
+			'bash "<skill base directory>/../beta/x.sh"',
+		);
+	});
+
+	it("is a problem on Copilot in an agent body, which has no skill base directory", () => {
+		const message = "an agent has no skill base directory on copilot; name the path in the skill instead";
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir beta}}", copilot)).map((p) => p.message),
+			[`{{skill_dir beta}} has no spelling on this target: ${message}`],
+		);
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir}}", copilot)).map((p) => p.message),
+			["{{skill_dir}}: an agent has no skill directory; name a skill, {{skill_dir <skill>}}"],
 		);
 	});
 
@@ -580,6 +597,9 @@ describe("renderTokens: skill_dir", () => {
 			problems(renderTokens("{{skill_dir | x}}", inAlpha(CLAUDE))).map((p) => p.message),
 			["{{skill_dir | x}}: only a tool token takes a | fallback"],
 		);
-		assert.isAbove(problems(renderTokens("{{skill_dir `beta`}}", inAlpha(CLAUDE))).length, 0);
+		assert.deepStrictEqual(
+			problems(renderTokens("{{skill_dir `beta`}}", inAlpha(CLAUDE))).map((p) => p.message),
+			["{{skill_dir `beta`}}: only a tool token takes a backtick-wrapped name"],
+		);
 	});
 });

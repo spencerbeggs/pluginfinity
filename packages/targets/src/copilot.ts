@@ -134,8 +134,9 @@ export const COPILOT: Target = Target.make({
 		hostFields: [],
 		invoke: "/{plugin}:{skill}",
 		dirSpelling: {
-			own: 'this skill\'s base directory (the "Base directory for this skill" line above)',
-			other: "the {skill} skill's directory (a sibling of this skill's base directory)",
+			own: "<skill base directory>",
+			other: "<skill base directory>/../{skill}",
+			agent: unresolved("an agent has no skill base directory on copilot; name the path in the skill instead"),
 		},
 	},
 	agents: {

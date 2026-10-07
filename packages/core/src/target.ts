@@ -197,10 +197,12 @@ export class Target extends Schema.Class<Target>("Target")({
 		invoke: Schema.Union([Schema.String, Unresolved]),
 		/**
 		 * How a skill body names a skill's directory: `own` for the skill the body
-		 * belongs to, `other` for a sibling, a template with `{skill}`. Either may
-		 * be prose where the host expands no path in bodies.
+		 * belongs to, `other` for a sibling, a template with `{skill}`, and `agent`
+		 * for a sibling named from an agent body, which has no skill base
+		 * directory. Where the host expands no path in bodies these are
+		 * placeholders the model fills in, not paths.
 		 */
-		dirSpelling: Schema.Struct({ own: Schema.String, other: Schema.String }),
+		dirSpelling: Schema.Struct({ own: Schema.String, other: Schema.String, agent: RootSpelling }),
 	}),
 	agents: Schema.Struct({
 		dir: Schema.String,

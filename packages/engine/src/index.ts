@@ -78,6 +78,7 @@ export {
 	sessionStartMatcher,
 	shellEnvPrefix,
 	targetHooks,
+	widensSessionStart,
 } from "./hooks.js";
 export type { LoadedConfig } from "./loader.js";
 export { ConfigLoader } from "./loader.js";

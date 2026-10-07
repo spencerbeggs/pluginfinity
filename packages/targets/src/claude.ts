@@ -79,7 +79,11 @@ export const CLAUDE: Target = Target.make({
 		fields: skillFields,
 		hostFields: [],
 		invoke: "/{plugin}:{skill}",
-		dirSpelling: { own: `\${CLAUDE_SKILL_DIR}`, other: `\${CLAUDE_PLUGIN_ROOT}/skills/{skill}` },
+		dirSpelling: {
+			own: `\${CLAUDE_SKILL_DIR}`,
+			other: `\${CLAUDE_PLUGIN_ROOT}/skills/{skill}`,
+			agent: `\${CLAUDE_PLUGIN_ROOT}/skills/{skill}`,
+		},
 	},
 	agents: { dir: "agents", suffix: ".md", fields: agentFields, hostFields: [], id: "{plugin}:{agent}" },
 	hooks: {

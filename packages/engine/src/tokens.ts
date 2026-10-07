@@ -134,8 +134,10 @@ const token = (inner: string, raw: string, ctx: TokenContext): Spelled => {
 		}
 		const skill = name ?? (ctx.skill as string);
 		if (!ctx.skills.has(skill)) return { problem: `${raw}: this plugin has no skill "${skill}"` };
-		const spelling = skill === ctx.skill ? ctx.target.skills.dirSpelling.own : ctx.target.skills.dirSpelling.other;
-		return { value: fill(spelling, { skill }) };
+		const spellings = ctx.target.skills.dirSpelling;
+		const chosen = ctx.skill === undefined ? spellings.agent : skill === ctx.skill ? spellings.own : spellings.other;
+		const spelled = spelling(chosen, raw);
+		return "problem" in spelled ? spelled : { value: fill(spelled.value, { skill }) };
 	}
 	if (name === undefined) return { problem: `${raw} needs ${article(kind)} name` };
 	if (args.length > 1) return { problem: `${raw} takes one ${kind} name` };
@@ -307,11 +309,13 @@ const links = (line: string, ctx: TokenContext, problems: Array<string>): string
  * and `{{skill_dir <name>}}` that of the named skill (naming the own skill is
  * the own form). Claude spells them `${CLAUDE_SKILL_DIR}` and
  * `${CLAUDE_PLUGIN_ROOT}/skills/<name>`, which it expands in skill bodies;
- * Copilot expands nothing, so it spells prose that points at the "Base
- * directory for this skill" line the host puts above the body. An agent has
- * no skill directory, so the bare form there, an unknown skill or one the
- * target does not build is a problem. It takes neither a `|` fallback nor
- * backticks: the spelling is a path on one host and a sentence on the other.
+ * Copilot expands nothing, so on Copilot the token is a placeholder the model
+ * resolves from the "Base directory for this skill" line the host puts above
+ * the body (`<skill base directory>`, and `<skill base directory>/../<name>`
+ * for a sibling), not a literal path. An agent has no skill directory, so the
+ * bare form there is a problem, as is a named skill on a target with no
+ * spelling for it from an agent (Copilot), an unknown skill or one the target
+ * does not build. It takes neither a `|` fallback nor backticks.
  *
  * A tool token may wrap its name in exactly one pair of backticks:
  *

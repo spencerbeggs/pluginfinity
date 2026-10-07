@@ -1735,6 +1735,24 @@ describe("build notes", () => {
 			}),
 		);
 
+		it.effect("a regex SessionStart matcher that matches startup but not new is left as written and noted", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": NOTED.replace('matcher: "startup"', 'matcher: "^start.*"'),
+					"package.json": PACKAGE_JSON,
+					"hooks/setup.sh": "#!/bin/bash\n",
+					"hooks/start.sh": "#!/bin/bash\n",
+					"hooks/guard.sh": "#!/bin/bash\n",
+				});
+				const builds = yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+				const kinds = (builds[0]?.notes ?? []).filter((note) => note.kind.startsWith("hook-matcher"));
+				assert.deepStrictEqual(kinds, [
+					{ target: "copilot", path: "config", kind: "hook-matcher-runtime", name: "SessionStart" },
+					{ target: "copilot", path: "config", kind: "hook-matcher-regex", name: "SessionStart ^start.*" },
+				]);
+			}),
+		);
+
 		it.effect("build --check returns the same notes as a write", () =>
 			Effect.gen(function* () {
 				const root = yield* notedPlugin();
@@ -1834,7 +1852,7 @@ describe("build with a plugin's own MCP tools", () => {
 				const claude = yield* build({ selection: nearest(root), targets: ["claude"], check: false });
 				assert.isAbove(claude.length, 0);
 				const text = yield* fs.readFileString(path.join(root, "builds/claude/skills/k/SKILL.md"));
-				assert.include(text, "Run ${CLAUDE_SKILL_DIR}/run.sh and ${CLAUDE_PLUGIN_ROOT}/skills/j.");
+				assert.include(text, `Run \${CLAUDE_SKILL_DIR}/run.sh and \${CLAUDE_PLUGIN_ROOT}/skills/j.`);
 			}),
 		);
 	});
