@@ -569,6 +569,19 @@ const planPlugin = (
 					placement._tag === "manifest" && placement.key in rendered.manifest ? [placement.reserves] : [],
 				),
 			);
+			// A `monitors` field makes pluginfinity write the monitors file; a source file at that path would
+			// be silently ignored when unshipped and collide when shipped, so either way the source file is rejected.
+			const monitorsFile = monitored.rendered.file?.path;
+			if (monitorsFile !== undefined && (yield* fs.exists(path.join(config.root, monitorsFile)))) {
+				return yield* Effect.fail(
+					new PathConflict({
+						path: config.path,
+						target: id,
+						file: monitorsFile,
+						conflict: "reserved-monitors-file",
+					}),
+				);
+			}
 			const reserved = copied.find(
 				(file) =>
 					reservedFiles.has(file.path) ||

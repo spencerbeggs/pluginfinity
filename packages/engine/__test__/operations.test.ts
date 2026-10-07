@@ -1872,7 +1872,63 @@ describe("build with monitors", () => {
 				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
 				assert.strictEqual(error._tag, "PathConflict");
 				if (error._tag !== "PathConflict") return;
-				assert.deepStrictEqual([error.file, error.conflict], ["monitors/monitors.json", "generated"]);
+				assert.deepStrictEqual([error.file, error.conflict], ["monitors/monitors.json", "reserved-monitors-file"]);
+			}),
+		);
+
+		it.effect("a source monitors/monitors.json fails the build even when no files entry ships it", () =>
+			Effect.gen(function* () {
+				const root = yield* monitoredPlugin(MONITORED, { "monitors/monitors.json": "[]\n" });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.deepStrictEqual(
+					[error.target, error.file, error.conflict],
+					["claude", "monitors/monitors.json", "reserved-monitors-file"],
+				);
+				assert.include(error.remediation.hint, "monitors");
+			}),
+		);
+
+		it.effect("a source monitors/monitors.json fails the build when files ships the directory", () =>
+			Effect.gen(function* () {
+				const config = MONITORED.replace("claude: true,", 'files: ["monitors/"],\n\tclaude: true,');
+				const root = yield* monitoredPlugin(config, { "monitors/monitors.json": "[]\n" });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "PathConflict");
+				if (error._tag !== "PathConflict") return;
+				assert.strictEqual(error.conflict, "reserved-monitors-file");
+			}),
+		);
+
+		it.effect("without a monitors field, a shipped monitors/monitors.json still builds", () =>
+			Effect.gen(function* () {
+				const config = `export default {
+	name: "monitored",
+	description: "Fixture plugin.",
+	files: ["monitors/"],
+	claude: true,
+};\n`;
+				const root = yield* monitoredPlugin(config, { "monitors/monitors.json": "[]\n" });
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.include(builds[0]?.plan.added ?? [], "monitors/monitors.json");
+			}),
+		);
+
+		it.effect("Copilot builds no monitors, so a source monitors/monitors.json is not a failure there", () =>
+			Effect.gen(function* () {
+				const config = `export default {
+	name: "monitored",
+	description: "Fixture plugin.",
+	monitors: { mail: { script: "hooks/mail.sh", description: "Mail." } },
+	copilot: true,
+};\n`;
+				const root = yield* monitoredPlugin(config, { "monitors/monitors.json": "[]\n" });
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				assert.deepStrictEqual(
+					builds.map((one) => one.target),
+					["copilot"],
+				);
 			}),
 		);
 	});

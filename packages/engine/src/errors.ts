@@ -421,8 +421,11 @@ export class PathConflict extends Schema.TaggedError<PathConflict>()("PathConfli
 	target: Schema.String,
 	/** The build path both claim, relative to `builds/<target>/`. */
 	file: Schema.String,
-	/** Why the path is taken: a generated file, a reserved library directory, or a reserved server file. */
-	conflict: Schema.Literals(["generated", "reserved-dir", "reserved-server-file"]),
+	/**
+	 * Why the path is taken: a generated file, a reserved library directory, a reserved server file,
+	 * or the monitors file a `monitors` field generates.
+	 */
+	conflict: Schema.Literals(["generated", "reserved-dir", "reserved-server-file", "reserved-monitors-file"]),
 }) {
 	override get message(): string {
 		switch (this.conflict) {
@@ -430,6 +433,8 @@ export class PathConflict extends Schema.TaggedError<PathConflict>()("PathConfli
 				return `${this.file} is under a directory pluginfinity reserves for its injected library`;
 			case "reserved-server-file":
 				return `${this.target} loads ${this.file} as a server config file, but the plugin also ships a source file at that path`;
+			case "reserved-monitors-file":
+				return `${this.target} generates ${this.file} from the monitors field, but the plugin source also has a file at that path`;
 			default:
 				return `${this.target} generates ${this.file}, but the plugin also ships a source file at that path`;
 		}
@@ -442,6 +447,10 @@ export class PathConflict extends Schema.TaggedError<PathConflict>()("PathConfli
 			case "reserved-server-file":
 				return {
 					hint: `Declare those servers under mcpServers or lspServers in the pluginfinity config instead of shipping ${this.file}.`,
+				};
+			case "reserved-monitors-file":
+				return {
+					hint: `Delete the source ${this.file} and declare those monitors under the monitors field in the pluginfinity config.`,
 				};
 			default:
 				return { hint: `Delete or move the source ${this.file}; pluginfinity writes that file itself.` };
