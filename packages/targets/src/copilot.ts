@@ -159,6 +159,8 @@ export const COPILOT: Target = Target.make({
 		matcherIgnored: ["SessionStart", "SessionEnd", "SubagentStop"],
 		// Copied from `hook_supports` in the hook library; a test pins the two together. Copilot honours no system message.
 		output: { context: ["SessionStart", "SubagentStart", "PostToolUse", "Notification"], system_message: [] },
+		// No env-file channel is known (hook environment not yet measured): scripts source env.sh.
+		envShell: [],
 	},
 	// Agent Plugins 1.0 forbids mcpServers and lspServers in plugin.json, so Copilot's servers stay in files.
 	mcp: {

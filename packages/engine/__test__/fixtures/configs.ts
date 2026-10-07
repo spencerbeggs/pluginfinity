@@ -320,3 +320,39 @@ const skillMonitor = (skill: string, claude: string) => `export default {
 export const MONITOR_SKILL = skillMonitor("hello", "true");
 export const MONITOR_SKILL_RENAMED = skillMonitor("hello", '{ name: "other" }');
 export const MONITOR_SKILL_UNKNOWN = skillMonitor("nope", "true");
+
+export const ENVED = `export default {
+	name: "enved",
+	description: "Fixture plugin.",
+	env: {
+		prefix: "FX",
+		vars: { FX_A: { default: "it's" }, FX_B: { description: "No default." } },
+		setup: "scripts/env-setup.sh",
+	},
+	hooks: { SessionStart: [{ script: "hooks/start.sh" }], Stop: [{ script: "hooks/stop.sh" }] },
+	claude: true,
+	copilot: true,
+};\n`;
+
+export const ENVED_NO_HOOKS = `export default {
+	name: "enved",
+	description: "Fixture plugin.",
+	env: { vars: { FX_A: {} } },
+	claude: true,
+	copilot: true,
+};\n`;
+
+export const ENVED_OVERRIDDEN = `export default {
+	name: "enved",
+	description: "Fixture plugin.",
+	env: { vars: { FX_A: {} } },
+	hooks: { SessionStart: [{ script: "hooks/start.sh" }] },
+	claude: { hooks: { SessionStart: [] } },
+};\n`;
+
+export const ENVED_SETUP_MISSING = `export default {
+	name: "enved",
+	description: "Fixture plugin.",
+	env: { vars: { FX_A: {} }, setup: "scripts/missing.sh" },
+	claude: true,
+};\n`;

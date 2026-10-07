@@ -6,6 +6,10 @@ import { hookLibFiles } from "../src/hook-lib.js";
 import type { BuildNote } from "../src/index.js";
 import { ENGINE_VERSION, build, isBuildError, preparePlugins, validate } from "../src/index.js";
 import {
+	ENVED,
+	ENVED_NO_HOOKS,
+	ENVED_OVERRIDDEN,
+	ENVED_SETUP_MISSING,
 	FILES_BUILDS,
 	FILES_COLLIDE,
 	FILES_MISSING,
@@ -2021,6 +2025,157 @@ describe("build with a skill-bound monitor", () => {
 				yield* build({ selection: nearest(root), targets: [], check: false });
 				const written = JSON.parse(yield* fs.readFileString(path.join(root, "builds/claude/monitors/monitors.json")));
 				assert.strictEqual(written[0].when, "on-skill-invoke:other:hello");
+			}),
+		);
+	});
+});
+
+describe("build with session env", () => {
+	const envedPlugin = (config: string = ENVED) =>
+		writeTree({
+			"pluginfinity.config.ts": config,
+			"package.json": PACKAGE_JSON,
+			"hooks/start.sh": "#!/usr/bin/env bash\n",
+			"hooks/stop.sh": "#!/usr/bin/env bash\n",
+			"scripts/env-setup.sh": "echo FX_A=x\n",
+		});
+	const readJson = (root: string, file: string) =>
+		Effect.gen(function* () {
+			const fs = yield* FileSystem.FileSystem;
+			const path = yield* Path.Path;
+			return JSON.parse(yield* fs.readFileString(path.join(root, file)));
+		});
+
+	layer(NodeServices.layer)((it) => {
+		it.effect("Claude runs the env runner first among the SessionStart entries", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const hooks = (yield* readJson(root, "builds/claude/hooks/hooks.json")).hooks;
+				assert.deepStrictEqual(hooks.SessionStart[0], {
+					hooks: [
+						{
+							type: "command",
+							command: `export PLUGINFINITY_EVENT='SessionStart'; sh "\${CLAUDE_PLUGIN_ROOT}/lib/pluginfinity/env-run.sh"`,
+							timeout: 15,
+						},
+					],
+				});
+				assert.strictEqual(hooks.SessionStart.length, 2);
+				assert.include(hooks.SessionStart[1].hooks[0].args, `\${CLAUDE_PLUGIN_ROOT}/hooks/start.sh`);
+				assert.strictEqual(hooks.Stop.length, 1);
+			}),
+		);
+
+		it.effect("Copilot runs the env runner first among the SessionStart entries", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin();
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const hooks = (yield* readJson(root, "builds/copilot/com.github.copilot/hooks/hooks.json")).hooks;
+				assert.deepStrictEqual(hooks.SessionStart[0], {
+					type: "command",
+					bash: `sh "\${PLUGIN_ROOT}/lib/pluginfinity/env-run.sh"`,
+					timeoutSec: 15,
+					env: { PLUGINFINITY_EVENT: "SessionStart" },
+				});
+				assert.strictEqual(hooks.SessionStart.length, 2);
+			}),
+		);
+
+		it.effect("every target gets env.sh with its declarations, env-run.sh and the setup script", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* envedPlugin();
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				for (const one of builds) {
+					assert.include(one.plan.added, "lib/pluginfinity/env.sh");
+					assert.include(one.plan.added, "lib/pluginfinity/env-run.sh");
+					assert.include(one.plan.added, "scripts/env-setup.sh");
+					const lib = yield* fs.readFileString(path.join(one.out, "lib/pluginfinity/env.sh"));
+					assert.include(
+						lib,
+						[
+							"_pf_env_names='FX_A FX_B'",
+							"_pf_env_default_FX_A='it'\\''s'",
+							"_pf_env_default_FX_B=''",
+							"_pf_env_setup='scripts/env-setup.sh'",
+							"_pf_env_setup_timeout=10",
+							"# <<< pluginfinity env declarations",
+						].join("\n"),
+					);
+				}
+			}),
+		);
+
+		it.effect("Copilot notes env-shell-unsupported; Claude notes nothing", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin();
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				const notes = (id: string) => builds.find((one) => one.target === id)?.notes;
+				assert.deepStrictEqual(notes("copilot"), [
+					{ target: "copilot", path: "config", kind: "env-shell-unsupported", name: "env" },
+				]);
+				assert.deepStrictEqual(notes("claude"), []);
+			}),
+		);
+
+		it.effect("env with no hooks adds the runner alone, and no hook library", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin(ENVED_NO_HOOKS);
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				const claude = (yield* readJson(root, "builds/claude/hooks/hooks.json")).hooks;
+				assert.deepStrictEqual(Object.keys(claude), ["SessionStart"]);
+				assert.strictEqual(claude.SessionStart.length, 1);
+				const copilot = (yield* readJson(root, "builds/copilot/com.github.copilot/hooks/hooks.json")).hooks;
+				assert.deepStrictEqual(Object.keys(copilot), ["SessionStart"]);
+				for (const one of builds) {
+					assert.isFalse(one.plan.added.some((file) => file.startsWith("hooks/lib/")));
+					assert.include(one.plan.added, "lib/pluginfinity/env.sh");
+				}
+			}),
+		);
+
+		it.effect("a target override that removes SessionStart hooks keeps the runner", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin(ENVED_OVERRIDDEN);
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const hooks = (yield* readJson(root, "builds/claude/hooks/hooks.json")).hooks;
+				assert.strictEqual(hooks.SessionStart.length, 1);
+				assert.include(hooks.SessionStart[0].hooks[0].command, "lib/pluginfinity/env-run.sh");
+			}),
+		);
+
+		it.effect("a missing setup script is HookScriptInvalid naming env", () =>
+			Effect.gen(function* () {
+				const root = yield* envedPlugin(ENVED_SETUP_MISSING);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookScriptInvalid");
+				if (error._tag !== "HookScriptInvalid") return;
+				assert.deepStrictEqual(
+					[error.script, error.problem, error.component],
+					["scripts/missing.sh", "missing", "env"],
+				);
+				assert.include(error.message, "env setup script scripts/missing.sh named in");
+			}),
+		);
+
+		it.effect("no env block: no env library, no runner entry, no note", () =>
+			Effect.gen(function* () {
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": HOOKED,
+					"package.json": PACKAGE_JSON,
+					"hooks/start.sh": "",
+					"hooks/start.copilot.sh": "",
+				});
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				for (const one of builds) {
+					assert.isFalse(one.plan.added.some((file) => file.includes("env.sh") || file.includes("env-run.sh")));
+					assert.isFalse(one.notes.some((note) => note.kind === "env-shell-unsupported"));
+				}
+				const hooks = (yield* readJson(root, "builds/claude/hooks/hooks.json")).hooks;
+				assert.strictEqual(hooks.SessionStart.length, 1);
+				assert.notInclude(JSON.stringify(hooks), "env-run.sh");
 			}),
 		);
 	});

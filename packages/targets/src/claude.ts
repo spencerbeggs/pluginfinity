@@ -82,6 +82,8 @@ export const CLAUDE: Target = Target.make({
 		events: Object.fromEntries(CLAUDE_HOOK_EVENTS.map((event) => [event, event])),
 		ownEvents: [],
 		matcherIgnored: [],
+		// CLAUDE_ENV_FILE is set in these hooks only; its exports reach the Bash tool, not later hooks.
+		envShell: ["SessionStart", "Setup", "CwdChanged", "FileChanged"],
 		// Copied from `hook_supports` in the hook library; a test pins the two together.
 		output: {
 			context: [

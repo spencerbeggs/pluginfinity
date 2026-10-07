@@ -1,5 +1,5 @@
-// Embed hook-lib/*.sh, server-lib/*.sh and log-lib/*.sh and monitor-lib/*.sh into src/hook-lib.generated.ts,
-// src/server-lib.generated.ts and src/log-lib.generated.ts and src/monitor-lib.generated.ts so the engine can write the libraries into builds
+// Embed hook-lib/*.sh, server-lib/*.sh, log-lib/*.sh, monitor-lib/*.sh and env-lib/*.sh into
+// src/{hook,server,log,monitor,env}-lib.generated.ts so the engine can write the libraries into builds
 // with no asset on disk at run time. Run with
 // `pnpm --filter @pluginfinity/engine hook-lib:embed`; a test fails when the
 // sources and the generated files disagree.
@@ -46,4 +46,10 @@ embed(
 	"monitor-lib.generated.ts",
 	"MONITOR_LIB_FILES",
 	"The monitor library's files, embedded so a build needs no asset on disk.",
+);
+embed(
+	"env-lib",
+	"env-lib.generated.ts",
+	"ENV_LIB_FILES",
+	"The session env library's files, embedded so a build needs no asset on disk.",
 );

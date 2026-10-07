@@ -150,6 +150,16 @@ describe("the copilot description", () => {
 		assert.deepStrictEqual(TARGETS.find((t) => t.id === "claude")?.target.hooks.matcherIgnored, []);
 	});
 
+	it("passes hook-exported values to the model's shell from Claude's producer events only", () => {
+		assert.deepStrictEqual(TARGETS.find((t) => t.id === "claude")?.target.hooks.envShell, [
+			"SessionStart",
+			"Setup",
+			"CwdChanged",
+			"FileChanged",
+		]);
+		assert.deepStrictEqual(copilot?.hooks.envShell, []);
+	});
+
 	it("lists the events where Copilot honours hook output", () => {
 		assert.deepStrictEqual(copilot?.hooks.output, {
 			context: ["SessionStart", "SubagentStart", "PostToolUse", "Notification"],

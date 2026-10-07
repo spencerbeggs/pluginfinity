@@ -334,11 +334,15 @@ export class HookScriptInvalid extends Schema.TaggedError<HookScriptInvalid>()("
 	/** The script, relative to the plugin root. */
 	script: Schema.String,
 	problem: HookScriptProblem,
-	/** The component that runs the script: `hooks` or `monitors`. */
-	component: Schema.Literals(["hooks", "monitors"]),
+	/** The component that runs the script: `hooks`, `monitors`, or `env` for the `env.setup` script. */
+	component: Schema.Literals(["hooks", "monitors", "env"]),
 }) {
 	private get kind(): string {
-		return this.component === "monitors" ? "monitor script" : "hook script";
+		return this.component === "monitors"
+			? "monitor script"
+			: this.component === "env"
+				? "env setup script"
+				: "hook script";
 	}
 
 	override get message(): string {

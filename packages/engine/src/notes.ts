@@ -13,6 +13,7 @@ export const BUILD_NOTE_KINDS = [
 	"hook-output-ignored",
 	"hook-omitted",
 	"monitor-omitted",
+	"env-shell-unsupported",
 ] as const;
 
 /**
@@ -22,7 +23,9 @@ export const BUILD_NOTE_KINDS = [
  * `hook-matcher-runtime` matcher the host ignores into the hook library,
  * noted a script that calls a helper whose output the host ignores
  * (`hook-output-ignored`), `hook-omitted` an event it lacks whose entries all set `fallback: "omit"`,
- * or `monitor-omitted` a monitor on a host that has none.
+ * `monitor-omitted` a monitor on a host that has none, or noted that the host
+ * passes no session env to the model's shell (`env-shell-unsupported`), so a
+ * skill script must source `env.sh`.
  *
  * @public
  */

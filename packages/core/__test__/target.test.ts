@@ -48,6 +48,7 @@ const minimalTarget = {
 		ownEvents: [],
 		matcherIgnored: [],
 		output: { context: [], system_message: [] },
+		envShell: [],
 	},
 	mcp: { placement: inFile("mcp.json"), format: "agent-plugins-mcp-1.0" as const },
 	lsp: { placement: inFile("lsp.json"), format: "copilot-lsp-json" as const, fields: { command: keep } },

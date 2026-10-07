@@ -225,6 +225,12 @@ export class Target extends Schema.Class<Target>("Target")({
 			context: Schema.Array(Schema.String),
 			system_message: Schema.Array(Schema.String),
 		}),
+		/**
+		 * The Claude events from which the host passes values a hook exports to
+		 * the model's shell (Claude Code's `CLAUDE_ENV_FILE`); empty when it has
+		 * no such channel, and a skill script must source `env.sh` instead.
+		 */
+		envShell: Schema.Array(Schema.String),
 	}),
 	mcp: Schema.Struct({
 		placement: ServerPlacement,

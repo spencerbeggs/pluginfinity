@@ -11,6 +11,7 @@ import { readAgents, renderAgent } from "./agents.js";
 import { isJunk } from "./component.js";
 import type { EmitPlan, EmittedFile } from "./emit.js";
 import { applyEmit, planEmit } from "./emit.js";
+import { envNotes, envRunnerEntry, withEnvRunner } from "./env.js";
 import type { ConfigError } from "./errors.js";
 import {
 	BuildStale,
@@ -180,7 +181,7 @@ const checkScript = (
 	config: LoadedConfig,
 	script: string,
 	invoke: "bash" | "exec",
-	component: "hooks" | "monitors" = "hooks",
+	component: "hooks" | "monitors" | "env" = "hooks",
 ): Effect.Effect<void, HookScriptInvalid, FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
@@ -446,6 +447,9 @@ const planPlugin = (
 			for (const script of rendered.scripts) yield* checkScript(config, script, invoke, "monitors");
 			for (const file of rendered.commandFiles) yield* checkScript(config, file, "bash", "monitors");
 		}
+		// The env runner runs `setup` under bash, so it only has to exist.
+		const env = config.config.env;
+		if (env?.setup !== undefined) yield* checkScript(config, env.setup, "bash", "env");
 		const hooksDir = yield* sourceFiles(config.root, "hooks");
 		const baseListed = yield* listedFiles(config, config.config.files ?? []);
 		// Every component problem in the plugin, so one build reports them all.
@@ -514,6 +518,7 @@ const planPlugin = (
 						(file) => own.has(file) || monitorOwn.has(file) || !(everyScript.has(file) || everyMonitorFile.has(file)),
 					),
 					...[...own, ...monitorOwn].filter((script) => !script.startsWith("hooks/")),
+					...(env?.setup === undefined ? [] : [env.setup]),
 					...serverFilesShipped,
 					...baseListed,
 					...targetListed,
@@ -530,9 +535,15 @@ const planPlugin = (
 			}
 			const manifest = renderManifest(target, id, config.config, version, rendered.manifest);
 			const generated: Array<EmittedFile> = [{ path: target.manifest.path, content: serializeManifest(manifest) }];
-			const hooksFile = renderHooks(target, events, invoke);
-			if (hooksFile !== undefined) {
-				generated.push({ path: target.hooks.path, content: hooksFile });
+			// A config that declares env gets the env runner first among the SessionStart entries;
+			// the hook library ships only with the plugin's own hooks.
+			const hooksFile = renderHooks(
+				target,
+				env === undefined ? events : withEnvRunner(target, events, envRunnerEntry(LIB_DIR)),
+				invoke,
+			);
+			if (hooksFile !== undefined) generated.push({ path: target.hooks.path, content: hooksFile });
+			if (events.length > 0) {
 				generated.push(
 					...hookLibFiles(
 						id,
@@ -548,10 +559,14 @@ const planPlugin = (
 			}
 			if (monitored.rendered.file !== undefined) generated.push(monitored.rendered.file);
 			generated.push(
-				...libFiles(id, String(manifest.name), ENGINE_VERSION, { monitors: monitored.rendered.file !== undefined }),
+				...libFiles(id, String(manifest.name), ENGINE_VERSION, {
+					monitors: monitored.rendered.file !== undefined,
+					...(env === undefined ? {} : { env }),
+				}),
 			);
 			generated.push(...rendered.files);
 			notes.push(...rendered.notes);
+			if (env !== undefined) notes.push(...envNotes(target, id));
 			if (rendered.stdio) generated.push(...serverLibFiles());
 			const tokens = tokenContext(target, id, config.config, skills, agents);
 			for (const skill of skills) {

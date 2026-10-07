@@ -28,6 +28,15 @@ export {
 } from "./doctor.js";
 export type { EmittedFile } from "./emit.js";
 export { EmitPlan, GENERATED_MODE, applyEmit, planEmit } from "./emit.js";
+export {
+	ENV_RUNNER_TIMEOUT,
+	ENV_SETUP_TIMEOUT,
+	envLibFiles,
+	envNotes,
+	envRunnerEntry,
+	renderEnvLib,
+	withEnvRunner,
+} from "./env.js";
 export type { BuildError, ConfigError } from "./errors.js";
 export {
 	BuildStale,
