@@ -39,6 +39,10 @@ const SHOWMON = `#!/usr/bin/env bash
 printf 'pwd=%s project=%s root=%s plugin=%s session=%s ticks=%s\\n' "$PWD" "\${CLAUDE_PROJECT_DIR-unset}" "\${CLAUDE_PLUGIN_ROOT-unset}" "\${CLAUDE_PLUGIN_DATA-unset}" "\${CLAUDE_CODE_SESSION_ID-unset}" "\${PLUGINFINITY_MONITOR_MAX_TICKS-unset}"
 `;
 
+const PROJ = `#!/usr/bin/env bash
+printf 'pwd=%s project=%s args=%s\\n' "$PWD" "\${CLAUDE_PROJECT_DIR-unset}" "$*"
+`;
+
 const CAT = "#!/usr/bin/env bash\ncat\necho done\n";
 const MONITOR = `#!/usr/bin/env bash
 _pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"
@@ -67,6 +71,8 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 			mkdirSync(scripts, { recursive: true });
 			writeFileSync(join(scripts, "cat.sh"), CAT);
 			writeFileSync(join(scripts, "show.sh"), SHOW);
+			writeFileSync(join(scripts, "proj.sh"), PROJ);
+			writeFileSync(join(plugin, "builds", host, "hooks", "startenv.sh"), ENVHOOK);
 			mkdirSync(join(plugin, "builds", host, "servers"), { recursive: true });
 			writeFileSync(join(plugin, "builds", host, "servers", "show.sh"), SHOW);
 		}
@@ -93,6 +99,10 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 			JSON.stringify({
 				hooks: {
 					Stop: [claudeEntry("stop.sh", "Stop", [])],
+					SessionStart: [
+						claudeEntry("startenv.sh", "SessionStart", ["EXTRA=startup-a"], "startup"),
+						claudeEntry("startenv.sh", "SessionStart", ["EXTRA=resume-b"], "resume"),
+					],
 					PreToolUse: [
 						claudeEntry("crash.sh", "PreToolUse", ["PLUGINFINITY_FAIL_CLOSED=1"], "Bash"),
 						claudeEntry("envhook.sh", "PreToolUse", ["PLUGINFINITY_FAIL_CLOSED=1", "EXTRA=bash-a"], "Bash"),
@@ -129,6 +139,11 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 				version: 1,
 				hooks: {
 					Stop: [copilotEntry("stop.sh", "Stop", {})],
+					// SessionStart entries carry the matcher in env, not in a `matcher` field.
+					SessionStart: [
+						copilotEntry("startenv.sh", "SessionStart", { EXTRA: "startup-a", PLUGINFINITY_MATCHER: "startup" }),
+						copilotEntry("startenv.sh", "SessionStart", { EXTRA: "resume-b", PLUGINFINITY_MATCHER: "resume" }),
+					],
 					PreToolUse: [
 						copilotEntry("crash.sh", "PreToolUse", { PLUGINFINITY_FAIL_CLOSED: "1" }, "Bash"),
 						copilotEntry("envhook.sh", "PreToolUse", { PLUGINFINITY_FAIL_CLOSED: "1", EXTRA: "bash-a" }, "Bash"),
@@ -137,6 +152,10 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 				},
 			}),
 		);
+		// Every build carries the shared log library the hook library sources.
+		const logLib = readFileSync(fileURLToPath(new URL("../../engine/log-lib/log.sh", import.meta.url)), "utf8");
+		mkdirSync(join(plugin, "builds", "copilot", "lib", "pluginfinity"), { recursive: true });
+		writeFileSync(join(plugin, "builds", "copilot", "lib", "pluginfinity", "log.sh"), logLib);
 		const claude = join(plugin, "builds", "claude");
 		const claudeLib = join(claude, "lib", "pluginfinity");
 		mkdirSync(claudeLib, { recursive: true });

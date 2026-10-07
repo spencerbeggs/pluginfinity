@@ -11,6 +11,15 @@ bats_require_minimum_version 1.5.0
 
 : "${PLUGIN_DIR:=$(cd "$BATS_TEST_DIRNAME/.." && pwd)}"
 
+# _pf_project_dir: print the test's project directory, $BATS_TEST_TMPDIR/project,
+# creating it on first use. It is the default for hook_fixture's cwd,
+# HOOK_PROJECT_DIR (so CLAUDE_PROJECT_DIR), a skill script's cwd and a
+# monitor's cwd, so one test sees one project everywhere.
+_pf_project_dir() {
+	mkdir -p "$BATS_TEST_TMPDIR/project"
+	printf '%s\n' "$BATS_TEST_TMPDIR/project"
+}
+
 # run_hook <target> <script> <fixture> [--matcher <m>] [VAR=value...]
 # Runs builds/<target>/<script> under env -i the way the host runs the built
 # hook entry: the entry in the target's hooks file that runs <script>, under the
@@ -27,7 +36,8 @@ run_hook() {
 		has_matcher=1
 		shift 2
 	fi
-	local root="$PLUGIN_DIR/builds/$target"
+	local root="$PLUGIN_DIR/builds/$target" project
+	project=$(_pf_project_dir)
 	if [ ! -f "$root/$script" ]; then
 		echo "run_hook: $root/$script not found; run pluginfinity build" >&2
 		return 1
@@ -55,7 +65,7 @@ run_hook() {
 		hooks_file="$root/com.github.copilot/hooks/hooks.json"
 		entries='[(.hooks // {}) | to_entries[] | .key as $ev | .value[]
 			| select((.bash // "") | (contains("/" + $s + "\"") or contains("/" + $s + " ") or endswith("/" + $s)))
-			| {event: $ev, matcher: (.matcher // ""), env: (.env // {})}]'
+			| {event: $ev, matcher: (.matcher // .env.PLUGINFINITY_MATCHER // ""), env: (.env // {})}]'
 		;;
 	*)
 		echo "run_hook: unknown target $target" >&2
@@ -99,7 +109,7 @@ run_hook() {
 	claude)
 		run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
 			XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" CLAUDE_PLUGIN_ROOT="$root" \
-			CLAUDE_PROJECT_DIR="${HOOK_PROJECT_DIR:-$BATS_TEST_TMPDIR}" \
+			CLAUDE_PROJECT_DIR="${HOOK_PROJECT_DIR:-$project}" \
 			${entry_env[@]+"${entry_env[@]}"} "$@" bash "$root/$script" <"$fixture"
 		;;
 	copilot)
@@ -116,7 +126,7 @@ run_hook() {
 _pf_host_env() {
 	_pf_env=(PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" XDG_STATE_HOME="$BATS_TEST_TMPDIR/state")
 	case "$1" in
-	claude) _pf_env+=(CLAUDE_PLUGIN_ROOT="$2" CLAUDE_PROJECT_DIR="${HOOK_PROJECT_DIR:-$BATS_TEST_TMPDIR}") ;;
+	claude) _pf_env+=(CLAUDE_PLUGIN_ROOT="$2" CLAUDE_PROJECT_DIR="${HOOK_PROJECT_DIR:-$(_pf_project_dir)}") ;;
 	copilot) _pf_env+=(PLUGIN_ROOT="$2") ;;
 	*)
 		echo "unknown target $1" >&2
@@ -125,16 +135,18 @@ _pf_host_env() {
 	esac
 }
 
-# run_script <target> <path> [--stdin <file>] [--cwd <dir>] [args...] [-- VAR=value...]
+# run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [args...]
 # Runs `bash builds/<target>/<path> args...` under env -i with the host's
 # environment: a skill script or a server launcher. Stdin is /dev/null unless
 # --stdin is given. A script under skills/ runs from --cwd (default
 # $BATS_TEST_TMPDIR/project, created), as the agent runs it, on both hosts.
 # Any other path keeps the host's cwd: the plugin root on Copilot, the caller's
-# on Claude. Everything after a bare `--` is VAR=value for the environment, so
-# a script argument may contain `=`. Sets $status, $output and $stderr.
+# on Claude. On Claude a skill script's CLAUDE_PROJECT_DIR is the same project
+# dir unless HOOK_PROJECT_DIR is set. Each --env adds VAR=value to the
+# environment; everything after the options, a bare `--` included, is passed to
+# the script as arguments. Sets $status, $output and $stderr.
 run_script() {
-	local target=$1 script=$2 stdin=/dev/null cwd=""
+	local target=$1 script=$2 stdin=/dev/null cwd="" vars=()
 	shift 2
 	while [ $# -gt 0 ]; do
 		case "$1" in
@@ -146,19 +158,27 @@ run_script() {
 			cwd=$2
 			shift 2
 			;;
+		--env)
+			case "${2:-}" in
+			[A-Za-z_]*=*) ;;
+			*)
+				echo "run_script: --env needs VAR=value, got '${2:-}'" >&2
+				return 1
+				;;
+			esac
+			case "${2%%=*}" in
+			*[!A-Za-z0-9_]*)
+				echo "run_script: --env needs VAR=value, got '$2'" >&2
+				return 1
+				;;
+			esac
+			vars+=("$2")
+			shift 2
+			;;
 		*) break ;;
 		esac
 	done
-	local args=() vars=()
-	while [ $# -gt 0 ]; do
-		if [ "$1" = "--" ]; then
-			shift
-			vars=("$@")
-			break
-		fi
-		args+=("$1")
-		shift
-	done
+	local args=("$@")
 	local root="$PLUGIN_DIR/builds/$target"
 	if [ ! -f "$root/$script" ]; then
 		echo "run_script: $root/$script not found; run pluginfinity build" >&2
@@ -170,7 +190,7 @@ run_script() {
 	}
 	case "$script" in
 	skills/*)
-		[ -n "$cwd" ] || cwd="$BATS_TEST_TMPDIR/project"
+		[ -n "$cwd" ] || cwd=$(_pf_project_dir)
 		mkdir -p "$cwd"
 		;;
 	*)
@@ -218,12 +238,12 @@ run_monitor() {
 	local root="$PLUGIN_DIR/builds/claude" command
 	command=$(jq -r --arg n "$name" '[.[] | select(.name == $n)][0].command // empty' "$root/monitors/monitors.json" 2>/dev/null)
 	if [ -z "$command" ]; then
-		echo "run_monitor: no monitor $name" >&2
-		return 1
+		run --separate-stderr bash -c 'echo "run_monitor: no monitor $1" >&2; exit 1' _ "$name"
+		return 0
 	fi
 	local token='${CLAUDE_PLUGIN_ROOT}'
-	command=${command//"$token"/$root}
-	[ -n "$cwd" ] || cwd="$BATS_TEST_TMPDIR/project"
+	command=${command//"$token"/"$root"}
+	[ -n "$cwd" ] || cwd=$(_pf_project_dir)
 	mkdir -p "$cwd"
 	run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
 		XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" CLAUDE_CODE_SESSION_ID=test-session \
@@ -265,7 +285,7 @@ hook_fixture() {
 	local overrides=${2:-}
 	[ -n "$overrides" ] || overrides='{}'
 	local file="$BATS_TEST_TMPDIR/fixture-$1-$RANDOM.json"
-	jq -n --arg e "$1" --arg cwd "$BATS_TEST_TMPDIR" --argjson o "$overrides" \
+	jq -n --arg e "$1" --arg cwd "$(_pf_project_dir)" --argjson o "$overrides" \
 		'{session_id: "test-session", transcript_path: "/dev/null", cwd: $cwd, hook_event_name: $e} + $o' >"$file"
 	printf '%s\n' "$file"
 }

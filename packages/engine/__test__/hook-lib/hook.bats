@@ -134,7 +134,7 @@ load helpers
 	[ "$output" = "$BATS_TEST_TMPDIR/repo" ]
 }
 
-@test "hook_project_dir falls back to PWD when no .git is above the cwd or PWD" {
+@test "hook_project_dir answers a non-git cwd as itself" {
 	make_plugin copilot
 	mkdir -p "$BATS_TEST_TMPDIR/loose"
 	hook_script 'cd "$BATS_TEST_TMPDIR/loose" && hook_project_dir'
@@ -899,6 +899,20 @@ has_tools() {
 	hook_script 'for a in "skill build" "skill nope" "agent reviewer" "agent x" "monitor watch" "server savvy-mcp" "server x"; do hook_has $a && echo "$a yes" || echo "$a no"; done'
 	run_script "$FIXTURES/sessionstart.startup.json"
 	[ "$output" = "$(printf 'skill build yes\nskill nope no\nagent reviewer yes\nagent x no\nmonitor watch yes\nserver savvy-mcp yes\nserver x no')" ]
+}
+
+@test "hook_has matches a whole name, never a prefix or a glob" {
+	make_plugin claude silk "$(has_tools 'mcp__plugin_{plugin}_{server}__{tool}' watch)"
+	hook_script 'for n in bu "*" "b?ild" "bui*" build; do rc=0; hook_has skill "$n" || rc=$?; echo "$n rc=$rc"; done'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	echo "[$output]" >&3; [ "$output" = "$(printf 'bu rc=1\n* rc=1\nb?ild rc=1\nbui* rc=1\nbuild rc=0')" ]
+}
+
+@test "hook_has server answers for MCP servers on Copilot" {
+	make_plugin copilot silk "$(has_tools '{server}-{tool}' '')"
+	hook_script 'hook_has server savvy-mcp && echo yes; hook_has server nope || echo "rc=$?"'
+	run_script "$FIXTURES/sessionstart.startup.json"
+	[ "$output" = "$(printf 'yes\nrc=1')" ]
 }
 
 @test "hook_has finds no monitor on Copilot" {

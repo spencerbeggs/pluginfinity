@@ -39,8 +39,8 @@ load "$PLUGINFINITY_BATS_HELPER"
 }
 
 @test "run_monitor fails clearly for an unknown monitor" {
-	run --separate-stderr run_monitor claude nope
-	[ "$status" -ne 0 ]
+	run_monitor claude nope
+	[ "$status" -eq 1 ]
 	[[ "$stderr" == *"run_monitor: no monitor nope"* ]]
 }
 
@@ -94,7 +94,7 @@ load "$PLUGINFINITY_BATS_HELPER"
 
 @test "run_script runs a skill script from the project dir on both targets" {
 	for target in claude copilot; do
-		run_script "$target" skills/s/scripts/show.sh a=b -- FOO=1
+		run_script "$target" skills/s/scripts/show.sh --env FOO=1 a=b
 		[ "$status" -eq 0 ]
 		[ "$output" = "pwd=$BATS_TEST_TMPDIR/project foo=1 args=a=b" ]
 	done
@@ -117,4 +117,53 @@ load "$PLUGINFINITY_BATS_HELPER"
 	run_monitor copilot x
 	[ "$status" -eq 1 ]
 	[[ "$stderr" == *"run_monitor: copilot has no monitors"* ]]
+}
+
+@test "run_hook --matcher reads the matcher from env on Copilot, from the group on Claude" {
+	for target in claude copilot; do
+		run_hook "$target" hooks/startenv.sh "$(hook_fixture SessionStart '{"source":"resume"}')" --matcher resume
+		[[ "$stderr" == "SessionStart||resume-b" ]]
+		run_hook "$target" hooks/startenv.sh "$(hook_fixture SessionStart '{"source":"startup"}')" --matcher startup
+		[[ "$stderr" == "SessionStart||startup-a" ]]
+	done
+}
+
+@test "run_script passes a literal -- and later arguments to the script" {
+	for target in claude copilot; do
+		run_script "$target" skills/s/scripts/show.sh "msg" -- --no-verify
+		[ "$status" -eq 0 ]
+		[ "$output" = "pwd=$BATS_TEST_TMPDIR/project foo= args=msg -- --no-verify" ]
+	done
+}
+
+@test "run_script --env is repeatable and --env FOO=1 reaches the environment" {
+	run_script claude skills/s/scripts/show.sh --env FOO=1 --env BAR=2 x
+	[ "$output" = "pwd=$BATS_TEST_TMPDIR/project foo=1 args=x" ]
+}
+
+@test "run_script --env rejects a malformed assignment" {
+	run --separate-stderr run_script claude skills/s/scripts/show.sh --env 1X=2
+	[ "$status" -eq 1 ]
+	[[ "$stderr" == *"run_script: --env needs VAR=value"* ]]
+	run --separate-stderr run_script claude skills/s/scripts/show.sh --env
+	[ "$status" -eq 1 ]
+	run --separate-stderr run_script claude skills/s/scripts/show.sh --env 'A-B=2'
+	[ "$status" -eq 1 ]
+}
+
+@test "the project dir is one default: fixture cwd, CLAUDE_PROJECT_DIR for hooks and skill scripts" {
+	fx=$(hook_fixture Stop)
+	[ "$(jq -r .cwd "$fx")" = "$BATS_TEST_TMPDIR/project" ]
+	[ -d "$BATS_TEST_TMPDIR/project" ]
+	run_script claude skills/s/scripts/proj.sh
+	[ "$output" = "pwd=$BATS_TEST_TMPDIR/project project=$BATS_TEST_TMPDIR/project args=" ]
+	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/other" run_script claude skills/s/scripts/proj.sh
+	[ "$output" = "pwd=$BATS_TEST_TMPDIR/project project=$BATS_TEST_TMPDIR/other args=" ]
+	run_script copilot skills/s/scripts/proj.sh
+	[ "$output" = "pwd=$BATS_TEST_TMPDIR/project project=unset args=" ]
+}
+
+@test "run_monitor ignores HOOK_PROJECT_DIR and uses the project dir" {
+	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/other" run_monitor claude show
+	[[ "$output" == "pwd=$BATS_TEST_TMPDIR/project "* ]]
 }
