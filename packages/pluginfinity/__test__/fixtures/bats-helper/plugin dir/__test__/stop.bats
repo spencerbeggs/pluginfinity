@@ -151,16 +151,62 @@ load "$PLUGINFINITY_BATS_HELPER"
 	[ "$status" -eq 1 ]
 }
 
-@test "the project dir is one default: fixture cwd, CLAUDE_PROJECT_DIR for hooks and skill scripts" {
+@test "the project dir is one default: fixture cwd, a skill script's cwd and run_hook's CLAUDE_PROJECT_DIR" {
 	fx=$(hook_fixture Stop)
 	[ "$(jq -r .cwd "$fx")" = "$BATS_TEST_TMPDIR/project" ]
 	[ -d "$BATS_TEST_TMPDIR/project" ]
 	run_script claude skills/s/scripts/proj.sh
-	[ "$output" = "pwd=$BATS_TEST_TMPDIR/project project=$BATS_TEST_TMPDIR/project args=" ]
+	[[ "$output" == "pwd=$BATS_TEST_TMPDIR/project "* ]]
+}
+
+@test "run_script gives a Claude skill script only CLAUDE_CODE_SESSION_ID, as the Bash tool does" {
+	run_script claude skills/s/scripts/proj.sh
+	[ "$output" = "pwd=$BATS_TEST_TMPDIR/project project=unset root=unset data=unset skill=unset envfile=unset session=test-session plugin_root=unset args=" ]
+	# HOOK_PROJECT_DIR no longer maps onto a skill script's environment.
 	HOOK_PROJECT_DIR="$BATS_TEST_TMPDIR/other" run_script claude skills/s/scripts/proj.sh
-	[ "$output" = "pwd=$BATS_TEST_TMPDIR/project project=$BATS_TEST_TMPDIR/other args=" ]
+	[[ "$output" == *"project=unset root=unset"* ]]
+}
+
+@test "run_script --env can override CLAUDE_CODE_SESSION_ID" {
+	run_script claude skills/s/scripts/proj.sh --env CLAUDE_CODE_SESSION_ID=mine
+	[[ "$output" == *"session=mine "* ]]
+}
+
+@test "run_script gives a Copilot skill script no Claude variables and invents no session id" {
 	run_script copilot skills/s/scripts/proj.sh
-	[ "$output" = "pwd=$BATS_TEST_TMPDIR/project project=unset args=" ]
+	[ "$output" = "pwd=$BATS_TEST_TMPDIR/project project=unset root=unset data=unset skill=unset envfile=unset session=unset plugin_root=unset args=" ]
+}
+
+@test "run_script keeps the plugin variables for a server launcher" {
+	run_script claude servers/proj.sh
+	[[ "$output" == *"project=$BATS_TEST_TMPDIR/project root=$PLUGIN_DIR/builds/claude "* ]]
+	run_script copilot servers/proj.sh
+	[[ "$output" == *"plugin_root=$PLUGIN_DIR/builds/copilot "* ]]
+}
+
+@test "run_script --env-file adds parsed exports: export prefix, quotes stripped, no expansion" {
+	cat >"$BATS_TEST_TMPDIR/session.env" <<'ENV'
+# written by SessionStart
+export A_ONE=plain
+B_TWO='single quoted $HOME'
+export C_THREE="double \$HOME"
+
+D_FOUR=a=b
+ENV
+	for target in claude copilot; do
+		run_script "$target" skills/s/scripts/vars.sh --env-file "$BATS_TEST_TMPDIR/session.env"
+		[ "$status" -eq 0 ]
+		[ "$output" = 'a=plain b=single quoted $HOME c=double \$HOME d=a=b' ]
+	done
+}
+
+@test "run_script --env-file lets --env win and rejects a missing file" {
+	printf 'A_ONE=file\n' >"$BATS_TEST_TMPDIR/s.env"
+	run_script claude skills/s/scripts/vars.sh --env-file "$BATS_TEST_TMPDIR/s.env" --env A_ONE=flag
+	[[ "$output" == "a=flag "* ]]
+	run --separate-stderr run_script claude skills/s/scripts/vars.sh --env-file "$BATS_TEST_TMPDIR/none.env"
+	[ "$status" -eq 1 ]
+	[[ "$stderr" == *"run_script: --env-file $BATS_TEST_TMPDIR/none.env not found"* ]]
 }
 
 @test "run_monitor ignores HOOK_PROJECT_DIR and uses the project dir" {

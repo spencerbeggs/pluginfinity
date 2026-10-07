@@ -121,13 +121,23 @@ run_hook() {
 	esac
 }
 
-# _pf_host_env <target> <root>: set the _pf_env array to the env -i arguments
-# every host gives a plugin process (hook-only variables are added by run_hook).
+# _pf_host_env <target> <root> [skill]: set the _pf_env array to the env -i
+# arguments a plugin process gets (hook-only variables are added by run_hook).
+# With "skill" it is the environment of a script a skill runs through the agent's
+# Bash tool, which gets none of the plugin variables, as measured: on Claude Code
+# only CLAUDE_CODE_SESSION_ID (and what SessionStart wrote to CLAUDE_ENV_FILE);
+# on Copilot nothing beyond the base. A launcher gets the plugin variables.
 _pf_host_env() {
 	_pf_env=(PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" XDG_STATE_HOME="$BATS_TEST_TMPDIR/state")
 	case "$1" in
-	claude) _pf_env+=(CLAUDE_PLUGIN_ROOT="$2" CLAUDE_PROJECT_DIR="${HOOK_PROJECT_DIR:-$(_pf_project_dir)}") ;;
-	copilot) _pf_env+=(PLUGIN_ROOT="$2") ;;
+	claude)
+		if [ "${3:-}" = skill ]; then
+			_pf_env+=(CLAUDE_CODE_SESSION_ID=test-session)
+		else
+			_pf_env+=(CLAUDE_PLUGIN_ROOT="$2" CLAUDE_PROJECT_DIR="${HOOK_PROJECT_DIR:-$(_pf_project_dir)}")
+		fi
+		;;
+	copilot) [ "${3:-}" = skill ] || _pf_env+=(PLUGIN_ROOT="$2") ;;
 	*)
 		echo "unknown target $1" >&2
 		return 1
@@ -135,18 +145,49 @@ _pf_host_env() {
 	esac
 }
 
-# run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [args...]
-# Runs `bash builds/<target>/<path> args...` under env -i with the host's
-# environment: a skill script or a server launcher. Stdin is /dev/null unless
-# --stdin is given. A script under skills/ runs from --cwd (default
-# $BATS_TEST_TMPDIR/project, created), as the agent runs it, on both hosts.
-# Any other path keeps the host's cwd: the plugin root on Copilot, the caller's
-# on Claude. On Claude a skill script's CLAUDE_PROJECT_DIR is the same project
-# dir unless HOOK_PROJECT_DIR is set. Each --env adds VAR=value to the
-# environment; everything after the options, a bare `--` included, is passed to
-# the script as arguments. Sets $status, $output and $stderr.
+# _pf_read_env_file <file>: append the file's assignments to the filevars array.
+# The file is parsed, never sourced: blank lines and # comments are skipped, an
+# `export ` prefix is dropped, one pair of surrounding quotes is stripped and
+# nothing is expanded.
+_pf_read_env_file() {
+	local line name value
+	while IFS= read -r line || [ -n "$line" ]; do
+		line=${line#"${line%%[![:space:]]*}"}
+		case "$line" in '' | '#'*) continue ;; esac
+		case "$line" in
+		"export "*) line=${line#export }; line=${line#"${line%%[![:space:]]*}"} ;;
+		esac
+		case "$line" in
+		[A-Za-z_]*=*) ;;
+		*) continue ;;
+		esac
+		name=${line%%=*}
+		value=${line#*=}
+		case "$name" in *[!A-Za-z0-9_]*) continue ;; esac
+		case "$value" in
+		\"*\") value=${value#\"}; value=${value%\"} ;;
+		\'*\') value=${value#\'}; value=${value%\'} ;;
+		esac
+		filevars+=("$name=$value")
+	done <"$1"
+}
+
+# run_script <target> <path> [--stdin <file>] [--cwd <dir>] [--env VAR=value]... [--env-file <file>] [args...]
+# Runs `bash builds/<target>/<path> args...` under env -i. A script under skills/
+# gets the environment a skill script gets when the agent runs it through its
+# Bash tool: PATH, HOME, XDG_STATE_HOME and, on Claude Code,
+# CLAUDE_CODE_SESSION_ID=test-session, with none of CLAUDE_PLUGIN_ROOT,
+# CLAUDE_PLUGIN_DATA, CLAUDE_PROJECT_DIR, CLAUDE_SKILL_DIR or CLAUDE_ENV_FILE. It
+# runs from --cwd (default $BATS_TEST_TMPDIR/project, created) on both hosts.
+# --env-file adds the NAME=value and `export NAME=value` lines of a file, parsed
+# not sourced, to model what a SessionStart hook wrote to CLAUDE_ENV_FILE.
+# Any other path, a server launcher, gets the host's plugin variables and keeps
+# the host's cwd: the plugin root on Copilot, the caller's on Claude. Each --env
+# adds VAR=value (after --env-file, so it wins); everything after the options, a
+# bare `--` included, is passed to the script as arguments. Sets $status, $output
+# and $stderr.
 run_script() {
-	local target=$1 script=$2 stdin=/dev/null cwd="" vars=()
+	local target=$1 script=$2 stdin=/dev/null cwd="" vars=() filevars=()
 	shift 2
 	while [ $# -gt 0 ]; do
 		case "$1" in
@@ -156,6 +197,14 @@ run_script() {
 			;;
 		--cwd)
 			cwd=$2
+			shift 2
+			;;
+		--env-file)
+			if [ ! -f "${2:-}" ]; then
+				echo "run_script: --env-file ${2:-} not found" >&2
+				return 1
+			fi
+			_pf_read_env_file "$2"
 			shift 2
 			;;
 		--env)
@@ -179,28 +228,26 @@ run_script() {
 		esac
 	done
 	local args=("$@")
-	local root="$PLUGIN_DIR/builds/$target"
+	local root="$PLUGIN_DIR/builds/$target" kind=""
 	if [ ! -f "$root/$script" ]; then
 		echo "run_script: $root/$script not found; run pluginfinity build" >&2
 		return 1
 	fi
-	_pf_host_env "$target" "$root" || {
+	case "$script" in skills/*) kind=skill ;; esac
+	_pf_host_env "$target" "$root" "$kind" || {
 		echo "run_script: unknown target $target" >&2
 		return 1
 	}
-	case "$script" in
-	skills/*)
+	if [ -n "$kind" ]; then
 		[ -n "$cwd" ] || cwd=$(_pf_project_dir)
 		mkdir -p "$cwd"
-		;;
-	*)
-		[ -n "$cwd" ] || { [ "$target" = copilot ] && cwd=$root; }
-		;;
-	esac
-	if [ -n "$cwd" ]; then
-		run --separate-stderr env -i "${_pf_env[@]}" ${vars[@]+"${vars[@]}"} bash -c 'cd "$1" && shift && exec bash "$@"' _ "$cwd" "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
 	else
-		run --separate-stderr env -i "${_pf_env[@]}" ${vars[@]+"${vars[@]}"} bash "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
+		[ -n "$cwd" ] || { [ "$target" = copilot ] && cwd=$root; }
+	fi
+	if [ -n "$cwd" ]; then
+		run --separate-stderr env -i "${_pf_env[@]}" ${filevars[@]+"${filevars[@]}"} ${vars[@]+"${vars[@]}"} bash -c 'cd "$1" && shift && exec bash "$@"' _ "$cwd" "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
+	else
+		run --separate-stderr env -i "${_pf_env[@]}" ${filevars[@]+"${filevars[@]}"} ${vars[@]+"${vars[@]}"} bash "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
 	fi
 }
 

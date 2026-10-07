@@ -40,7 +40,11 @@ printf 'pwd=%s project=%s root=%s plugin=%s session=%s ticks=%s\\n' "$PWD" "\${C
 `;
 
 const PROJ = `#!/usr/bin/env bash
-printf 'pwd=%s project=%s args=%s\\n' "$PWD" "\${CLAUDE_PROJECT_DIR-unset}" "$*"
+printf 'pwd=%s project=%s root=%s data=%s skill=%s envfile=%s session=%s plugin_root=%s args=%s\\n' "$PWD" "\${CLAUDE_PROJECT_DIR-unset}" "\${CLAUDE_PLUGIN_ROOT-unset}" "\${CLAUDE_PLUGIN_DATA-unset}" "\${CLAUDE_SKILL_DIR-unset}" "\${CLAUDE_ENV_FILE-unset}" "\${CLAUDE_CODE_SESSION_ID-unset}" "\${PLUGIN_ROOT-unset}" "$*"
+`;
+
+const VARS = `#!/usr/bin/env bash
+printf 'a=%s b=%s c=%s d=%s\\n' "\${A_ONE-unset}" "\${B_TWO-unset}" "\${C_THREE-unset}" "\${D_FOUR-unset}"
 `;
 
 const CAT = "#!/usr/bin/env bash\ncat\necho done\n";
@@ -72,9 +76,11 @@ describe.skipIf(!onPath("bats") && process.env.CI === undefined)("the bats helpe
 			writeFileSync(join(scripts, "cat.sh"), CAT);
 			writeFileSync(join(scripts, "show.sh"), SHOW);
 			writeFileSync(join(scripts, "proj.sh"), PROJ);
+			writeFileSync(join(scripts, "vars.sh"), VARS);
 			writeFileSync(join(plugin, "builds", host, "hooks", "startenv.sh"), ENVHOOK);
 			mkdirSync(join(plugin, "builds", host, "servers"), { recursive: true });
 			writeFileSync(join(plugin, "builds", host, "servers", "show.sh"), SHOW);
+			writeFileSync(join(plugin, "builds", host, "servers", "proj.sh"), PROJ);
 		}
 		// The built hook entries each host runs, in the shapes the targets emit.
 		const claudeEntry = (script: string, event: string, env: string[], matcher?: string) => ({
