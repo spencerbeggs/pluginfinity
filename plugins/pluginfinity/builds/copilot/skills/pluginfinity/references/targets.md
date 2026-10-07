@@ -16,7 +16,7 @@
 | Plugin root in hooks, servers and monitors | `${CLAUDE_PLUGIN_ROOT}` | `${PLUGIN_ROOT}` |
 | Shared libraries | `lib/pluginfinity/` (`host.sh`, `log.sh`, `server.sh`, `monitor.sh`) and `hooks/lib/pluginfinity/` | the same, without `monitor.sh` |
 | Session env | `lib/pluginfinity/env.sh` and `env-run.sh`, and the runner first under `SessionStart`, when the config declares `env` | the same |
-| A skill's own directory in its body | `${CLAUDE_SKILL_DIR}`, expanded by the host | `<skill base directory>`, filled in by the model |
+| A skill's own directory in its body | `${CLAUDE_SKILL_DIR}`, expanded by the host (Claude Code skills docs) | `<skill base directory>`, filled in by the model |
 
 ## Servers
 

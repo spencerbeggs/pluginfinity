@@ -41,7 +41,7 @@ export default defineConfig({
 | `keywords` | No | A list of strings |
 | `scripts.invoke` | No | How hook scripts run: `"bash"` (the default) or `"exec"`; see [hooks](hooks.md) |
 | `hooks` | No | Hook entries keyed by Claude Code event name; see [hooks](hooks.md) |
-| `env` | No | Session variables: `vars`, optional `prefix` and `setup`. Resolved once per session and read by every hook, skill script and monitor; see [session env](session-env.md) |
+| `env` | No | Session variables: `vars`, optional `prefix` and `setup`. Resolved once per session; every hook that sources `hook.sh` reads them, and a skill script or monitor sources `env.sh`; see [session env](session-env.md) |
 | `mcpServers` | No | MCP servers in Claude Code's `.mcp.json` shape; see below |
 | `lspServers` | No | LSP servers in Claude Code's `.lsp.json` shape; see below |
 | `monitors` | No | Background monitors keyed by name; Claude Code only. See [monitors](monitors.md) |

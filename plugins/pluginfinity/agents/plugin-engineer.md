@@ -66,7 +66,8 @@ Nothing loads a skill because a file matches its `paths`. Read `hook-authoring` 
   script; `--interpreter` for a script `bash` should not run (`.mjs`, `.cjs` and `.js` already get `node`);
   `--timeout <seconds>` on `run_monitor` (default 30) when a multi-tick run waits between polls.
 - **`pluginfinity logs`** (`--debug`, `--follow`, `--plugin`, `--lines`) to read `error.log` and `debug.log` instead
-  of finding the files yourself. Under an agent it prints JSON; `--human` gives the sections.
+  of finding the files yourself. With no `--plugin` it reads the nearest config's plugin, else every plugin with
+  logs. Under an agent it prints JSON; `--human` gives the sections.
 
 ## Evidence
 

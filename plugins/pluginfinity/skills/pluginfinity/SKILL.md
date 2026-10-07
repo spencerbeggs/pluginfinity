@@ -62,7 +62,7 @@ write a token, and each build writes that host's spelling:
 | `\{{agent <agent>}}` | `<plugin>:<agent>` | `<plugin>:<agent>` |
 | `\{{skill <skill>}}` | `/<plugin>:<skill>` | `/<plugin>:<skill>` |
 | `\{{plugin_root}}` | `${CLAUDE_PLUGIN_ROOT}` | fails the build |
-| `\{{skill_dir}}`, `\{{skill_dir <skill>}}` | the skill's directory, which Claude Code expands | `<skill base directory>`, a placeholder the model fills |
+| `\{{skill_dir}}`, `\{{skill_dir <skill>}}` | the skill's directory, which Claude Code expands (Claude Code skills docs) | `<skill base directory>`, a placeholder the model fills |
 
 In an agent id or skill command `<plugin>` is the plugin's name on that host (`claude.name` or
 `copilot.name`, else `name`); in an MCP tool name it is the Claude Code name on both.
@@ -162,7 +162,8 @@ env: {
   first: the `default`, the `setup` script's `NAME=value` output, the project's `.env`, its `.env.local`, then
   the environment the host started with. Only declared names are read, and `.env` files are parsed, never
   sourced.
-- **Every hook sees the values as plain variables**, with no call. A skill script or a monitor sources
+- **Every hook that sources `hook.sh` sees the values as plain variables**, with no call; a plain `command`
+  entry does not. A skill script or a monitor sources
   `lib/pluginfinity/env.sh` with one line.
 - **A hook changes a value with `hook_env_set NAME value`**, only in `SessionStart` (and Claude Code's `Setup`,
   `CwdChanged` and `FileChanged`).
@@ -196,7 +197,7 @@ for one host takes `targets: { <other host>: false }` in its frontmatter; see th
 | `pluginfinity build --check` | Writes nothing; fails when `builds/` differs from a fresh build |
 | `pluginfinity validate` | Requires current builds, then runs each host's own check |
 | `pluginfinity doctor` | Reports the runtime, the host CLIs and the config |
-| `pluginfinity logs` | Shows the last 50 lines of the plugin's `error.log`; `--debug` for `debug.log`, `--lines <n>`, `--plugin <name>` (repeatable), `--follow` to keep reading |
+| `pluginfinity logs` | Shows the last 50 lines of `error.log` for the nearest config's plugin, else every plugin with logs; a negative `--lines` exits 64; `--debug` for `debug.log`, `--lines <n>`, `--plugin <name>` (repeatable), `--follow` to keep reading |
 
 Run `build` after every source change and commit `builds/` with it. `--target <id>` limits a command to
 one host. A finding exits 1 with a message and a hint; read [the findings](references/findings.md) for

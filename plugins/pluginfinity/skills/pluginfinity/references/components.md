@@ -187,7 +187,7 @@ There is no wildcard token: prose about "all of this plugin's MCP tools" must na
 
 ### Skill directories
 
-`\{{skill_dir}}` is the directory of the skill whose body it is in; it works in `SKILL.md` and in the skill's
+`\{{skill_dir}}` is the directory of the skill whose body it is in; it is built into `SKILL.md` and into the skill's
 other `.md` files. `\{{skill_dir <skill>}}` is another skill's directory, and naming the own skill is the same
 as the bare form. Use it where the model needs a path to put in a command:
 
@@ -197,12 +197,12 @@ Run `bash "\{{skill_dir}}/scripts/check.sh" --strict` and report what it prints.
 
 | Host | The build writes | At run time |
 | :-- | :-- | :-- |
-| Claude Code | `${CLAUDE_SKILL_DIR}`, or `${CLAUDE_PLUGIN_ROOT}/skills/<skill>` | Claude Code expands it to a path when it loads the skill |
-| Copilot | `<skill base directory>`, or `<skill base directory>/../<skill>` | Copilot expands nothing in a body, so the text stays a placeholder. Both hosts put `Base directory for this skill: <absolute path>` above the body when the skill is invoked, and the model reads the path from it (Claude Code 2.1.292 and Copilot CLI 1.0.92, measured 2026-10-07) |
+| Claude Code | `${CLAUDE_SKILL_DIR}`, or `${CLAUDE_PLUGIN_ROOT}/skills/<skill>` | Claude Code expands it to a path when it loads the skill (Claude Code skills docs) |
+| Copilot | `<skill base directory>`, or `<skill base directory>/../<skill>` | Copilot expands nothing in a body, so the text stays a placeholder. Both hosts put `Base directory for this skill: <absolute path>` above the body when the skill is invoked (Claude Code 2.1.292 and Copilot CLI 1.0.92, measured 2026-10-07), and the model is expected to read the path from it. The model's substitution of the `<skill base directory>` placeholder is not yet measured |
 
 - **On Copilot it is not a path.** It is an instruction to the model to substitute one, so write it where the
   model reads it as a path, such as in a command, never where a script or another tool reads the text.
-- **Keep commands that use it in `SKILL.md`.** Claude Code expands it in the skill body it loads. A skill
+- **Keep commands that use it in `SKILL.md`.** Claude Code expands it in the skill body it loads (Claude Code skills docs). A skill
   script run through the Bash tool has no `CLAUDE_SKILL_DIR` (Claude Code 2.1.291, measured downstream), and
   whether Claude Code expands it in a reference file the model opens later is not measured.
 - **An agent has no skill directory.** The bare form fails the build on every host. The named form works on

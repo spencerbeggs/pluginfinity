@@ -1,8 +1,9 @@
 # Session env
 
 A plugin declares the session variables it keeps under `env` in the config. pluginfinity resolves them once
-when a session starts, and every hook, skill script and monitor reads them as plain shell variables, on both
-hosts, with no per-plugin plumbing.
+when a session starts. Every hook that sources `hook.sh` has them as plain shell variables, and a skill script
+or monitor gets them by sourcing `env.sh`, on both hosts, with no per-plugin plumbing. A plain `command` hook
+entry that does not source the library sees none of them.
 
 ## When to reach for it
 
@@ -105,7 +106,7 @@ echo "PFDOG_SHAPE=square"
 
 ## Reading the values
 
-**A hook needs no call.** The hook library loads the session's values after the matcher check and before the
+**A hook that sources `hook.sh` needs no call.** A plain `command` entry gets nothing. The hook library loads the session's values after the matcher check and before the
 hook body, so a declared name is just a variable:
 
 ```bash
@@ -172,7 +173,7 @@ The model's own shell commands, and a skill script it runs through its Bash tool
 
 | | Claude Code | Copilot |
 | :-- | :-- | :-- |
-| Hooks | Every declared name, through `env.sh` | The same |
+| Hooks that source `hook.sh` | Every declared name, through `env.sh` | The same |
 | The model's shell | Every declared name: the runner and `hook_env_set` append `export` lines to `CLAUDE_ENV_FILE` | Nothing: Copilot has no such channel |
 | A skill script that sources `env.sh` | Every declared name | Every declared name |
 | `hook_supports env-shell` | Succeeds in `SessionStart`, `Setup`, `CwdChanged` and `FileChanged` | Fails |
@@ -231,8 +232,10 @@ pluginfinity's dogfood fixture, `plugins/dogfood`, carries the whole pattern:
   printf 'PFDOG_COLOR=%s\nPFDOG_SHAPE=%s\nPFDOG_LEVEL=%s\n' "$PFDOG_COLOR" "$PFDOG_SHAPE" "$PFDOG_LEVEL"
   ```
 
-In a live session the reader hook says `PFDOG_COLOR=green` on both hosts, and the probe prints green, square
-and 1. On Claude Code `echo $PFDOG_COLOR` in the model's shell prints green too; on Copilot it prints nothing.
+So the reader hook should say `PFDOG_COLOR=green` on both hosts, and the probe should print green, square and
+1; dogfood's `__test__/env.bats` checks exactly that against both builds, with the runner and the setup script
+run as each host runs them. On Claude Code `echo $PFDOG_COLOR` in the model's shell should print green too, and
+on Copilot nothing. No live session has confirmed this yet.
 
 ## Testing
 

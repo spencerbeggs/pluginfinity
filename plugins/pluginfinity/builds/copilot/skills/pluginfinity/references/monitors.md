@@ -104,7 +104,18 @@ monitor still runs and the logging functions do nothing.
 ## Session values
 
 A monitor reads the plugin's [session env](session-env.md) by sourcing `env.sh` after `monitor.sh`, so its log
-lines carry the `monitor` component:
+lines carry the `monitor` component. With this in the config:
+
+```ts
+env: {
+  vars: {
+    MYPLUGIN_PM: { default: "npm" },
+    MYPLUGIN_WATCH: { default: "on", description: "off silences the monitor" },
+  },
+},
+```
+
+the monitor reads both names:
 
 ```sh
 _pf_lib_dir="$(dirname "$0")/../lib/pluginfinity"

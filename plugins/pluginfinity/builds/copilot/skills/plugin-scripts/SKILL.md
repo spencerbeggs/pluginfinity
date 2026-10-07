@@ -52,8 +52,10 @@ Hooks, server launchers, monitors and skill scripts all log through one standard
 | `error.log` | Failures, always written |
 | `debug.log` | Debug lines, written only when `PLUGINFINITY_DEBUG=1` |
 
-Read them with `pluginfinity logs`, from inside the plugin or with `--plugin <name>` (repeatable). It prints the
-last 50 lines of each plugin's `error.log` (`--lines <n>` for more), `--debug` shows `debug.log` instead, and
+Read them with `pluginfinity logs`. Inside a plugin it reads that plugin's logs; `--plugin <name>` (repeatable)
+names others; outside any plugin, with no `--plugin`, it reads every plugin that has logs. It prints the
+last 50 lines of each plugin's `error.log` (`--lines <n>` for another count; a negative one is a usage error,
+exit 64), `--debug` shows `debug.log` instead, and
 `--follow` (`-f`) keeps printing new lines until Ctrl-C, which is how to watch a live session's hooks fire. Under
 `--agent` or `--ci` it prints one JSON object, or one entry per line while following. Run from Claude Code's Bash tool it
 detects an agent and prints the JSON; `--human` gives the sections.
@@ -160,7 +162,7 @@ Call `_gh pr view`, never bare `gh pr view`. The fallback to `GH_TOKEN` and `GIT
 
 A value decided once per session, such as a detected package manager or a switch in the project's `.env`, is the
 plugin's session env: declared under `env` in the config, resolved when the session starts, and set by hooks
-with `hook_env_set`. Every hook sees the values with no call. A skill script or a monitor sources `env.sh`, one
+with `hook_env_set`. Every hook that sources `hook.sh` sees the values with no call; a plain `command` entry does not. A skill script or a monitor sources `env.sh`, one
 line, which sets every declared name in its shell:
 
 ```bash
