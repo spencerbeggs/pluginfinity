@@ -25,6 +25,9 @@ import {
 	MONITORED_COLLIDE,
 	MONITORED_EXEC_EQUALS,
 	MONITORED_MISSING,
+	MONITOR_SKILL,
+	MONITOR_SKILL_RENAMED,
+	MONITOR_SKILL_UNKNOWN,
 	NOTED,
 	NOTED_AGENT,
 	NOTED_SKILL,
@@ -1870,6 +1873,62 @@ describe("build with monitors", () => {
 				assert.strictEqual(error._tag, "PathConflict");
 				if (error._tag !== "PathConflict") return;
 				assert.deepStrictEqual([error.file, error.conflict], ["monitors/monitors.json", "generated"]);
+			}),
+		);
+	});
+});
+
+describe("build with a skill-bound monitor", () => {
+	const skillMonitorPlugin = (config: string, skillFrontmatter = "") =>
+		writeTree({
+			"pluginfinity.config.ts": config,
+			"package.json": PACKAGE_JSON,
+			"monitors/watch.sh": "#!/usr/bin/env bash\n",
+			"skills/hello/SKILL.md": `---\ndescription: Say hello.\n${skillFrontmatter}---\nBody.\n`,
+		});
+	interface Located {
+		readonly target: string;
+		readonly issues: ReadonlyArray<{ readonly key: string }>;
+	}
+	const issueKeys = (error: { readonly _tag: string }) => {
+		const parts: ReadonlyArray<Located> =
+			error._tag === "ComponentsInvalid"
+				? (error as unknown as { readonly components: ReadonlyArray<Located> }).components
+				: [error as unknown as Located];
+		return parts.map((part) => [part.target, part.issues.map((found) => found.key)]);
+	};
+
+	layer(NodeServices.layer)((it) => {
+		it.effect("a skill the Claude target excludes fails the Claude build, naming monitors.<name>.when", () =>
+			Effect.gen(function* () {
+				const root = yield* skillMonitorPlugin(MONITOR_SKILL, "targets:\n  claude: false\n");
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.deepStrictEqual(issueKeys(error), [["claude", ["monitors.watch.when"]]]);
+				// Copilot builds no monitors, so the same skill-less monitor does not fail it.
+				const copilot = yield* build({ selection: nearest(root), targets: ["copilot"], check: false });
+				assert.deepStrictEqual(
+					copilot[0]?.notes.map((note) => note.kind),
+					["monitor-omitted"],
+				);
+			}),
+		);
+
+		it.effect("an unknown skill fails the build", () =>
+			Effect.gen(function* () {
+				const root = yield* skillMonitorPlugin(MONITOR_SKILL_UNKNOWN);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.deepStrictEqual(issueKeys(error), [["claude", ["monitors.watch.when"]]]);
+			}),
+		);
+
+		it.effect("a renamed Claude target qualifies the skill with its own name", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* skillMonitorPlugin(MONITOR_SKILL_RENAMED);
+				yield* build({ selection: nearest(root), targets: [], check: false });
+				const written = JSON.parse(yield* fs.readFileString(path.join(root, "builds/claude/monitors/monitors.json")));
+				assert.strictEqual(written[0].when, "on-skill-invoke:other:hello");
 			}),
 		);
 	});

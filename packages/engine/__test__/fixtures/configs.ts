@@ -308,3 +308,15 @@ export const MONITORED_EXEC_EQUALS = `export default {
 	monitors: { mail: { script: "monitors/a=b.sh", description: "Mail." } },
 	claude: true,
 };\n`;
+
+const skillMonitor = (skill: string, claude: string) => `export default {
+	name: "monitored",
+	description: "Fixture plugin.",
+	monitors: { watch: { script: "monitors/watch.sh", description: "Watch.", when: "on-skill-invoke:${skill}" } },
+	claude: ${claude},
+	copilot: true,
+};\n`;
+
+export const MONITOR_SKILL = skillMonitor("hello", "true");
+export const MONITOR_SKILL_RENAMED = skillMonitor("hello", '{ name: "other" }');
+export const MONITOR_SKILL_UNKNOWN = skillMonitor("nope", "true");
