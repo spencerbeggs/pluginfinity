@@ -271,3 +271,12 @@ ENV
 	[ "$status" -eq 1 ]
 	[[ "$stderr" == *"run_monitor: --timeout needs a number of seconds"* ]]
 }
+
+@test "run_monitor rejects --timeout 0" {
+	run_monitor claude m --timeout 0
+	[ "$status" -eq 1 ]
+	[[ "$stderr" == *"run_monitor: --timeout needs a number of seconds above 0, got '0'"* ]]
+	run_monitor claude m --timeout 00
+	[ "$status" -eq 1 ]
+	[[ "$stderr" == *"above 0, got '00'"* ]]
+}

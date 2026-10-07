@@ -184,9 +184,10 @@ run_hook() {
 # _pf_host_env <target> <root> [skill]: set the _pf_env array to the env -i
 # arguments a plugin process gets (hook-only variables are added by run_hook).
 # With "skill" it is the environment of a script a skill runs through the agent's
-# Bash tool, which gets none of the plugin variables, as measured: on Claude Code
-# only CLAUDE_CODE_SESSION_ID (and what SessionStart wrote to CLAUDE_ENV_FILE);
-# on Copilot nothing beyond the base. A launcher gets the plugin variables.
+# Bash tool, which gets none of the plugin variables: on Claude Code, as
+# measured, only CLAUDE_CODE_SESSION_ID (and what SessionStart wrote to
+# CLAUDE_ENV_FILE); on Copilot, not measured and assumed minimal, nothing beyond
+# the base. A launcher gets the plugin variables.
 _pf_host_env() {
 	_pf_env=(PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" XDG_STATE_HOME="$BATS_TEST_TMPDIR/state")
 	case "$1" in
@@ -383,14 +384,14 @@ _pf_run_bounded() {
 # CLAUDE_CODE_SESSION_ID, set to "test-session"). Stdin is /dev/null.
 # PLUGINFINITY_MONITOR_MAX_TICKS is set to <n> (default 1): every monitor must
 # honour it, stopping after that many checks, however triggered, a node
-# `command` monitor included. --timeout (default 30) is a wall-clock bound: the
+# `command` monitor included. --timeout (default 30, at least 1) is a wall-clock bound: the
 # monitor's process group is killed after that many seconds and $status is 124,
 # with `run_monitor: <name> timed out after <s>s` on stderr, so a monitor that
 # never reaches its tick count fails the test instead of hanging bats. A target
 # other than claude fails with status 1 and a message on stderr. Sets $status,
 # $output and $stderr.
 run_monitor() {
-	local target=$1 name=$2 ticks=1 cwd="" timeout=30
+	local target=$1 name=$2 ticks=1 cwd="" timeout=30 session_env=""
 	shift 2
 	if [ "$target" != claude ]; then
 		run --separate-stderr bash -c 'echo "run_monitor: $1 has no monitors" >&2; exit 1' _ "$target"
@@ -403,6 +404,14 @@ run_monitor() {
 			shift 2
 			;;
 		--timeout)
+			case "${2:-}" in
+			*[!0]* | '') ;;
+			*)
+				# All zeros: a 0 s bound would kill every monitor before its first tick.
+				run --separate-stderr bash -c 'echo "run_monitor: --timeout needs a number of seconds above 0, got $1" >&2; exit 1' _ "'${2:-}'"
+				return 0
+				;;
+			esac
 			case "${2:-}" in
 			'' | *[!0-9]*)
 				run --separate-stderr bash -c 'echo "run_monitor: --timeout needs a number of seconds, got $1" >&2; exit 1' _ "'${2:-}'"
