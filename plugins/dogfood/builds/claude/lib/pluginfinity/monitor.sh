@@ -14,8 +14,10 @@
 # monitor_notify cannot tell monitor_every that stdout closed when it runs inside
 # $(...) or a pipeline subshell; call it directly from the polled function.
 #
-# PLUGINFINITY_MONITOR_MAX_TICKS=<n> bounds monitor_every to n ticks. It exists
-# for the library's own tests; do not set it in a plugin.
+# PLUGINFINITY_MONITOR_MAX_TICKS=<n> is a contract every monitor honours: stop
+# after n polls. monitor_every does it for you; a monitor that does not use it,
+# such as a node `command` monitor, must honour it itself, because the bats
+# helper's run_monitor sets it to bound a test. Do not set it in a plugin.
 
 # POSIX sh cannot find a sourced file's own path, so the sourcer sets _pf_lib_dir
 # (or _pf_log_dir, the log.sh convention) to this file's directory first. log.sh
@@ -79,7 +81,7 @@ monitor_once() {
 	_pf_k=${1:-}
 	if [ $# -gt 0 ]; then shift; fi
 	_pf_sd=$(monitor_state_dir)
-	_pf_sess="${CLAUDE_SESSION_ID:-$PPID}"
+	_pf_sess="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-$PPID}}"
 	# Keys are made filename-safe; the session scopes the marker.
 	_pf_m="$_pf_sd$(printf '%s' "$_pf_sess.$_pf_k" | tr -c 'A-Za-z0-9._-' '_')"
 	if [ -e "$_pf_m" ]; then

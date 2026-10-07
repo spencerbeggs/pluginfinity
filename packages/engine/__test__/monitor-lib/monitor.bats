@@ -16,6 +16,13 @@ b"'; run_it; [ "$output" = "a b" ]
 	run_it; [ "$output" = "$(printf 'hi\nyo')" ]
 }
 
+@test "monitor_once keys on CLAUDE_CODE_SESSION_ID before CLAUDE_SESSION_ID" {
+	make_root claude fx; monitor_body 'monitor_once k "hi"'
+	run_it CLAUDE_CODE_SESSION_ID=abc CLAUDE_SESSION_ID=old
+	[ "$output" = hi ]
+	ls "$STATE/pluginfinity/fx/monitor/m/" | grep -q '^abc\.k$'
+}
+
 @test "monitor_once dedups across runs in one session and not across sessions" {
 	make_root claude fx; monitor_body 'monitor_once k "hi"'
 	run_it CLAUDE_SESSION_ID=s1; [ "$output" = hi ]

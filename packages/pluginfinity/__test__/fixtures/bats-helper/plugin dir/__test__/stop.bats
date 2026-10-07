@@ -38,10 +38,7 @@ load "$PLUGINFINITY_BATS_HELPER"
 	[ "$output" = "$(printf 'first there\nfirst there')" ]
 }
 
-@test "run_monitor fails clearly for an unknown monitor or a target without monitors" {
-	run --separate-stderr run_monitor copilot m
-	[ "$status" -ne 0 ]
-	[[ "$stderr" == *"run_monitor: copilot has no monitors"* ]]
+@test "run_monitor fails clearly for an unknown monitor" {
 	run --separate-stderr run_monitor claude nope
 	[ "$status" -ne 0 ]
 	[[ "$stderr" == *"run_monitor: no monitor nope"* ]]
@@ -84,3 +81,29 @@ load "$PLUGINFINITY_BATS_HELPER"
 	done
 }
 
+@test "run_script runs a skill script from the project dir on both targets" {
+	for target in claude copilot; do
+		run_script "$target" skills/s/scripts/show.sh a=b -- FOO=1
+		[ "$status" -eq 0 ]
+		[ "$output" = "pwd=$BATS_TEST_TMPDIR/project foo=1 args=a=b" ]
+	done
+	run_script copilot skills/s/scripts/show.sh --cwd "$BATS_TEST_TMPDIR"
+	[ "$output" = "pwd=$BATS_TEST_TMPDIR foo= args=" ]
+}
+
+@test "run_script keeps the plugin root as cwd on Copilot for a server launcher" {
+	run_script copilot servers/show.sh
+	[ "$output" = "pwd=$PLUGIN_DIR/builds/copilot foo= args=" ]
+}
+
+@test "run_monitor starts in the project dir without Claude's hook variables" {
+	run_monitor claude show --ticks 3
+	[ "$status" -eq 0 ]
+	[ "$output" = "pwd=$BATS_TEST_TMPDIR/project project=unset root=unset plugin=unset session=test-session ticks=3" ]
+}
+
+@test "run_monitor on a target without monitors fails with status 1" {
+	run_monitor copilot x
+	[ "$status" -eq 1 ]
+	[[ "$stderr" == *"run_monitor: copilot has no monitors"* ]]
+}

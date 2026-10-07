@@ -114,17 +114,40 @@ _pf_host_env() {
 	esac
 }
 
-# run_script <target> <path> [--stdin <file>] [args...]
+# run_script <target> <path> [--stdin <file>] [--cwd <dir>] [args...] [-- VAR=value...]
 # Runs `bash builds/<target>/<path> args...` under env -i with the host's
 # environment: a skill script or a server launcher. Stdin is /dev/null unless
-# --stdin is given. Sets $status, $output and $stderr.
+# --stdin is given. A script under skills/ runs from --cwd (default
+# $BATS_TEST_TMPDIR/project, created), as the agent runs it, on both hosts.
+# Any other path keeps the host's cwd: the plugin root on Copilot, the caller's
+# on Claude. Everything after a bare `--` is VAR=value for the environment, so
+# a script argument may contain `=`. Sets $status, $output and $stderr.
 run_script() {
-	local target=$1 script=$2 stdin=/dev/null
+	local target=$1 script=$2 stdin=/dev/null cwd=""
 	shift 2
-	if [ "${1:-}" = "--stdin" ]; then
-		stdin=$2
-		shift 2
-	fi
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--stdin)
+			stdin=$2
+			shift 2
+			;;
+		--cwd)
+			cwd=$2
+			shift 2
+			;;
+		*) break ;;
+		esac
+	done
+	local args=() vars=()
+	while [ $# -gt 0 ]; do
+		if [ "$1" = "--" ]; then
+			shift
+			vars=("$@")
+			break
+		fi
+		args+=("$1")
+		shift
+	done
 	local root="$PLUGIN_DIR/builds/$target"
 	if [ ! -f "$root/$script" ]; then
 		echo "run_script: $root/$script not found; run pluginfinity build" >&2
@@ -134,38 +157,67 @@ run_script() {
 		echo "run_script: unknown target $target" >&2
 		return 1
 	}
-	if [ "$target" = copilot ]; then
-		# Copilot runs from the plugin root.
-		run --separate-stderr env -i "${_pf_env[@]}" bash -c 'cd "$1" && shift && exec bash "$@"' _ "$root" "$root/$script" "$@" <"$stdin"
+	case "$script" in
+	skills/*)
+		[ -n "$cwd" ] || cwd="$BATS_TEST_TMPDIR/project"
+		mkdir -p "$cwd"
+		;;
+	*)
+		[ -n "$cwd" ] || { [ "$target" = copilot ] && cwd=$root; }
+		;;
+	esac
+	if [ -n "$cwd" ]; then
+		run --separate-stderr env -i "${_pf_env[@]}" ${vars[@]+"${vars[@]}"} bash -c 'cd "$1" && shift && exec bash "$@"' _ "$cwd" "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
 	else
-		run --separate-stderr env -i "${_pf_env[@]}" bash "$root/$script" "$@" <"$stdin"
+		run --separate-stderr env -i "${_pf_env[@]}" ${vars[@]+"${vars[@]}"} bash "$root/$script" ${args[@]+"${args[@]}"} <"$stdin"
 	fi
 }
 
-# run_monitor <target> <name> [--ticks <n>] [VAR=value...]
-# Runs the monitor's command from builds/claude/monitors/monitors.json under
-# bash -c with CLAUDE_PLUGIN_ROOT set, stdin /dev/null and
-# PLUGINFINITY_MONITOR_MAX_TICKS bounded (default 1). Sets $status, $output and
-# $stderr.
+# run_monitor <target> <name> [--ticks <n>] [--cwd <dir>] [VAR=value...]
+# Runs the monitor's command from builds/claude/monitors/monitors.json the way
+# Claude does: from --cwd (default $BATS_TEST_TMPDIR/project, created, standing
+# in for the session's project dir), with ${CLAUDE_PLUGIN_ROOT} substituted into
+# the command text and none of CLAUDE_PROJECT_DIR, CLAUDE_PLUGIN_ROOT,
+# CLAUDE_PLUGIN_DATA or CLAUDE_SESSION_ID in the environment (a monitor does get
+# CLAUDE_CODE_SESSION_ID, set to "test-session"). Stdin is /dev/null.
+# PLUGINFINITY_MONITOR_MAX_TICKS is set to <n> (default 1): every monitor must
+# honour it, stopping after that many polls, a node `command` monitor included.
+# A target other than claude fails with status 1 and a message on stderr. Sets
+# $status, $output and $stderr.
 run_monitor() {
-	local target=$1 name=$2 ticks=1
+	local target=$1 name=$2 ticks=1 cwd=""
 	shift 2
 	if [ "$target" != claude ]; then
-		echo "run_monitor: $target has no monitors" >&2
-		return 1
+		run --separate-stderr bash -c 'echo "run_monitor: $1 has no monitors" >&2; exit 1' _ "$target"
+		return 0
 	fi
-	if [ "${1:-}" = "--ticks" ]; then
-		ticks=$2
-		shift 2
-	fi
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--ticks)
+			ticks=$2
+			shift 2
+			;;
+		--cwd)
+			cwd=$2
+			shift 2
+			;;
+		*) break ;;
+		esac
+	done
 	local root="$PLUGIN_DIR/builds/claude" command
 	command=$(jq -r --arg n "$name" '[.[] | select(.name == $n)][0].command // empty' "$root/monitors/monitors.json" 2>/dev/null)
 	if [ -z "$command" ]; then
 		echo "run_monitor: no monitor $name" >&2
 		return 1
 	fi
-	_pf_host_env claude "$root"
-	run --separate-stderr env -i "${_pf_env[@]}" PLUGINFINITY_MONITOR_MAX_TICKS="$ticks" "$@" bash -c "$command" </dev/null
+	local token='${CLAUDE_PLUGIN_ROOT}'
+	command=${command//"$token"/$root}
+	[ -n "$cwd" ] || cwd="$BATS_TEST_TMPDIR/project"
+	mkdir -p "$cwd"
+	run --separate-stderr env -i PATH="$PATH" HOME="$BATS_TEST_TMPDIR/home" \
+		XDG_STATE_HOME="$BATS_TEST_TMPDIR/state" CLAUDE_CODE_SESSION_ID=test-session \
+		PLUGINFINITY_MONITOR_MAX_TICKS="$ticks" "$@" \
+		bash -c 'cd "$1" && exec bash -c "$2"' _ "$cwd" "$command" </dev/null
 }
 
 # assert_hook_exit <n>

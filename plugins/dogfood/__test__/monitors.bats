@@ -8,7 +8,8 @@ load "$BATS_TEST_DIRNAME/../node_modules/pluginfinity/bats/pluginfinity.bash"
 	assert_hook_exit 0
 	[ "$output" = "pluginfinity-dogfood heartbeat: heartbeat is alive" ]
 	grep -q "monitor/heartbeat.sh: env: PWD=" "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/debug.log"
-	grep -q "CLAUDE_PROJECT_DIR=$BATS_TEST_TMPDIR" "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/debug.log"
+	# Claude starts a monitor in the project dir and gives it no CLAUDE_PROJECT_DIR.
+	grep -q "PWD=$BATS_TEST_TMPDIR/project CLAUDE_PROJECT_DIR=<unset> project_dir=$BATS_TEST_TMPDIR/project" "$BATS_TEST_TMPDIR/state/pluginfinity/pluginfinity-dogfood/debug.log"
 }
 
 @test "monitors.json holds both monitors, the skill-bound one with the qualified skill name" {
