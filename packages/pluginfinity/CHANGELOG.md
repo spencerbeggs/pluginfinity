@@ -1,5 +1,22 @@
 # pluginfinity
 
+## 0.3.1
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli | dependency | updated | ^0.14.0 | ^0.15.0 |
+| @pluginfinity/cli | dependency | updated | 0.3.0 | 0.3.1 |
+
+[#22][#22]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#22]: https://github.com/spencerbeggs/pluginfinity/pull/22
+
 ## 0.3.0
 
 ### Breaking Changes
