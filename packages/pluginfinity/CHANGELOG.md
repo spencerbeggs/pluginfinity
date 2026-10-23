@@ -1,5 +1,31 @@
 # pluginfinity
 
+## 0.3.6
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.5 | ^4.0.6 |
+| @effected/cli | dependency | updated | ^0.19.0 | ^0.20.0 |
+| @effected/commands | dependency | updated | ^0.14.0 | ^0.15.0 |
+| @effected/engine | dependency | updated | ^0.7.0 | ^0.8.0 |
+| @effected/env | dependency | updated | ^0.4.0 | ^0.5.0 |
+| @effected/glob | dependency | updated | ^0.13.0 | ^0.14.0 |
+| @effected/semver | dependency | updated | ^0.14.0 | ^0.15.0 |
+| @effected/walker | dependency | updated | ^0.18.0 | ^0.19.0 |
+| @pluginfinity/cli | dependency | updated | 0.3.5 | 0.3.6 |
+| @pluginfinity/engine | dependency | updated | 0.3.3 | 0.3.4 |
+| effect | dependency | updated | ^4.0.5 | ^4.0.6 |
+
+[#44][#44]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/apps/spencerbeggs) for their contributions!
+
+[#44]: https://github.com/spencerbeggs/pluginfinity/pull/44
+
 ## 0.3.5
 
 ### Dependencies
