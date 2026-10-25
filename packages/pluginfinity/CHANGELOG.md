@@ -1,5 +1,25 @@
 # pluginfinity
 
+## 0.3.9
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli | dependency | updated | ^0.22.1 | ^0.22.2 |
+| @effected/commands | dependency | updated | ^0.15.1 | ^0.16.0 |
+| @effected/walker | dependency | updated | ^0.20.0 | ^0.20.1 |
+| @pluginfinity/cli | dependency | updated | 0.3.8 | 0.3.9 |
+| @pluginfinity/engine | dependency | updated | 0.3.6 | 0.3.7 |
+
+[#54][#54]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#54]: https://github.com/spencerbeggs/pluginfinity/pull/54
+
 ## 0.3.8
 
 ### Dependencies

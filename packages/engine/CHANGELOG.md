@@ -1,5 +1,22 @@
 # @pluginfinity/engine
 
+## 0.3.7
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/commands | dependency | updated | ^0.15.1 | ^0.16.0 |
+| @effected/walker | dependency | updated | ^0.20.0 | ^0.20.1 |
+
+[#54][#54]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#54]: https://github.com/spencerbeggs/pluginfinity/pull/54
+
 ## 0.3.6
 
 ### Bug Fixes
