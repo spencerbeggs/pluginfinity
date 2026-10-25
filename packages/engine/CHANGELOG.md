@@ -1,5 +1,28 @@
 # @pluginfinity/engine
 
+## 0.3.6
+
+### Bug Fixes
+
+- `PLUGINFINITY_LIB_VERSION` in a build's generated `host.sh` is now a hash of the script library, not the engine version, so committed builds no longer change on every engine release and only change when a library script does
+- `doctor`'s Node.js floor check uses the `@effected/semver` 0.18 comparison API [#52][#52]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/semver | dependency | updated | ^0.17.0 | ^0.18.0 |
+| @effected/walker | dependency | updated | ^0.19.0 | ^0.20.0 |
+| @effected/yaml | dependency | updated | ^0.25.0 | ^0.25.1 |
+
+[#52][#52]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#52]: https://github.com/spencerbeggs/pluginfinity/pull/52
+
 ## 0.3.5
 
 ### Dependencies
