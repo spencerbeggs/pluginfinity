@@ -1,5 +1,24 @@
 # @pluginfinity/cli
 
+## 0.3.8
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli | dependency | updated | ^0.22.0 | ^0.22.1 |
+| @effected/semver | dependency | updated | ^0.17.0 | ^0.18.0 |
+| @effected/walker | dependency | updated | ^0.19.0 | ^0.20.0 |
+| @pluginfinity/engine | dependency | updated | 0.3.5 | 0.3.6 |
+
+[#52][#52]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#52]: https://github.com/spencerbeggs/pluginfinity/pull/52
+
 ## 0.3.7
 
 ### Dependencies
