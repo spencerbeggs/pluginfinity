@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { assert, describe, it } from "@effect/vitest";
 import { ENV_LIB_FILES } from "../src/env-lib.generated.js";
 import { HOOK_LIB_FILES } from "../src/hook-lib.generated.js";
 import { libFiles } from "../src/lib-files.js";
+import { LIB_VERSION } from "../src/lib-version.generated.js";
 import { LOG_LIB_FILES } from "../src/log-lib.generated.js";
 import { MONITOR_LIB_FILES } from "../src/monitor-lib.generated.js";
 import { SERVER_LIB_FILES } from "../src/server-lib.generated.js";
@@ -43,6 +45,16 @@ describe("embedded monitor library", () => {
 describe("embedded session env library", () => {
 	it("matches env-lib/*.sh byte for byte; run `pnpm --filter @pluginfinity/engine hook-lib:embed` after editing them", () => {
 		assert.deepStrictEqual(ENV_LIB_FILES, read("env-lib"));
+	});
+});
+
+describe("library version", () => {
+	it("hashes every embedded library file; run `pnpm --filter @pluginfinity/engine hook-lib:embed` after editing them", () => {
+		const hash = createHash("sha256");
+		for (const dir of ["hook-lib", "server-lib", "log-lib", "monitor-lib", "env-lib"]) {
+			for (const file of read(dir)) hash.update(`${dir}/${file.name}\0${file.content}\0`);
+		}
+		assert.strictEqual(LIB_VERSION, hash.digest("hex").slice(0, 12));
 	});
 });
 
