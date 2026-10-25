@@ -37,6 +37,7 @@ import {
 	widensSessionStart,
 } from "./hooks.js";
 import { LIB_DIR, libFiles } from "./lib-files.js";
+import { LIB_VERSION } from "./lib-version.generated.js";
 import type { LoadedConfig } from "./loader.js";
 import { pluginName, renderManifest, serializeManifest } from "./manifest.js";
 import { renderMonitors, targetMonitors } from "./monitors.js";
@@ -50,7 +51,6 @@ import type { SourceSkill } from "./skills.js";
 import { readSkills, renderSkill } from "./skills.js";
 import type { TokenContext } from "./tokens.js";
 import { renderToolMap } from "./tool-map.js";
-import { ENGINE_VERSION } from "./version.js";
 
 /**
  * The input to `build`.
@@ -576,7 +576,7 @@ const planPlugin = (
 					...hookLibFiles(
 						id,
 						String(manifest.name),
-						ENGINE_VERSION,
+						LIB_VERSION,
 						renderToolMap(target, pluginName(config.config, "claude"), [...mcpServerNames(id, config.config)], {
 							skills: builtFor(skills, id).map((skill) => skill.name),
 							agents: builtFor(agents, id).map((agent) => agent.name),
@@ -587,7 +587,7 @@ const planPlugin = (
 			}
 			if (monitored.rendered.file !== undefined) generated.push(monitored.rendered.file);
 			generated.push(
-				...libFiles(id, String(manifest.name), ENGINE_VERSION, {
+				...libFiles(id, String(manifest.name), LIB_VERSION, {
 					monitors: monitored.rendered.file !== undefined,
 					...(env === undefined ? {} : { env }),
 				}),
