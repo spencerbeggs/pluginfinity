@@ -144,7 +144,7 @@ const nodeCheck = (nodeVersion: string): Effect.Effect<DoctorCheck> =>
 		if (Result.isFailure(parsed)) {
 			return check({ ...base, pass: false, detail: `could not parse version "${nodeVersion}"`, remediation });
 		}
-		const pass = SemVer.gte(parsed.success, floor);
+		const pass = parsed.success.gte(floor);
 		return check({
 			...base,
 			pass,
