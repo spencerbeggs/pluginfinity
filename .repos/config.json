@@ -1,0 +1,23 @@
+{
+	"repos": {
+		"effect": {
+			"url": "https://github.com/Effect-TS/effect.git",
+			"ref": "effect@4.0.6",
+			"purpose": "Read-only Effect v4 source pinned to the tag matching the installed effect (the lockfile's resolution of the pnpm-plugin-effect catalog) — the authority on what v4 actually exports, plus the v3→v4 migration notes and the @effect/vitest reference implementation. Re-pin whenever the lockfile's effect version moves.",
+			"sparse": [
+				"packages/effect",
+				"packages/vitest",
+				"migration"
+			],
+			"orientation": {
+				"layout": "Sparse checkout: packages/effect (core source + package.json exports map), packages/vitest (@effect/vitest reference implementation), migration/ (per-domain v3→v4 notes).",
+				"keyPaths": {
+					"effect-source": "packages/effect/src",
+					"migration-notes": "migration",
+					"vitest-reference": "packages/vitest/src"
+				},
+				"startHere": "packages/effect/src settles what v4 actually exports; migration/*.md settles v3→v4 renames. Before trusting an answer, check the pin matches the installed effect version (node -p \"require('effect/package.json').version\" from packages/engine) — node_modules wins on disagreement."
+			}
+		}
+	}
+}
