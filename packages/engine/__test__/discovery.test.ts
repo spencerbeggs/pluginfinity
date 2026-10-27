@@ -1,42 +1,36 @@
 import { assert, describe, layer } from "@effect/vitest";
 import { MemoryFileSystem } from "@effected/memfs";
-import { Effect, Layer, Path } from "effect";
+import { Effect } from "effect";
 import { ConfigDiscovery } from "../src/index.js";
 
 // One seeded volume for every case: a repository at /repo with plugins in
 // several shapes, and a stray config above the repository's .git boundary.
-const Volume = Layer.merge(
-	MemoryFileSystem.layerWith({
-		"/pluginfinity.config.ts": "",
-		"/repo/.git/HEAD": "ref: refs/heads/main\n",
-		"/repo/plugins/a/pluginfinity.config.ts": "",
-		"/repo/plugins/a/skills/deep/SKILL.md": "",
-		"/repo/plugins/a/builds/claude/pluginfinity.config.ts": "",
-		"/repo/plugins/b/pluginfinity.config.mjs": "",
-		"/repo/plugins/two/pluginfinity.config.ts": "",
-		"/repo/plugins/two/pluginfinity.config.js": "",
-		"/repo/node_modules/dep/pluginfinity.config.ts": "",
-		"/repo/docs/guide.md": "",
-		"/single/pluginfinity.config.mts": "",
-		"/single/sub/file.txt": "",
-	}),
-	Path.layer,
-);
+const Volume = MemoryFileSystem.layerWithPath({
+	"/pluginfinity.config.ts": "",
+	"/repo/.git/HEAD": "ref: refs/heads/main\n",
+	"/repo/plugins/a/pluginfinity.config.ts": "",
+	"/repo/plugins/a/skills/deep/SKILL.md": "",
+	"/repo/plugins/a/builds/claude/pluginfinity.config.ts": "",
+	"/repo/plugins/b/pluginfinity.config.mjs": "",
+	"/repo/plugins/two/pluginfinity.config.ts": "",
+	"/repo/plugins/two/pluginfinity.config.js": "",
+	"/repo/node_modules/dep/pluginfinity.config.ts": "",
+	"/repo/docs/guide.md": "",
+	"/single/pluginfinity.config.mts": "",
+	"/single/sub/file.txt": "",
+});
 
 // A tree with no ambiguous directory, so `all` from its root reaches every
 // prune decision instead of failing on the first ambiguous directory.
-const PrunedTree = Layer.merge(
-	MemoryFileSystem.layerWith({
-		"/tree/.git/pluginfinity.config.ts": "",
-		"/tree/node_modules/dep/pluginfinity.config.ts": "",
-		"/tree/plugins/z/pluginfinity.config.ts": "",
-		"/tree/plugins/z/builds/claude/pluginfinity.config.ts": "",
-		"/tree/plugins/a/pluginfinity.config.mjs": "",
-		"/tree/plugins/a/node_modules/dep/pluginfinity.config.js": "",
-		"/tree/pluginfinity.config.mts": "",
-	}),
-	Path.layer,
-);
+const PrunedTree = MemoryFileSystem.layerWithPath({
+	"/tree/.git/pluginfinity.config.ts": "",
+	"/tree/node_modules/dep/pluginfinity.config.ts": "",
+	"/tree/plugins/z/pluginfinity.config.ts": "",
+	"/tree/plugins/z/builds/claude/pluginfinity.config.ts": "",
+	"/tree/plugins/a/pluginfinity.config.mjs": "",
+	"/tree/plugins/a/node_modules/dep/pluginfinity.config.js": "",
+	"/tree/pluginfinity.config.mts": "",
+});
 
 describe("ConfigDiscovery.nearest", () => {
 	layer(Volume)((it) => {

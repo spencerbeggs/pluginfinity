@@ -1,19 +1,16 @@
 import { assert, describe, it, layer } from "@effect/vitest";
 import { MemoryFileSystem } from "@effected/memfs";
-import { Effect, FileSystem, Layer, Path } from "effect";
+import { Effect, FileSystem } from "effect";
 import { listLogPlugins, logDirectory, parseLogLine, readLog, readLogFrom } from "../src/index.js";
 
-const Volume = Layer.merge(
-	MemoryFileSystem.layerWith({
-		"/state/pluginfinity/alpha/error.log":
-			"2026-10-06T10:00:00Z [claude] hook/guard.sh: first\n2026-10-06T10:00:01Z [copilot] server/start.sh: second: with colon\n",
-		"/state/pluginfinity/alpha/debug.log": "2026-10-06T10:00:02Z [claude] hook/guard.sh: dbg\n",
-		"/state/pluginfinity/beta/error.log": "not a log line\n2026-10-06T10:00:03Z [claude] monitor/watch.sh: third\n",
-		"/state/pluginfinity/stray.txt": "a file, not a plugin directory",
-		"/state/pluginfinity/partial/error.log": "2026-10-06T10:00:04Z [claude] script/x.sh: whole\n2026-10-06T10:0",
-	}),
-	Path.layer,
-);
+const Volume = MemoryFileSystem.layerWithPath({
+	"/state/pluginfinity/alpha/error.log":
+		"2026-10-06T10:00:00Z [claude] hook/guard.sh: first\n2026-10-06T10:00:01Z [copilot] server/start.sh: second: with colon\n",
+	"/state/pluginfinity/alpha/debug.log": "2026-10-06T10:00:02Z [claude] hook/guard.sh: dbg\n",
+	"/state/pluginfinity/beta/error.log": "not a log line\n2026-10-06T10:00:03Z [claude] monitor/watch.sh: third\n",
+	"/state/pluginfinity/stray.txt": "a file, not a plugin directory",
+	"/state/pluginfinity/partial/error.log": "2026-10-06T10:00:04Z [claude] script/x.sh: whole\n2026-10-06T10:0",
+});
 
 describe("parseLogLine", () => {
 	it("splits a log line into its fields, keeping colons in the message", () => {

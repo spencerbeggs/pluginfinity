@@ -1,4 +1,5 @@
 import type { ToolDiscovery } from "@effected/commands";
+import type { Distribution } from "@effected/engine";
 import type { Layer } from "effect";
 import { Cause, ConfigProvider, Effect, Exit, Runtime } from "effect";
 import { TestConsole } from "effect/testing";
@@ -33,6 +34,8 @@ export const runCli = (
 		readonly stateHome?: string;
 		/** Bounds `logs --follow`: when `stop` completes the follow ends. */
 		readonly follow?: Partial<FollowControl>;
+		/** The carrier a shim would pass; a direct run by default. */
+		readonly distribution?: Distribution;
 	} = {},
 ): Effect.Effect<CliResult> =>
 	Effect.gen(function* () {
@@ -45,6 +48,7 @@ export const runCli = (
 			stateHome: options.stateHome ?? "/nonexistent-pluginfinity-test-state",
 			platform: testPlatform,
 			tools: options.tools ?? fakeTools({}),
+			distribution: options.distribution,
 		}).pipe(
 			Effect.provideService(ConfigProvider.ConfigProvider, ConfigProvider.fromUnknown({})),
 			(self) =>

@@ -36,8 +36,10 @@ sources:
     title: The audience-aware renderers for config errors, the doctor report and build and validate results
 generated:
   by: okfit/claude-code
-  at: 2026-10-07T03:22:43Z
-  body_sha256: afed6b22c1f1d93c31c85bccf414c8cec51208203feca117495db02ef5a1c374
+  at: 2026-10-27T16:23:01Z
+integrity:
+  generated:
+    body: e944ce747bcd1253
 ---
 
 # @pluginfinity/cli
@@ -62,7 +64,7 @@ Behind the entry:
 - `src/commands/` holds one file per command (`init`, `plugin add`, `build`, `validate`, `doctor`, `logs`).[^commands] `shared.ts` holds the `[path]`, `--target`, `--all` and `--config` inputs and turns them into the engine's `ConfigSelection`; `name.ts` checks a plugin name against core's `PluginName`.
 - `src/render/` draws engine results for the audience: a config error as a message and a hint on stderr for people or one JSON object on stdout for agents and CI, the doctor report as a grouped checklist or one JSON object, and build and validate results as one `✓` line per target, each followed by its [build notes](../decisions/build-notes-cover-hooks-and-monitors.md) one line per component, or one JSON object whose builds and validations carry a `notes` array.[^render]
 
-The custom `--version` formatter prints the version line as plain text. `@effected/cli` 0.11.0 offers no way to add a suffix while keeping its coloured default.
+`run` hands the carrier to `CliRuntime.main`'s `distribution` option, which provides it as `CurrentDistribution` and appends the `via <name> <version>` suffix to the `--version` line. The custom `--version` formatter is there only to print that line as plain text instead of the coloured default.
 
 ### Logs and the follow bound
 
