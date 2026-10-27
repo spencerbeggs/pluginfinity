@@ -1,5 +1,34 @@
 # @pluginfinity/cli
 
+## 0.3.10
+
+### Refactoring
+
+- The carrier's distribution now goes through `CliRuntime.main`'s `distribution` option. That option provides `CurrentDistribution` and appends the `via <name> <version>` suffix to `--version`, replacing the hand-built suffix. The version line and the `distribution` field in JSON output are unchanged.
+- `logs --follow` now polls on `Schedule.spaced` instead of a hand-written sleep loop, with the same cadence.
+- Dropped the stderr terminal override, because the platform's own check is identical. [#60][#60]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli | dependency | updated | ^0.22.2 | ^0.23.0 |
+| @effected/commands | dependency | updated | ^0.16.0 | ^0.17.0 |
+| @effected/engine | dependency | updated | ^0.8.0 | ^0.9.0 |
+| @effected/env | dependency | updated | ^0.5.0 | ^0.6.0 |
+| @effected/glob | dependency | updated | ^0.14.0 | ^0.15.0 |
+| @effected/walker | dependency | updated | ^0.20.1 | ^0.21.0 |
+| @pluginfinity/engine | dependency | updated | 0.3.7 | 0.3.8 |
+| @effected/config-file | dependency | added | — | ^0.21.0 |
+
+[#60][#60]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#60]: https://github.com/spencerbeggs/pluginfinity/pull/60
+
 ## 0.3.9
 
 ### Dependencies
