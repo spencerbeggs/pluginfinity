@@ -20,7 +20,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-03T01:28:45Z
-  body_sha256: 7065cd7473e048dd99b7a73c7cd4d2b8c1b0744772b336bc0c05fc47f2ba45bf
+integrity:
+  generated:
+    body: 7065cd7473e048dd
 ---
 
 # Copilot honours flat additionalContext from a PascalCase SessionStart hook, 2026-10-03

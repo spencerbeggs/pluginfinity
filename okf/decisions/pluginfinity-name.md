@@ -21,10 +21,18 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T19:38:56Z
-  body_sha256: f3851e2e7ad18fcebb3995abf3872e9623b6066d260515c4936a948edadf050e
 verified:
   - by: human:spencer
     at: 2026-10-06T03:11:19Z
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
+integrity:
+  generated:
+    body: f3851e2e7ad18fce
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: 0f055a680be8d5c6
 ---
 
 # The tool is named pluginfinity

@@ -24,7 +24,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-05T16:27:40Z
-  body_sha256: d37b49f6a931d37f54b803e20d76f23dbe97b656390c35d6e4bf28881928b9b5
+integrity:
+  generated:
+    body: d37b49f6a931d37f
 ---
 
 # Hook library live run on Claude Code and Copilot CLI, 2026-10-03

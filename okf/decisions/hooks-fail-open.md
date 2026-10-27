@@ -22,10 +22,18 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-03T21:06:07Z
-  body_sha256: 6d4afc0d271c08db6ebb8dda0f2007315a7f40cbab903ffef8c67e1648c98187
 verified:
   - by: human:spencer
     at: 2026-10-06T03:11:19Z
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
+integrity:
+  generated:
+    body: 6d4afc0d271c08db
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: 06e8faa55b43bf94
 ---
 
 # Hooks fail open on both hosts

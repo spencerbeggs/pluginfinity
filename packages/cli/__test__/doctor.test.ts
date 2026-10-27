@@ -42,6 +42,16 @@ describe("pluginfinity doctor", () => {
 			}),
 		);
 
+		it.effect("for an agent launched through a carrier: distribution names the carrier", () =>
+			Effect.gen(function* () {
+				const cwd = yield* writeTree({ "pluginfinity.config.ts": BOTH_TARGETS });
+				const distribution = { name: "pluginfinity", version: "0.4.0" };
+				const result = yield* runCli(["doctor", "--agent"], { cwd, tools: fakeTools(ALL_PRESENT), distribution });
+				assert.strictEqual(result.code, 0);
+				assert.deepStrictEqual(JSON.parse(result.stdout[0] ?? "").distribution, distribution);
+			}),
+		);
+
 		it.effect("--ci gets the same JSON object", () =>
 			Effect.gen(function* () {
 				const cwd = yield* writeTree({ "pluginfinity.config.ts": BOTH_TARGETS });

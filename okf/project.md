@@ -15,7 +15,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T19:34:21Z
-  body_sha256: 67c217d8fd49b5609f7aad57e17218403b5a828f23cdc7b3e2fe7e16f5709097
+integrity:
+  generated:
+    body: 67c217d8fd49b560
 ---
 
 # pluginfinity

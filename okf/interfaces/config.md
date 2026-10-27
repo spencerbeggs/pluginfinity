@@ -45,7 +45,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T07:34:27Z
-  body_sha256: d94b221a7d14a80847d7031a61716af998f7ba1d7933ce5651fc87cfa96fcdeb
+integrity:
+  generated:
+    body: d94b221a7d14a808
 ---
 
 # pluginfinity.config.ts

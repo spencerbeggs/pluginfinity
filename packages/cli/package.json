@@ -36,6 +36,7 @@
 		"@effect/platform-node": "catalog:effect",
 		"@effected/cli": "catalog:effected",
 		"@effected/commands": "catalog:effected",
+		"@effected/config-file": "catalog:effected",
 		"@effected/engine": "catalog:effected",
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",

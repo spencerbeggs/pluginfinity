@@ -18,7 +18,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T16:13:41Z
-  body_sha256: 01d7b5b2427dec342862b796d0ea6eac391add520a71003b6a380857f37fa039
+integrity:
+  generated:
+    body: 01d7b5b2427dec34
 ---
 
 # plugin-bot target divergence, 2026-09-30

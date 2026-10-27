@@ -1,5 +1,61 @@
 # Log
 
+## 2026-10-27
+
+* Updated @pluginfinity/cli
+* Updated @pluginfinity/core
+* Updated @pluginfinity/targets
+* Updated A skill_dir token names a skill's directory, as a placeholder on Copilot
+* Updated A workspace plugin gets no pluginfinity bin unless the carrier is relinked after its build
+* Updated Agent frontmatter across hosts
+* Updated Body tokens and pluginfinity links are built per target
+* Updated Build notes also report hook matchers, ignored hook output and omitted monitors
+* Updated Build notes report what a target drops, degrades or omits
+* Updated Built plugins carry no Node dependencies
+* Updated Claude Code marketplace format
+* Updated Claude Code monitor environment, 2026-10-07
+* Updated Claude Code plugin format
+* Updated Claude Code's MCP and LSP servers go inline in plugin.json
+* Updated Claude Code's names are the source vocabulary
+* Updated Copilot CLI run-time tool, skill and agent names, 2026-10-06
+* Updated Copilot honours a Claude-style PreToolUse deny, 2026-10-02
+* Updated Copilot honours flat additionalContext from a PascalCase SessionStart hook, 2026-10-03
+* Updated Copilot plugin hook environment, 2026-10-02
+* Updated Facts about a hook entry travel to its script as environment variables
+* Updated GitHub Copilot CLI plugin format
+* Updated Hook library live run on Claude Code and Copilot CLI, 2026-10-03
+* Updated Hook scripts change mode around every commit with no diff, and build --check ignores it
+* Updated Hooks fail open on both hosts
+* Updated Hooks, servers, monitors and scripts share one logging standard
+* Updated Host runtime probes, 2026-10-07
+* Updated Monitors are a first-class component
+* Updated Plugin MCP and LSP server environment on Claude Code and Copilot, 2026-10-05
+* Updated Plugin source model
+* Updated Server launchers ship by discovery and files, beside an injected server library
+* Updated Session env is declared in the config and resolved once at SessionStart
+* Updated Skill frontmatter across hosts
+* Updated Target description
+* Updated Targets are data plus a closed set of named formats
+* Updated The copilot target emits Agent Plugins 1.0
+* Updated The hook library is injected at build time
+* Updated The pluginfinity command line
+* Updated The tool is named pluginfinity
+* Updated Under Claude Code a plain pluginfinity doctor prints JSON, not the checklist
+* Updated claude-binary-plugin prior art
+* Updated dogfood plugin fixture
+* Updated plugin-bot target divergence, 2026-09-30
+* Updated pluginfinity
+* Updated pluginfinity carrier package
+* Updated pluginfinity companion plugin
+* Updated pluginfinity first release
+* Updated pluginfinity is a CLI application in its own repository
+* Updated pluginfinity ships as a carrier package over scoped layer packages
+* Updated pluginfinity.config.ts
+
+## 2026-10-25
+
+* Updated @pluginfinity/engine
+
 ## 2026-10-07
 
 * Updated @pluginfinity/core

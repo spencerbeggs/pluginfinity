@@ -33,7 +33,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T06:53:05Z
-  body_sha256: 417bff1e98be9a725ed63f1e00807eddf2b31143fa902342377fcc2efadd2a3b
+integrity:
+  generated:
+    body: 417bff1e98be9a72
 ---
 
 # pluginfinity companion plugin

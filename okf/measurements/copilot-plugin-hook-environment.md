@@ -20,7 +20,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T22:13:15Z
-  body_sha256: c7536a95fa4ea1857ea6c16906d66263ebef4e8c98515da294f82c8b71d4cba4
+integrity:
+  generated:
+    body: c7536a95fa4ea185
 ---
 
 # Copilot plugin hook environment, 2026-10-02

@@ -20,7 +20,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T22:36:46Z
-  body_sha256: 4d00326ec2c341d08ecefccc2391444382a1e7c07a246251f2bd09397bf6ab26
+integrity:
+  generated:
+    body: 4d00326ec2c341d0
 ---
 
 # Copilot honours a Claude-style PreToolUse deny, 2026-10-02

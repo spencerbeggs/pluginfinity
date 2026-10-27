@@ -18,10 +18,18 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-03T21:06:07Z
-  body_sha256: 0937ff89a9d81c2f0f819b259e62e018e74b9586cc91f421c0f192f56e5a1f93
 verified:
   - by: human:spencer
     at: 2026-10-06T03:11:19Z
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
+integrity:
+  generated:
+    body: 0937ff89a9d81c2f
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: a47520effa79e148
 ---
 
 # The hook library is injected at build time

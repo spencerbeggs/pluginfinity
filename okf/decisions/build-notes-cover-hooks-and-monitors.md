@@ -2,7 +2,7 @@
 type: Decision
 title: Build notes also report hook matchers, ignored hook output and omitted monitors
 description: The info-level build notes grow from four kinds to seven, adding hook-matcher-runtime, hook-output-ignored and monitor-omitted, so a hook or monitor a host cannot honour as written is reported instead of silently weaker.
-status: draft
+status: stable
 supersedes: build-notes-report-dropped-fields.md
 tags:
   - dx
@@ -24,7 +24,16 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T06:53:05Z
-  body_sha256: 79f886c6652b39f0a5f58557f2abcfddffcce49fa8ebf8bae9e9b163af8e9a17
+integrity:
+  generated:
+    body: 79f886c6652b39f0
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: 81a77e5957d9d59d
+verified:
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
 ---
 
 # Build notes also report hook matchers, ignored hook output and omitted monitors

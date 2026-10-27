@@ -2,7 +2,7 @@
 type: Decision
 title: Hooks, servers, monitors and scripts share one logging standard
 description: One log.sh, injected into every target, writes error.log always and debug.log when PLUGINFINITY_DEBUG=1, in one line format under one per-plugin state directory, replacing the per-component log files and PLUGINFINITY_HOOK_DEBUG.
-status: draft
+status: stable
 tags:
   - observability
   - dx
@@ -26,7 +26,16 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-06T21:45:51Z
-  body_sha256: 48868910b6135fc1e0b28eda032515d5be5603727ae83b6740980e8f401dfacc
+integrity:
+  generated:
+    body: 48868910b6135fc1
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: f60fcbeccaad00aa
+verified:
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
 ---
 
 # Hooks, servers, monitors and scripts share one logging standard

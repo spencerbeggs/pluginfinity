@@ -21,10 +21,18 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T19:38:56Z
-  body_sha256: 84252e0d88241936dac6e91f88aed1633f5f4da4ab47fc39a5e034b3fdbfa340
 verified:
   - by: human:spencer
     at: 2026-10-06T03:11:19Z
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
+integrity:
+  generated:
+    body: 84252e0d88241936
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: e90ea5fbaea96563
 ---
 
 # pluginfinity is a CLI application in its own repository

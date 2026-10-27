@@ -3,7 +3,7 @@ import { Audience } from "@effected/env";
 import type { LogFileName, LogTail } from "@pluginfinity/engine";
 import { configPluginNames, listLogPlugins, logRoot, parseLogLine, readLog, readLogFrom } from "@pluginfinity/engine";
 import type { Duration } from "effect";
-import { Console, Context, Effect, FileSystem, Option } from "effect";
+import { Console, Context, Effect, FileSystem, Option, Schedule } from "effect";
 import { Command, Flag } from "effect/cli";
 import { reportFindings } from "../render/config-error.js";
 import { entryJson, logsJson, logsLines, sectionHeader } from "../render/logs.js";
@@ -47,15 +47,15 @@ const follow = (
 ) =>
 	Effect.gen(function* () {
 		const offsets = new Map(tails.map((tail) => [tail.path, tail.offset]));
-		yield* Effect.forever(
+		yield* Effect.repeat(
 			Effect.gen(function* () {
 				for (const tail of tails) {
 					const next = yield* readLogFrom(tail.path, offsets.get(tail.path) ?? 0);
 					offsets.set(tail.path, next.offset);
 					for (const line of next.lines) yield* print(tail, line);
 				}
-				yield* Effect.sleep(control.interval);
 			}),
+			Schedule.spaced(control.interval),
 		);
 	}).pipe((loop) => Effect.raceFirst(loop, control.stop));
 

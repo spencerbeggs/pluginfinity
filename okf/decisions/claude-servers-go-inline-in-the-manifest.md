@@ -2,7 +2,7 @@
 type: Decision
 title: Claude Code's MCP and LSP servers go inline in plugin.json
 description: The claude target writes its MCP and LSP servers inline under mcpServers and lspServers in .claude-plugin/plugin.json instead of a root .mcp.json and .lsp.json, because repositories conventionally gitignore .mcp.json and a committed build then ships no MCP server; Copilot keeps its server files.
-status: draft
+status: stable
 tags:
   - architecture
   - portability
@@ -32,7 +32,16 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-06T05:14:30Z
-  body_sha256: b9b4c78c5174280e209482e14ae97f0f6e3410b027771d360fe6f41a5f4ae5f8
+integrity:
+  generated:
+    body: b9b4c78c5174280e
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: 1425a2a6d90538c1
+verified:
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
 ---
 
 # Claude Code's MCP and LSP servers go inline in plugin.json

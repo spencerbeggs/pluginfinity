@@ -1,6 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { CurrentDistribution } from "@effected/engine";
-import { Effect, Option } from "effect";
+import { Effect } from "effect";
 import { runCli } from "./utils/run.js";
 
 describe("pluginfinity", () => {
@@ -15,9 +14,7 @@ describe("pluginfinity", () => {
 
 	it.effect("--version launched through a carrier names the distribution", () =>
 		Effect.gen(function* () {
-			const result = yield* runCli(["--version"]).pipe(
-				Effect.provideService(CurrentDistribution, Option.some({ name: "pluginfinity", version: "0.4.0" })),
-			);
+			const result = yield* runCli(["--version"], { distribution: { name: "pluginfinity", version: "0.4.0" } });
 			assert.strictEqual(result.code, 0);
 			assert.deepStrictEqual(result.stdout, ["pluginfinity v1.2.3 via pluginfinity 0.4.0"]);
 			assert.deepStrictEqual(result.stderr, []);

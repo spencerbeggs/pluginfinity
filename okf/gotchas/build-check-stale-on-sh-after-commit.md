@@ -21,7 +21,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-06T02:28:06Z
-  body_sha256: 381b65387fe7f047033ed274c09c1c78c283e13bd93441d23c0779470e21f65e
+integrity:
+  generated:
+    body: 381b65387fe7f047
 ---
 
 # Hook scripts change mode around every commit with no diff, and build --check ignores it

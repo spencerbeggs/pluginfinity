@@ -23,10 +23,12 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-06T00:46:30Z
-  body_sha256: e356919d868e86a88e176b7afa276cb5323eea201e8daa1552b71dc4393e2105
 verified:
   - by: human:spencer
     at: 2026-10-06T03:11:19Z
+integrity:
+  generated:
+    body: e356919d868e86a8
 ---
 
 # Build notes report what a target drops, degrades or omits

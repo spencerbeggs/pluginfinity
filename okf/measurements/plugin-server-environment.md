@@ -16,7 +16,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T06:17:04Z
-  body_sha256: efcd9296d05fe524937cf545d1b05ccedc6de2a038c5c7e9bf1acd61f9ed1a4f
+integrity:
+  generated:
+    body: efcd9296d05fe524
 ---
 
 # Plugin MCP and LSP server environment on Claude Code and Copilot, 2026-10-05

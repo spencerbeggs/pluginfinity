@@ -18,10 +18,18 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T22:08:02Z
-  body_sha256: 99732066cde8cf51bfe05ba99897b1aabebd6c5b7eefcca38ef32f8465bb93c4
 verified:
   - by: human:spencer
     at: 2026-10-06T03:11:19Z
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
+integrity:
+  generated:
+    body: 99732066cde8cf51
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: 0b460e5428003818
 ---
 
 # The copilot target emits Agent Plugins 1.0

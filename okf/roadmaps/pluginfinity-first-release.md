@@ -31,7 +31,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-06T21:43:13Z
-  body_sha256: a7221acaa05bdfd61567b7da877f2b0d82d259c5b7c264288c0be6d7eb676c4e
+integrity:
+  generated:
+    body: a7221acaa05bdfd6
 ---
 
 # pluginfinity first release

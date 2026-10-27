@@ -27,10 +27,18 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T06:17:04Z
-  body_sha256: a8262330236cd62f0689e37f33381eaca9dc40fa568989ae56ef02b357fab584
 verified:
   - by: human:spencer
     at: 2026-10-05T18:45:46Z
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
+integrity:
+  generated:
+    body: a8262330236cd62f
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: f71b1ea9d9089278
 ---
 
 # Server launchers ship by discovery and files, beside an injected server library

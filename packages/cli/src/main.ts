@@ -4,8 +4,7 @@
 import { homedir } from "node:os";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { CurrentDistribution } from "@effected/engine";
-import { Cause, Effect, Exit, Option, Runtime } from "effect";
+import { Cause, Effect, Exit, Runtime } from "effect";
 import type { MainOptions } from "./cli/run.js";
 import { run } from "./cli/run.js";
 import { CurrentFollow, DEFAULT_FOLLOW } from "./commands/logs.js";
@@ -53,9 +52,8 @@ export const main = (options: MainOptions = {}): void => {
 			nodeVersion: process.versions.node,
 			stateHome,
 			platform: NodeServices.layer,
-			stderrIsTerminal: Effect.sync(() => process.stderr.isTTY === true),
+			distribution: options.distribution,
 		}).pipe(
-			Effect.provideService(CurrentDistribution, Option.fromNullishOr(options.distribution)),
 			Effect.provideService(CurrentFollow, {
 				...DEFAULT_FOLLOW,
 				onStart: () => {
