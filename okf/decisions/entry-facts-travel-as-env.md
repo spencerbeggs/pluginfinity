@@ -2,7 +2,7 @@
 type: Decision
 title: Facts about a hook entry travel to its script as environment variables
 description: The build gives each hook entry its event, its fail policy and, where the host ignores the matcher, its matcher through PLUGINFINITY_* variables, in exec-form env on Claude Code script entries and the env field on Copilot.
-status: draft
+status: stable
 tags:
   - architecture
   - portability
@@ -26,7 +26,16 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-06T21:45:51Z
-  body_sha256: 7b5bcc23706d9627cb9165ff7040afc3871c9b0b11a1351806fd41eba41d0f41
+integrity:
+  generated:
+    body: 7b5bcc23706d9627
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: 3e7efc12495ab447
+verified:
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
 ---
 
 # Facts about a hook entry travel to its script as environment variables

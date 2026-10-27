@@ -19,10 +19,18 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T19:38:56Z
-  body_sha256: 37989e0b843cc8a38d89908165fdfc14aa12379cbb899b92abe14123f2ab53ec
 verified:
   - by: human:spencer
     at: 2026-10-06T03:11:19Z
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
+integrity:
+  generated:
+    body: 37989e0b843cc8a3
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: 19280f5d7d8fa219
 ---
 
 # pluginfinity ships as a carrier package over scoped layer packages

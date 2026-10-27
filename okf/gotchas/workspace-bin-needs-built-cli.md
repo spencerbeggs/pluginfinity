@@ -18,7 +18,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-03T03:39:43Z
-  body_sha256: 45ce66d1977fa543cd162d98877fba8b96a6b0b805ba93e838e101f643a521be
+integrity:
+  generated:
+    body: 45ce66d1977fa543
 ---
 
 # A workspace plugin gets no pluginfinity bin unless the carrier is relinked after its build

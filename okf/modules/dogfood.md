@@ -38,7 +38,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T07:34:27Z
-  body_sha256: 1a729786f6dc3040ac18677e068950f86299cde00b691824bf8e745c8702d2c0
+integrity:
+  generated:
+    body: 1a729786f6dc3040
 ---
 
 # dogfood plugin fixture

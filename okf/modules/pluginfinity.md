@@ -34,7 +34,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T09:02:23Z
-  body_sha256: a1139096c9903ccfa261be1f26fa5148238fa93758723a09285e296dfe766ca9
+integrity:
+  generated:
+    body: a1139096c9903ccf
 ---
 
 # pluginfinity carrier package

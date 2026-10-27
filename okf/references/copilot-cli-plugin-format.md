@@ -43,7 +43,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-03T20:49:08Z
-  body_sha256: 4145560d966104e89c2ecbcd68656b6d1663b943fe6834a6e617b31b65fe85d9
+integrity:
+  generated:
+    body: 4145560d966104e8
 ---
 
 # GitHub Copilot CLI plugin format

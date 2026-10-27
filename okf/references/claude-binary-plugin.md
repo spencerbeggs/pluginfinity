@@ -19,7 +19,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T22:08:02Z
-  body_sha256: 71807d35a97b23ae1e26f4e164c2f60acfe77c083956da0b1c0b97eea7afabe8
+integrity:
+  generated:
+    body: 71807d35a97b23ae
 ---
 
 # claude-binary-plugin prior art

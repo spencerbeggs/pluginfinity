@@ -2,7 +2,7 @@
 type: Decision
 title: A skill_dir token names a skill's directory, as a placeholder on Copilot
 description: Body tokens gain a fifth kind, {{skill_dir}} and {{skill_dir <skill>}}, which Claude Code spells as a path variable and Copilot as a placeholder the model resolves from the base-directory line, because Copilot expands no path in bodies.
-status: draft
+status: stable
 tags:
   - portability
 sources:
@@ -26,7 +26,16 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T06:53:05Z
-  body_sha256: 9931777a8d57c680737edbb7d6db16c84417e88ad78a8721aa432432181989c9
+integrity:
+  generated:
+    body: 9931777a8d57c680
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: dbac5e524250ec63
+verified:
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
 ---
 
 # A skill_dir token names a skill's directory, as a placeholder on Copilot

@@ -33,7 +33,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T02:45:11Z
-  body_sha256: 49e2ec7f3a05f1f98007e0771b7b64f72878c355a570085f676f0b869b4f1bfa
+integrity:
+  generated:
+    body: 49e2ec7f3a05f1f9
 ---
 
 # Claude Code monitor environment, 2026-10-07

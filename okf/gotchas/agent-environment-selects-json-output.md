@@ -20,7 +20,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T19:34:21Z
-  body_sha256: 8269625cbeaf9e119f0cbcc76b6eefb4f653f5de9f6159bf537234725b3e6464
+integrity:
+  generated:
+    body: 8269625cbeaf9e11
 ---
 
 # Under Claude Code a plain pluginfinity doctor prints JSON, not the checklist

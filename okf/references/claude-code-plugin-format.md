@@ -38,7 +38,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-03T19:33:34Z
-  body_sha256: 2c8623a0205f4af1cffd537bb4fcf8e692fe7f78649e8647d36f352fe4ef868a
+integrity:
+  generated:
+    body: 2c8623a0205f4af1
 ---
 
 # Claude Code plugin format

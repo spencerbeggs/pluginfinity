@@ -2,7 +2,7 @@
 type: Decision
 title: Monitors are a first-class component
 description: A plugin declares background monitors in the config, the build writes Claude Code's monitors file and ships their scripts and the monitor library, and a host with no monitors drops them with a monitor-omitted note.
-status: draft
+status: stable
 tags:
   - architecture
   - portability
@@ -29,7 +29,16 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T00:21:16Z
-  body_sha256: 93211f0c0d69dc9ceea9c75ae237f54904cfc31447432eb99558d6f22ef5932c
+integrity:
+  generated:
+    body: 93211f0c0d69dc9c
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: 6d3e45d96122a192
+verified:
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
 ---
 
 # Monitors are a first-class component

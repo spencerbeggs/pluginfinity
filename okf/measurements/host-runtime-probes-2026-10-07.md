@@ -31,7 +31,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T09:13:23Z
-  body_sha256: 28d52b5823dc746abe2b480ee3936eec43ba263f68c229a29dc9eced37f4cf6d
+integrity:
+  generated:
+    body: 28d52b5823dc746a
 ---
 
 # Host runtime probes, 2026-10-07

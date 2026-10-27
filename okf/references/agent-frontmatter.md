@@ -42,7 +42,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T22:08:02Z
-  body_sha256: 52f0d327ca7483524e27595648c1c4982f5ecc610c69df404fdd363d17a6f6f4
+integrity:
+  generated:
+    body: 52f0d327ca748352
 ---
 
 # Agent frontmatter across hosts

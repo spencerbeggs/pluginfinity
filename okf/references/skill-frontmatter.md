@@ -42,7 +42,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T22:08:02Z
-  body_sha256: da90afc6be40611f463716b120b75a68357bf51f5e1e1c1a9579289069a9b8db
+integrity:
+  generated:
+    body: da90afc6be40611f
 ---
 
 # Skill frontmatter across hosts

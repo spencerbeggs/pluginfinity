@@ -16,7 +16,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-06T03:16:22Z
-  body_sha256: bb7a5a3e9c8c53e5ccfbf6c45bcab80b32f05320eea0bfbf24acd57bfb56e14c
+integrity:
+  generated:
+    body: bb7a5a3e9c8c53e5
 ---
 
 # Copilot CLI run-time tool, skill and agent names, 2026-10-06

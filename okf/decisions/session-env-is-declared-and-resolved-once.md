@@ -2,7 +2,7 @@
 type: Decision
 title: Session env is declared in the config and resolved once at SessionStart
 description: A plugin declares its session variables and their defaults in an env config block; the build generates env.sh and a SessionStart runner that resolve them once through one precedence chain, and every hook, skill script and monitor on both hosts reads the same values.
-status: draft
+status: stable
 tags:
   - architecture
   - portability
@@ -39,7 +39,16 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T09:13:23Z
-  body_sha256: 1ab4bb2aa6ea8b4b7f9c590822b3c850c1749d03d8b436f203f261ee72199b56
+integrity:
+  generated:
+    body: 1ab4bb2aa6ea8b4b
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: 90c36cd9ee4d3c54
+verified:
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
 ---
 
 # Session env is declared in the config and resolved once at SessionStart

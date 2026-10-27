@@ -30,7 +30,9 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T22:08:02Z
-  body_sha256: d54f96549b3e7e12580817841fdf8e7cd00b41007a21c5e4fca929d24fe83dbc
+integrity:
+  generated:
+    body: d54f96549b3e7e12
 ---
 
 # Claude Code marketplace format

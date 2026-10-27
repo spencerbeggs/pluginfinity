@@ -28,10 +28,18 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-06T02:28:06Z
-  body_sha256: 4597ba43f529482b9ba59255dd18a4ca4fe1773d8b77162e52be63f3d49b50ca
 verified:
   - by: human:spencer
     at: 2026-10-06T03:11:19Z
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
+integrity:
+  generated:
+    body: 4597ba43f529482b
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: 716864f52181e5bd
 ---
 
 # Body tokens and pluginfinity links are built per target

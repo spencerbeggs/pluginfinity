@@ -2,7 +2,7 @@
 type: Decision
 title: Targets are data plus a closed set of named formats
 description: A target is a decoded description of tables and facts, and where a host's output is structural it names a format literal whose single encoder the engine owns.
-status: draft
+status: stable
 tags:
   - architecture
   - portability
@@ -15,7 +15,16 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T22:36:46Z
-  body_sha256: 7765f3bf65897152e8c4f99d61307443c9e9ee8e1efc2980e1ac1731dd816523
+integrity:
+  generated:
+    body: 7765f3bf65897152
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: 41608ca64fd9fbbd
+verified:
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
 ---
 
 # Targets are data plus a closed set of named formats

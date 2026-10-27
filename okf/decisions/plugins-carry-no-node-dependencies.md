@@ -2,7 +2,7 @@
 type: Decision
 title: Built plugins carry no Node dependencies
 description: For the first release, a plugin pluginfinity builds is markdown, JSON and bash scripts only, with no Node runtime dependencies to install.
-status: draft
+status: stable
 tags:
   - deps
   - portability
@@ -18,7 +18,16 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T22:08:02Z
-  body_sha256: 9469b54a17842b6f8b4620999abc00d1faab3b407d89a3809a7c26de445b705a
+integrity:
+  generated:
+    body: 9469b54a17842b6f
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: f051eca8cada73a5
+verified:
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
 ---
 
 # Built plugins carry no Node dependencies

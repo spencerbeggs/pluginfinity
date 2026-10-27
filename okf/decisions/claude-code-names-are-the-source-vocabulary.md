@@ -15,10 +15,18 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T22:36:46Z
-  body_sha256: 68a36198fdd1df8e86bb6a20c8742b1fab97b2186151a715c254f7d5f5c92c14
 verified:
   - by: human:spencer
     at: 2026-10-06T03:11:19Z
+  - by: human:spencer
+    at: 2026-10-27T16:19:43Z
+integrity:
+  generated:
+    body: 68a36198fdd1df8e
+  verified:
+    by: human:spencer
+    at: 2026-10-27T16:19:43Z
+    content: 2bc38b0f27c70424
 ---
 
 # Claude Code's names are the source vocabulary
