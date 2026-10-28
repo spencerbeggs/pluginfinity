@@ -102,7 +102,9 @@ export const hookCommandFiles = (events: ReadonlyArray<TargetHookEvent>): Readon
 	),
 ];
 
-// Bare words pass through; anything else is single-quoted for bash.
+// Bare words pass through; anything else is single-quoted for bash. Not
+// `ShellExports.quote`: it agrees except on control characters, which it
+// writes as bash-only `$'…'`, and a monitor's shell is not measured.
 const shellQuote = (word: string): string =>
 	/^[A-Za-z0-9_\-./=:@%+,]+$/.test(word) ? word : `'${word.replaceAll("'", `'\\''`)}'`;
 
@@ -125,7 +127,8 @@ export const entryEnv = (event: string, entry: HookEntry, matcher?: string): Rea
 	...(matcher === undefined ? {} : { PLUGINFINITY_MATCHER: matcher }),
 });
 
-// Env values in a shell string are always single-quoted.
+// Env values in a shell string are always single-quoted (a decision:
+// entry-facts-travel-as-env), so `ShellExports.quote`'s bare words do not fit.
 const quoteValue = (value: string): string => `'${value.replaceAll("'", `'\\''`)}'`;
 
 /**

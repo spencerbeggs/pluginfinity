@@ -18,6 +18,9 @@ const Volume = MemoryFileSystem.layerWithPath({
 	"/repo/docs/guide.md": "",
 	"/single/pluginfinity.config.mts": "",
 	"/single/sub/file.txt": "",
+	"/inclusive/.git/HEAD": "ref: refs/heads/main\n",
+	"/inclusive/pluginfinity.config.js": "",
+	"/inclusive/src/file.txt": "",
 });
 
 // A tree with no ambiguous directory, so `all` from its root reaches every
@@ -55,6 +58,12 @@ describe("ConfigDiscovery.nearest", () => {
 				const error = yield* Effect.flip(ConfigDiscovery.nearest("/repo/docs"));
 				assert.strictEqual(error._tag, "ConfigNotFound");
 				assert.strictEqual(error.path, "/repo/docs");
+			}),
+		);
+
+		it.effect("the directory holding .git is searched before the walk stops", () =>
+			Effect.gen(function* () {
+				assert.strictEqual(yield* ConfigDiscovery.nearest("/inclusive/src"), "/inclusive/pluginfinity.config.js");
 			}),
 		);
 

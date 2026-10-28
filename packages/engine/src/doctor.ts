@@ -5,7 +5,8 @@ import { SemVer } from "@effected/semver";
 import { Walker } from "@effected/walker";
 import type { KnownTargetId } from "@pluginfinity/targets";
 import { TARGETS } from "@pluginfinity/targets";
-import { Duration, Effect, FileSystem, Option, Path, Result, Schema } from "effect";
+import type { FileSystem } from "effect";
+import { Duration, Effect, Option, Path, Result, Schema } from "effect";
 import type { ConfigError } from "./errors.js";
 import type { LoadedConfig } from "./loader.js";
 import { ConfigLoader } from "./loader.js";
@@ -188,17 +189,15 @@ const toolCheck = (
 
 const detectPackageManager = (start: string): Effect.Effect<string, never, FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
-		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
-		const has = (file: string) => fs.exists(file).pipe(Effect.orElseSucceed(() => false));
-		for (const dir of yield* Walker.ascend(start)) {
-			for (const [file, manager] of LOCKFILES) {
-				if (yield* has(path.join(dir, file))) return manager;
-			}
-			if (yield* has(path.join(dir, ".git"))) break;
-		}
+		const dirs = yield* Walker.ascendToMarker(start, [".git"]);
+		const lockfile = yield* Walker.findUpward(dirs, (dir) => LOCKFILES.map(([file]) => path.join(dir, file)));
+		const manager = Option.flatMapNullishOr(
+			lockfile,
+			(found) => LOCKFILES.find(([file]) => file === path.basename(found))?.[1],
+		);
 		// No lockfile: npm ships with Node, so it is the manager that is there.
-		return "npm";
+		return Option.getOrElse(manager, () => "npm");
 	});
 
 const configFailure = (error: ConfigError): DoctorCheck =>
