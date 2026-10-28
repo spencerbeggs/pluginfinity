@@ -1,5 +1,37 @@
 # pluginfinity
 
+## 0.3.11
+
+### Bug Fixes
+
+- `pluginfinity logs` now finds the state directory by the same rule the plugin scripts use to write their logs: `${XDG_STATE_HOME:-${HOME:-/nonexistent}/.local/state}`. With `HOME` empty or unset, `logs` reads `/nonexistent/.local/state`, where the scripts write, instead of falling back to the operating system's home directory. Closes #58. [#65][#65]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.6 | ^4.0.7 |
+| @effected/cli | dependency | updated | ^0.23.0 | ^0.24.0 |
+| @effected/commands | dependency | updated | ^0.17.0 | ^0.18.0 |
+| @effected/config-file | dependency | updated | ^0.21.0 | ^0.22.0 |
+| @effected/engine | dependency | updated | ^0.9.0 | ^0.10.0 |
+| @effected/env | dependency | updated | ^0.6.0 | ^0.7.0 |
+| @effected/glob | dependency | updated | ^0.15.0 | ^0.16.0 |
+| @effected/semver | dependency | updated | ^0.18.0 | ^0.19.0 |
+| @effected/walker | dependency | updated | ^0.21.0 | ^0.22.0 |
+| @pluginfinity/cli | dependency | updated | 0.3.10 | 0.3.11 |
+| @pluginfinity/engine | dependency | updated | 0.3.8 | 0.3.9 |
+| effect | dependency | updated | ^4.0.6 | ^4.0.7 |
+| @effected/xdg | dependency | added | — | ^0.17.0 |
+
+[#65][#65]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#65]: https://github.com/spencerbeggs/pluginfinity/pull/65
+
 ## 0.3.10
 
 ### Dependencies
