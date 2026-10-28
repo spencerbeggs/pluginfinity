@@ -1,7 +1,7 @@
-import { spawn } from "node:child_process";
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { Deferred, Effect, FileSystem, Option } from "effect";
+import { CliTest } from "@effected/cli/testing";
+import { Effect, FileSystem, Option, Stream } from "effect";
 import { BUILT_BIN } from "./utils/paths.js";
 
 // Ctrl-C ends `logs --follow` as it ends `tail -f`: exit 0 after the lines
@@ -12,33 +12,28 @@ describe("pluginfinity logs --follow", () => {
 		() =>
 			Effect.gen(function* () {
 				const fs = yield* FileSystem.FileSystem;
-				const state = yield* fs.realPath(yield* fs.makeTempDirectoryScoped({ prefix: "pluginfinity-logs-" }));
+				const sandbox = yield* CliTest.sandbox({ path: process.env.PATH ?? "" });
+				const state = sandbox.env.XDG_STATE_HOME;
+				if (state === undefined) return assert.fail("the sandbox sets no XDG_STATE_HOME");
 				yield* fs.makeDirectory(`${state}/pluginfinity/p`, { recursive: true });
 				yield* fs.writeFileString(
 					`${state}/pluginfinity/p/error.log`,
 					"2026-10-06T10:00:00Z [claude] hook/a.sh: hello\n",
 				);
-				const child = spawn(process.execPath, [BUILT_BIN, "logs", "--agent", "--follow", "--plugin", "p"], {
-					cwd: state,
-					env: { ...process.env, XDG_STATE_HOME: state },
-					stdio: ["ignore", "pipe", "pipe"],
+				// The SIGINT exit gets the old 8 s before the scope's SIGKILL, not the 2 s default.
+				const child = yield* CliTest.spawn(BUILT_BIN, ["logs", "--agent", "--follow", "--plugin", "p"], {
+					sandbox,
+					execPath: process.execPath,
+					forceKillAfter: "8 seconds",
 				});
-				const printed = yield* Deferred.make<void>();
-				const exited = yield* Deferred.make<number | null>();
-				let stdout = "";
-				child.stdout.on("data", (chunk: Buffer) => {
-					stdout += chunk.toString();
-					if (stdout.includes("hello")) Deferred.doneUnsafe(printed, Effect.void);
-				});
-				child.on("exit", (code) => Deferred.doneUnsafe(exited, Effect.succeed(code)));
-				const seen = yield* Deferred.await(printed).pipe(Effect.timeoutOption("8 seconds"));
-				assert.isTrue(Option.isSome(seen), "the tail was not printed within 8 seconds");
-				child.kill("SIGINT");
-				const code = yield* Deferred.await(exited).pipe(Effect.timeoutOption("8 seconds"));
-				if (Option.isNone(code)) child.kill("SIGKILL");
-				assert.isTrue(Option.isSome(code), "the bin did not exit after SIGINT");
-				assert.deepStrictEqual(Option.getOrNull(code), 0);
-				assert.strictEqual(JSON.parse(stdout.trim().split("\n")[0] ?? "").message, "hello");
+				const first = yield* Stream.runHead(child.stdout).pipe(Effect.timeoutOption("8 seconds"));
+				const line = Option.flatten(first);
+				assert.isTrue(Option.isSome(line), "the tail was not printed within 8 seconds");
+				yield* child.kill("SIGINT");
+				const result = yield* child.result;
+				assert.strictEqual(result.signal, null, "the bin did not exit on its own after SIGINT");
+				assert.strictEqual(result.exitCode, 0);
+				assert.strictEqual(JSON.parse(Option.getOrElse(line, () => "")).message, "hello");
 			}).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 		30_000,
 	);

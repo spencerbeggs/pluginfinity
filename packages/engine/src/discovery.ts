@@ -1,6 +1,7 @@
 import { GlobPattern } from "@effected/glob";
 import { Walker, descend } from "@effected/walker";
-import { Effect, FileSystem, Path } from "effect";
+import type { FileSystem } from "effect";
+import { Effect, Option, Path } from "effect";
 import { ConfigAmbiguous, ConfigNotFound } from "./errors.js";
 
 /**
@@ -17,9 +18,6 @@ export const CONFIG_FILE_NAMES = [
 
 // Directories `--all` never descends into: dependencies, build output, git.
 const ALL_PRUNE = ["node_modules", "builds", ".git"];
-
-const exists = (fs: FileSystem.FileSystem, path: string): Effect.Effect<boolean> =>
-	fs.exists(path).pipe(Effect.orElseSucceed(() => false));
 
 /**
  * Finding `pluginfinity.config.*` files. Every member takes its start directory
@@ -38,19 +36,15 @@ export class ConfigDiscovery {
 		start: string,
 	): Effect.Effect<string, ConfigNotFound | ConfigAmbiguous, FileSystem.FileSystem | Path.Path> =>
 		Effect.gen(function* () {
-			const fs = yield* FileSystem.FileSystem;
 			const path = yield* Path.Path;
-			for (const dir of yield* Walker.ascend(start)) {
-				const found: Array<string> = [];
-				for (const name of CONFIG_FILE_NAMES) {
-					if (yield* exists(fs, path.join(dir, name))) found.push(name);
-				}
-				if (found.length > 1) return yield* Effect.fail(new ConfigAmbiguous({ path: dir, files: found }));
-				const [only] = found;
-				if (only !== undefined) return path.join(dir, only);
-				if (yield* exists(fs, path.join(dir, ".git"))) break;
+			const dirs = yield* Walker.ascendToMarker(start, [".git"]);
+			const hits = yield* Walker.findUpwardAll(dirs, (dir) => CONFIG_FILE_NAMES.map((name) => path.join(dir, name)));
+			if (Option.isNone(hits)) return yield* Effect.fail(new ConfigNotFound({ path: start }));
+			const { dir, found } = hits.value;
+			if (found.length > 1) {
+				return yield* Effect.fail(new ConfigAmbiguous({ path: dir, files: found.map((file) => path.basename(file)) }));
 			}
-			return yield* Effect.fail(new ConfigNotFound({ path: start }));
+			return found[0];
 		});
 
 	/**

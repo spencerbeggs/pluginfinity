@@ -28,10 +28,12 @@ const doctorIn = (
 	files: Readonly<Record<string, string>>,
 	tools: Readonly<Record<string, FakeTool>>,
 	nodeVersion = "24.11.0",
+	sub = "",
 ) =>
 	Effect.gen(function* () {
+		const path = yield* Path.Path;
 		const root = yield* writeTree(files);
-		return yield* runDoctor({ selection: { _tag: "Nearest", start: root }, nodeVersion }).pipe(
+		return yield* runDoctor({ selection: { _tag: "Nearest", start: path.join(root, sub) }, nodeVersion }).pipe(
 			Effect.provide(fakeTools(tools)),
 		);
 	});
@@ -150,6 +152,47 @@ describe("runDoctor", () => {
 			Effect.gen(function* () {
 				const report = yield* doctorIn({ "pluginfinity.config.ts": VALID }, ALL_PRESENT);
 				assert.strictEqual(byId(report, "package-manager").label, "npm");
+			}),
+		);
+
+		it.effect("lockfiles in one directory: the first in preference order names the manager", () =>
+			Effect.gen(function* () {
+				const report = yield* doctorIn(
+					{ "pluginfinity.config.ts": VALID, "yarn.lock": "", "package-lock.json": "", "pnpm-lock.yaml": "" },
+					ALL_PRESENT,
+				);
+				assert.strictEqual(byId(report, "package-manager").label, "pnpm");
+			}),
+		);
+
+		it.effect("the nearest lockfile wins over one further up", () =>
+			Effect.gen(function* () {
+				const report = yield* doctorIn(
+					{ "pnpm-lock.yaml": "", "plugin/pluginfinity.config.ts": VALID, "plugin/yarn.lock": "" },
+					ALL_PRESENT,
+					undefined,
+					"plugin",
+				);
+				assert.strictEqual(byId(report, "package-manager").label, "yarn");
+			}),
+		);
+
+		it.effect("a lockfile in the directory holding .git counts; one above it does not", () =>
+			Effect.gen(function* () {
+				const inside = yield* doctorIn(
+					{ "repo/.git/HEAD": "", "repo/yarn.lock": "", "repo/plugin/pluginfinity.config.ts": VALID },
+					ALL_PRESENT,
+					undefined,
+					"repo/plugin",
+				);
+				assert.strictEqual(byId(inside, "package-manager").label, "yarn");
+				const above = yield* doctorIn(
+					{ "pnpm-lock.yaml": "", "repo/.git/HEAD": "", "repo/plugin/pluginfinity.config.ts": VALID },
+					ALL_PRESENT,
+					undefined,
+					"repo/plugin",
+				);
+				assert.strictEqual(byId(above, "package-manager").label, "npm");
 			}),
 		);
 

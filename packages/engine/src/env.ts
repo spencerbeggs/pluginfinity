@@ -27,6 +27,8 @@ const RUNNER = "env-run.sh";
 
 const BLOCK = /^(# >>> pluginfinity env declarations[^\n]*\n)[\s\S]*?^(# <<< pluginfinity env declarations)$/m;
 
+// Always single-quoted, never `ShellExports.quote`: env.sh is POSIX sh, where
+// that quoter's bare words and bash-only `$'…'` would change the file.
 const singleQuote = (value: string): string => `'${value.replaceAll("'", `'\\''`)}'`;
 
 /**

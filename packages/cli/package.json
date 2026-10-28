@@ -42,6 +42,7 @@
 		"@effected/glob": "catalog:effected",
 		"@effected/semver": "catalog:effected",
 		"@effected/walker": "catalog:effected",
+		"@effected/xdg": "catalog:effected",
 		"@pluginfinity/core": "workspace:*",
 		"@pluginfinity/engine": "workspace:*",
 		"@pluginfinity/targets": "workspace:*",
@@ -50,6 +51,8 @@
 	},
 	"devDependencies": {
 		"@effect/vitest": "catalog:effect",
+		"@effected/jsonc": "catalog:effected",
+		"@effected/toml": "catalog:effected",
 		"@savvy-web/bundler": "^2.7.0",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"

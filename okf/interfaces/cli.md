@@ -38,10 +38,10 @@ sources:
     title: The usage-error and NotImplemented exit-code cases
 generated:
   by: okfit/claude-code
-  at: 2026-10-07T06:53:05Z
+  at: 2026-10-28T23:29:43Z
 integrity:
   generated:
-    body: 99a91ddbbe5af850
+    body: 009463cda6e0400c
 ---
 
 # The pluginfinity command line
@@ -57,7 +57,7 @@ The promise the `pluginfinity` bin makes to the people, agents and CI jobs that 
 | `pluginfinity build [path]` | Renders each enabled target's manifest, hooks, skills, agents and MCP and LSP server config, with the shipped hook scripts, monitors, server launchers, `files` entries, skill files and the injected hook, server, log and monitor libraries, into `builds/<id>/` beside the config, writing only files that differ, and prints what it added, changed and removed, with the build's notes: what each target dropped, degraded or omitted ([decision](../decisions/build-notes-cover-hooks-and-monitors.md)). Takes `--target`, `--all`, `--config` and `--check` (rebuild in memory, compare with `builds/`, and fail with `BuildStale` on any difference, writing nothing). |
 | `pluginfinity validate [path]` | Requires current builds (`BuildStale` otherwise), then runs each host's check: `claude plugin validate` on `builds/claude/`, and a `copilot --plugin-dir` plugin listing that must load `builds/copilot/` under its manifest name and version (`HostRejected` otherwise). Takes `--target`, `--all`, `--config` and `--no-host` (skip the host CLIs). |
 | `pluginfinity doctor [path]` | Works. Reports on the runtime, the host CLIs, the tools and the config. Takes `--all`, `--config` and `--strict`. |
-| `pluginfinity logs` | Works. Shows the logs plugins write under `${XDG_STATE_HOME:-$HOME/.local/state}/pluginfinity/<plugin>/` ([the standard](../decisions/one-logging-standard.md)). Takes `--plugin <name>` (repeatable), `--debug`, `--follow` (`-f`) and `--lines <n>` (`-n`, default 50). |
+| `pluginfinity logs` | Works. Shows the logs plugins write under `${XDG_STATE_HOME:-${HOME:-/nonexistent}/.local/state}/pluginfinity/<plugin>/` ([the standard](../decisions/one-logging-standard.md)). Takes `--plugin <name>` (repeatable), `--debug`, `--follow` (`-f`) and `--lines <n>` (`-n`, default 50). |
 
 The commands that read a config share their inputs:[^shared]
 

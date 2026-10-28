@@ -1,5 +1,12 @@
 # Log
 
+## 2026-10-28
+
+* Updated @pluginfinity/engine
+* Updated @pluginfinity/cli
+* Updated Hooks, servers, monitors and scripts share one logging standard
+* Updated The pluginfinity command line
+
 ## 2026-10-27
 
 * Updated @pluginfinity/cli

@@ -36,10 +36,10 @@ sources:
     title: The audience-aware renderers for config errors, the doctor report and build and validate results
 generated:
   by: okfit/claude-code
-  at: 2026-10-27T16:23:01Z
+  at: 2026-10-28T23:29:43Z
 integrity:
   generated:
-    body: e944ce747bcd1253
+    body: 2d6667416e83bbf2
 ---
 
 # @pluginfinity/cli
@@ -68,7 +68,7 @@ Behind the entry:
 
 ### Logs and the follow bound
 
-`logs` reads through the engine's `logs.ts` (parsing a line, listing plugin directories, the last lines of a file, what was appended since an offset) and owns only the plugin selection and the drawing. The state directory is a launch fact (`stateHome`), read once in `main.ts` by the rule the log library writes by. `--follow` polls rather than watches, and runs under a `FollowControl` reference: a `stop` effect that ends it, a poll `interval`, and an `onStart` hook. Tests supply a `stop` and a short interval for a bounded follow over a temp directory; `main.ts` supplies `onStart` so an interrupt of a follow exits 0 instead of 130.[^logs]
+`logs` reads through the engine's `logs.ts` (parsing a line, listing plugin directories, the last lines of a file, what was appended since an offset) and owns only the plugin selection and the drawing. The state directory is a launch fact (`stateHome`), read once in `main.ts` through `@effected/xdg` by the rule the log library writes by (`state-home.ts`: an empty variable is unset, a relative `XDG_STATE_HOME` is kept, and a missing `HOME` is `/nonexistent`). `--follow` polls rather than watches, and runs under a `FollowControl` reference: a `stop` effect that ends it, a poll `interval`, and an `onStart` hook. Tests supply a `stop` and a short interval for a bounded follow over a temp directory; `main.ts` supplies `onStart` so an interrupt of a follow exits 0 instead of 130.[^logs]
 
 ### Teardown
 
