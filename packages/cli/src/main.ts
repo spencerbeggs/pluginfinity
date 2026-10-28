@@ -1,13 +1,13 @@
 // The assembled pluginfinity program on Node. Owns the process: the only file in
 // this package that reads `process`. Exported as `./main`, never from `.`.
 
-import { homedir } from "node:os";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { Cause, Effect, Exit, Runtime } from "effect";
 import type { MainOptions } from "./cli/run.js";
 import { run } from "./cli/run.js";
 import { CurrentFollow, DEFAULT_FOLLOW } from "./commands/logs.js";
+import { ShellStateXdg, stateHome } from "./state-home.js";
 import { CLI_VERSION } from "./version.js";
 
 export type { MainOptions } from "./cli/run.js";
@@ -42,18 +42,19 @@ const exitAfterFlush =
 export const main = (options: MainOptions = {}): void => {
 	const argv = process.argv.slice(2);
 	let following = false;
-	// The same rule the log library writes by: $XDG_STATE_HOME if set and non-empty, else ~/.local/state.
-	const stateHome = process.env.XDG_STATE_HOME || `${process.env.HOME || homedir()}/.local/state`;
 
 	NodeRuntime.runMain(
-		run(argv, {
-			version: CLI_VERSION,
-			cwd: process.cwd(),
-			nodeVersion: process.versions.node,
-			stateHome,
-			platform: NodeServices.layer,
-			distribution: options.distribution,
-		}).pipe(
+		// The state directory comes from the environment by log.sh's own rule.
+		Effect.flatMap(stateHome.pipe(Effect.provide(ShellStateXdg)), (home) =>
+			run(argv, {
+				version: CLI_VERSION,
+				cwd: process.cwd(),
+				nodeVersion: process.versions.node,
+				stateHome: home,
+				platform: NodeServices.layer,
+				distribution: options.distribution,
+			}),
+		).pipe(
 			Effect.provideService(CurrentFollow, {
 				...DEFAULT_FOLLOW,
 				onStart: () => {

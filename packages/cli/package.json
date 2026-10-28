@@ -42,6 +42,7 @@
 		"@effected/glob": "catalog:effected",
 		"@effected/semver": "catalog:effected",
 		"@effected/walker": "catalog:effected",
+		"@effected/xdg": "catalog:effected",
 		"@pluginfinity/core": "workspace:*",
 		"@pluginfinity/engine": "workspace:*",
 		"@pluginfinity/targets": "workspace:*",

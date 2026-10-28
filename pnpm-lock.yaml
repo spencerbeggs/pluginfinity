@@ -233,6 +233,9 @@ catalogs:
     '@effected/workspaces':
       specifier: ^0.40.0
       version: 0.40.0
+    '@effected/xdg':
+      specifier: ^0.17.0
+      version: 0.17.0
     '@effected/yaml':
       specifier: ^0.26.0
       version: 0.26.0
@@ -315,6 +318,9 @@ importers:
       '@effected/walker':
         specifier: catalog:effected
         version: 0.22.0(@effected/glob@0.16.0(effect@4.0.7))(effect@4.0.7)
+      '@effected/xdg':
+        specifier: catalog:effected
+        version: 0.17.0(@effected/config-file@0.22.0(@effected/glob@0.16.0(effect@4.0.7))(@effected/jsonc@0.21.0(effect@4.0.7))(@effected/toml@0.17.0(effect@4.0.7))(@effected/walker@0.22.0(@effected/glob@0.16.0(effect@4.0.7))(effect@4.0.7))(@effected/yaml@0.26.0(effect@4.0.7))(effect@4.0.7))(@effected/glob@0.16.0(effect@4.0.7))(@effected/jsonc@0.21.0(effect@4.0.7))(@effected/toml@0.17.0(effect@4.0.7))(@effected/walker@0.22.0(@effected/glob@0.16.0(effect@4.0.7))(effect@4.0.7))(@effected/yaml@0.26.0(effect@4.0.7))(effect@4.0.7)
       '@pluginfinity/core':
         specifier: workspace:*
         version: link:../core/dist/dev/pkg
@@ -452,6 +458,9 @@ importers:
       '@effected/walker':
         specifier: catalog:effected
         version: 0.22.0(@effected/glob@0.16.0(effect@4.0.7))(effect@4.0.7)
+      '@effected/xdg':
+        specifier: catalog:effected
+        version: 0.17.0(@effected/config-file@0.22.0(@effected/glob@0.16.0(effect@4.0.7))(@effected/jsonc@0.21.0(effect@4.0.7))(@effected/toml@0.17.0(effect@4.0.7))(@effected/walker@0.22.0(@effected/glob@0.16.0(effect@4.0.7))(effect@4.0.7))(@effected/yaml@0.26.0(effect@4.0.7))(effect@4.0.7))(@effected/glob@0.16.0(effect@4.0.7))(@effected/jsonc@0.21.0(effect@4.0.7))(@effected/toml@0.17.0(effect@4.0.7))(@effected/walker@0.22.0(@effected/glob@0.16.0(effect@4.0.7))(effect@4.0.7))(@effected/yaml@0.26.0(effect@4.0.7))(effect@4.0.7)
       '@pluginfinity/cli':
         specifier: workspace:*
         version: link:../cli/dist/dev/pkg
@@ -1189,6 +1198,25 @@ packages:
       '@effected/toml': ^0.16.0
       '@effected/walker': ^0.21.0
       '@effected/yaml': ^0.25.1
+      effect: 4.0.7
+    peerDependenciesMeta:
+      '@effected/jsonc':
+        optional: true
+      '@effected/toml':
+        optional: true
+      '@effected/yaml':
+        optional: true
+
+  '@effected/xdg@0.17.0':
+    resolution: {integrity: sha512-1LWKi/zbPXpACU3cpGkHEk+yIqDUe815NwGgG4uqHxVPb03O9c36otxeyNSnVUI9KJGI/kvs1dAdbViE8tbEeQ==}
+    engines: {node: '>=24.11.0'}
+    peerDependencies:
+      '@effected/config-file': ^0.22.0
+      '@effected/glob': ^0.16.0
+      '@effected/jsonc': ^0.21.0
+      '@effected/toml': ^0.17.0
+      '@effected/walker': ^0.22.0
+      '@effected/yaml': ^0.26.0
       effect: 4.0.7
     peerDependenciesMeta:
       '@effected/jsonc':
@@ -4112,6 +4140,17 @@ snapshots:
       '@effected/jsonc': 0.20.1(effect@4.0.7)
       '@effected/toml': 0.16.0(effect@4.0.7)
       '@effected/yaml': 0.25.1(effect@4.0.7)
+
+  '@effected/xdg@0.17.0(@effected/config-file@0.22.0(@effected/glob@0.16.0(effect@4.0.7))(@effected/jsonc@0.21.0(effect@4.0.7))(@effected/toml@0.17.0(effect@4.0.7))(@effected/walker@0.22.0(@effected/glob@0.16.0(effect@4.0.7))(effect@4.0.7))(@effected/yaml@0.26.0(effect@4.0.7))(effect@4.0.7))(@effected/glob@0.16.0(effect@4.0.7))(@effected/jsonc@0.21.0(effect@4.0.7))(@effected/toml@0.17.0(effect@4.0.7))(@effected/walker@0.22.0(@effected/glob@0.16.0(effect@4.0.7))(effect@4.0.7))(@effected/yaml@0.26.0(effect@4.0.7))(effect@4.0.7)':
+    dependencies:
+      '@effected/config-file': 0.22.0(@effected/glob@0.16.0(effect@4.0.7))(@effected/jsonc@0.21.0(effect@4.0.7))(@effected/toml@0.17.0(effect@4.0.7))(@effected/walker@0.22.0(@effected/glob@0.16.0(effect@4.0.7))(effect@4.0.7))(@effected/yaml@0.26.0(effect@4.0.7))(effect@4.0.7)
+      '@effected/glob': 0.16.0(effect@4.0.7)
+      '@effected/walker': 0.22.0(@effected/glob@0.16.0(effect@4.0.7))(effect@4.0.7)
+      effect: 4.0.7
+    optionalDependencies:
+      '@effected/jsonc': 0.21.0(effect@4.0.7)
+      '@effected/toml': 0.17.0(effect@4.0.7)
+      '@effected/yaml': 0.26.0(effect@4.0.7)
 
   '@effected/yaml@0.25.1(effect@4.0.7)':
     dependencies:
