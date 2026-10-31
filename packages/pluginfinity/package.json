@@ -36,7 +36,7 @@
 		"types:check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@effect/platform-node": "catalog:effect",
+		"@effect/platform-node": "catalog:effected",
 		"@effected/cli": "catalog:effected",
 		"@effected/commands": "catalog:effected",
 		"@effected/config-file": "catalog:effected",
@@ -50,11 +50,11 @@
 		"@pluginfinity/core": "workspace:*",
 		"@pluginfinity/engine": "workspace:*",
 		"@pluginfinity/targets": "workspace:*",
-		"effect": "catalog:effect",
+		"effect": "catalog:effected",
 		"jiti": "^2.6.1"
 	},
 	"devDependencies": {
-		"@effect/vitest": "catalog:effect",
+		"@effect/vitest": "catalog:effected",
 		"@effected/jsonc": "catalog:effected",
 		"@effected/toml": "catalog:effected",
 		"@effected/workspaces": "catalog:effected",
