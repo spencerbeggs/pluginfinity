@@ -1,5 +1,35 @@
 # pluginfinity
 
+## 0.3.12
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | ^4.0.7 | ~4.1.1 |
+| @effected/cli | dependency | updated | ^0.24.0 | ^0.25.0 |
+| @effected/commands | dependency | updated | ^0.18.0 | ^0.19.0 |
+| @effected/config-file | dependency | updated | ^0.22.0 | ^0.23.0 |
+| @effected/engine | dependency | updated | ^0.10.0 | ^0.11.0 |
+| @effected/env | dependency | updated | ^0.7.0 | ^0.9.0 |
+| @effected/glob | dependency | updated | ^0.16.0 | ^0.17.0 |
+| @effected/semver | dependency | updated | ^0.19.0 | ^0.20.0 |
+| @effected/walker | dependency | updated | ^0.22.0 | ^0.24.0 |
+| @effected/xdg | dependency | updated | ^0.17.0 | ^0.18.0 |
+| @pluginfinity/cli | dependency | updated | 0.3.11 | 0.3.12 |
+| @pluginfinity/core | dependency | updated | 0.3.0 | 0.3.1 |
+| @pluginfinity/engine | dependency | updated | 0.3.9 | 0.3.10 |
+| @pluginfinity/targets | dependency | updated | 0.3.0 | 0.3.1 |
+| effect | dependency | updated | ^4.0.7 | ~4.1.1 |
+
+[#68][#68]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#68]: https://github.com/spencerbeggs/pluginfinity/pull/68
+
 ## 0.3.11
 
 ### Bug Fixes
