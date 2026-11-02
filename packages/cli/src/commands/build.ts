@@ -1,5 +1,5 @@
-import { CurrentDistribution } from "@effected/engine";
 import { Audience } from "@effected/env";
+import { CurrentDistribution } from "@effected/kit";
 import { ENGINE_VERSION, build } from "@pluginfinity/engine";
 import { Console, Effect, Option } from "effect";
 import { Command, Flag } from "effect/cli";

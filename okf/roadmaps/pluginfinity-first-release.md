@@ -30,10 +30,10 @@ sources:
     title: impeccable's post-build rewrite of the Claude Code plugin copy
 generated:
   by: okfit/claude-code
-  at: 2026-10-06T21:43:13Z
+  at: 2026-11-02T19:14:25Z
 integrity:
   generated:
-    body: a7221acaa05bdfd6
+    body: a295f21d81e45fdd
 ---
 
 # pluginfinity first release
@@ -109,7 +109,7 @@ What to avoid: impeccable's main output is a project install, and the Claude Cod
 
   Output is deterministic (stable key order, LF, trailing newline, sorted files), so `--check` is a byte comparison. Errors are collected across the whole plugin and each carries the file and, where meaningful, the field or line: `SourceInvalid`, `NameMismatch`, `HostBlockInvalid`, `ReferenceUnresolved`, `ScriptMissing`, `ScriptNotExecutable`, `CapabilityMissing`, `FactUnresolved`, `OutputInvalid` and `BuildStale`.
 - **Testing.** Core unit tests cover every schema, including rejection of unknown fields. Targets unit tests pin field-map totality and event-table coverage, and a carrier layering test pins an engine implementation for every format literal and degrade form. Engine unit tests cover each transform and encoder and one fixture plugin per error; integration tests run the whole pipeline over memfs against golden `builds/` trees, with `--check` clean and stale. `plugins/dogfood/` grows to use every feature once, commits its `builds/`, and runs `build --check` in CI, with `claude plugin validate --strict` against `builds/claude/` when the `claude` CLI is present. A Copilot `--plugin-dir` load stays manual because it spends a request.
-- **Command surface.** `init`, `plugin add`, `build` (with `--check` as the check mode), `validate` and `doctor` are in place as flags and exit codes ([CLI interface](../interfaces/cli.md)); exit codes and stdout/stderr discipline follow `@effected/cli`.
+- **Command surface.** `init`, `plugin add`, `build` (with `--check` as the check mode), `validate` and `doctor` are in place as flags and exit codes ([CLI interface](../interfaces/cli.md)); exit codes and stdout/stderr discipline follow `@effected/cli-kit`.
 
 ## Phases
 

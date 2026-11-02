@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { CliTest } from "@effected/cli/testing";
+import { CliTest } from "@effected/cli-kit/testing";
 import { Effect, FileSystem, Option } from "effect";
 import { LEAVES_LIVE_HANDLE } from "./fixtures/configs.js";
 import { BUILT_BIN } from "./utils/paths.js";

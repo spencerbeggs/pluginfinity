@@ -1,4 +1,4 @@
-import { CliExit } from "@effected/cli";
+import { CliExit } from "@effected/cli-kit";
 import { Audience } from "@effected/env";
 import { runDoctor } from "@pluginfinity/engine";
 import { Console, Effect } from "effect";

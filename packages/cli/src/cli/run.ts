@@ -3,9 +3,9 @@
 // and names it on the `--version` line. `main.ts` runs it on Node; tests run the
 // same assembly over a test platform, so the wiring they check is the shipped one.
 
-import { CliRuntime } from "@effected/cli";
+import { CliRuntime } from "@effected/cli-kit";
 import type { ToolDiscovery } from "@effected/commands";
-import type { Distribution } from "@effected/engine";
+import type { Distribution } from "@effected/kit";
 import { ToolDiscoveryLive } from "@pluginfinity/engine";
 import type { Layer } from "effect";
 import { Effect } from "effect";

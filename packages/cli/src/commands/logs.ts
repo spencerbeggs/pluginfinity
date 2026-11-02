@@ -1,5 +1,5 @@
-import { CurrentDistribution } from "@effected/engine";
 import { Audience } from "@effected/env";
+import { CurrentDistribution } from "@effected/kit";
 import type { LogFileName, LogTail } from "@pluginfinity/engine";
 import { configPluginNames, listLogPlugins, logRoot, parseLogLine, readLog, readLogFrom } from "@pluginfinity/engine";
 import type { Duration } from "effect";

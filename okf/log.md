@@ -1,5 +1,12 @@
 # Log
 
+## 2026-11-02
+
+* Updated @pluginfinity/cli
+* Updated pluginfinity
+* Updated pluginfinity first release
+* Updated pluginfinity is a CLI application in its own repository
+
 ## 2026-10-28
 
 * Updated @pluginfinity/engine

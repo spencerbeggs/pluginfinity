@@ -34,12 +34,12 @@
 	},
 	"dependencies": {
 		"@effect/platform-node": "catalog:effected",
-		"@effected/cli": "catalog:effected",
+		"@effected/cli-kit": "catalog:effected",
 		"@effected/commands": "catalog:effected",
 		"@effected/config-file": "catalog:effected",
-		"@effected/engine": "catalog:effected",
 		"@effected/env": "catalog:effected",
 		"@effected/glob": "catalog:effected",
+		"@effected/kit": "catalog:effected",
 		"@effected/semver": "catalog:effected",
 		"@effected/walker": "catalog:effected",
 		"@effected/xdg": "catalog:effected",
@@ -53,7 +53,7 @@
 		"@effect/vitest": "catalog:effected",
 		"@effected/jsonc": "catalog:effected",
 		"@effected/toml": "catalog:effected",
-		"@savvy-web/bundler": "^2.7.1",
+		"@savvy-web/bundler": "^2.7.2",
 		"@types/node": "catalog:build",
 		"typescript": "catalog:build"
 	},

@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
-import { CliTest } from "@effected/cli/testing";
+import { CliTest } from "@effected/cli-kit/testing";
 import { Effect } from "effect";
 import { BUILT_BIN, DOGFOOD } from "./utils/paths.js";
 
