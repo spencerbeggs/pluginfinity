@@ -1,5 +1,36 @@
 # @pluginfinity/cli
 
+## 0.3.13
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli | dependency | removed | ^0.25.0 | — |
+| @effected/engine | dependency | removed | ^0.11.0 | — |
+| @effect/platform-node | dependency | updated | ~4.1.1 | ~4.1.2 |
+| @effected/commands | dependency | updated | ^0.19.0 | ^0.20.0 |
+| @effected/config-file | dependency | updated | ^0.23.0 | ^0.24.0 |
+| @effected/env | dependency | updated | ^0.9.0 | ^0.10.0 |
+| @effected/glob | dependency | updated | ^0.17.0 | ^0.18.0 |
+| @effected/semver | dependency | updated | ^0.20.0 | ^0.21.0 |
+| @effected/walker | dependency | updated | ^0.24.0 | ^0.25.0 |
+| @effected/xdg | dependency | updated | ^0.18.0 | ^0.19.0 |
+| @pluginfinity/core | dependency | updated | 0.3.1 | 0.3.2 |
+| @pluginfinity/engine | dependency | updated | 0.3.10 | 0.3.11 |
+| @pluginfinity/targets | dependency | updated | 0.3.1 | 0.3.2 |
+| effect | dependency | updated | ~4.1.1 | ~4.1.2 |
+| @effected/cli-kit | dependency | added | — | ^0.26.0 |
+| @effected/kit | dependency | added | — | ^0.12.0 |
+
+[#71][#71]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#71]: https://github.com/spencerbeggs/pluginfinity/pull/71
+
 ## 0.3.12
 
 ### Dependencies
