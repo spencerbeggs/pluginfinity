@@ -1,5 +1,21 @@
 # @pluginfinity/core
 
+## 0.3.2
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| effect | peerDependency | updated | ~4.1.1 | ~4.1.2 |
+
+[#71][#71]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#71]: https://github.com/spencerbeggs/pluginfinity/pull/71
+
 ## 0.3.1
 
 ### Dependencies
