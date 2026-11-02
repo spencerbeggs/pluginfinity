@@ -1,4 +1,4 @@
-import type { Remediation } from "@effected/engine";
+import type { Remediation } from "@effected/kit";
 import { KNOWN_TARGET_IDS } from "@pluginfinity/targets";
 import { Schema } from "effect";
 

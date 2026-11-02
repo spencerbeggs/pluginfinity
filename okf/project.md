@@ -14,10 +14,10 @@ sources:
     title: Scope and shape set by the repository owner when the work moved out of the bot repository
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T19:34:21Z
+  at: 2026-11-02T19:14:25Z
 integrity:
   generated:
-    body: 67c217d8fd49b560
+    body: da06d8bd1f18b989
 ---
 
 # pluginfinity
@@ -32,7 +32,7 @@ This repository also hosts the pluginfinity companion plugin. It knows how to au
 
 The repository owns:
 
-- The CLI, an application built on `@effected/cli` and Effect v4 ([why an application](decisions/pluginfinity-is-a-cli-application.md)), split into layer packages under `packages/` ([why a carrier](decisions/pluginfinity-ships-as-a-carrier-package.md)): [`@pluginfinity/core`](modules/core.md), [`@pluginfinity/targets`](modules/targets.md), [`@pluginfinity/engine`](modules/engine.md), [`@pluginfinity/cli`](modules/cli.md), and the [`pluginfinity` carrier](modules/pluginfinity.md) that users install.
+- The CLI, an application built on `@effected/cli-kit` and Effect v4 ([why an application](decisions/pluginfinity-is-a-cli-application.md)), split into layer packages under `packages/` ([why a carrier](decisions/pluginfinity-ships-as-a-carrier-package.md)): [`@pluginfinity/core`](modules/core.md), [`@pluginfinity/targets`](modules/targets.md), [`@pluginfinity/engine`](modules/engine.md), [`@pluginfinity/cli`](modules/cli.md), and the [`pluginfinity` carrier](modules/pluginfinity.md) that users install.
 - `plugins/pluginfinity/`, the [companion plugin](modules/pluginfinity-plugin.md), and `plugins/dogfood/`, the [end-to-end fixture](modules/dogfood.md). Both depend on the `pluginfinity` carrier as a workspace devDependency.
 - The host target descriptions: which manifest keys, frontmatter keys, hook events and path conventions each host accepts.
 

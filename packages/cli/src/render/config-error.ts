@@ -2,9 +2,9 @@
 // remediation on stderr; an agent or CI reads one JSON object on stdout. Both
 // exit 1 through `CliExit`, so the run itself still succeeds.
 
-import { CliExit } from "@effected/cli";
-import { CurrentDistribution } from "@effected/engine";
+import { CliExit } from "@effected/cli-kit";
 import { Audience } from "@effected/env";
+import { CurrentDistribution } from "@effected/kit";
 import type { BuildError, ConfigError } from "@pluginfinity/engine";
 import { ENGINE_VERSION, isBuildError, isConfigError } from "@pluginfinity/engine";
 import { Console, Effect, Option } from "effect";

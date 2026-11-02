@@ -3,8 +3,8 @@
 // environment services, failure reporting and `runMain`; tests run the same
 // `program` under `CliRuntime.main` with a test platform.
 
-import type { CliExit } from "@effected/cli";
-import { CliAudience } from "@effected/cli";
+import type { CliExit } from "@effected/cli-kit";
+import { CliAudience } from "@effected/cli-kit";
 import type { ToolDiscovery } from "@effected/commands";
 import type { Audience } from "@effected/env";
 import type { NotImplemented } from "@pluginfinity/engine";
@@ -51,7 +51,7 @@ const root = (launch: LaunchFacts) =>
  *
  * @remarks
  * The return type is spelled out because TypeScript cannot name the inferred
- * `Audience` requirement through `@effected/cli` alone (TS2883).
+ * `Audience` requirement through `@effected/cli-kit` alone (TS2883).
  *
  * @public
  */

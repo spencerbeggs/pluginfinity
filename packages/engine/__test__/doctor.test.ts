@@ -1,6 +1,6 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it, layer } from "@effect/vitest";
-import { CurrentDistribution } from "@effected/engine";
+import { CurrentDistribution } from "@effected/kit";
 import { Duration, Effect, Option, Path } from "effect";
 import type { DoctorCheck, DoctorReport } from "../src/index.js";
 import { ENGINE_VERSION, runDoctor } from "../src/index.js";

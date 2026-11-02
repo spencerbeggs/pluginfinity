@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: pluginfinity is a CLI application in its own repository
-description: The single-source plugin builder ships as a standalone @effected/cli application with a companion plugin that succeeds plugin-bot, not as an @effected kit package developed inside the bot marketplace repository.
+description: The single-source plugin builder ships as a standalone @effected/cli-kit application with a companion plugin that succeeds plugin-bot, not as an @effected kit package developed inside the bot marketplace repository.
 status: stable
 tags:
   - architecture
@@ -20,7 +20,7 @@ sources:
     title: The bot repository's project concept, with its no-npm-packages non-goal
 generated:
   by: okfit/claude-code
-  at: 2026-10-02T19:38:56Z
+  at: 2026-11-02T19:14:25Z
 verified:
   - by: human:spencer
     at: 2026-10-06T03:11:19Z
@@ -28,7 +28,7 @@ verified:
     at: 2026-10-27T16:19:43Z
 integrity:
   generated:
-    body: 84252e0d88241936
+    body: 7c3e3f3e1b2091ab
   verified:
     by: human:spencer
     at: 2026-10-27T16:19:43Z
@@ -43,7 +43,7 @@ The first plan, made in the bot repository on 2026-09-30, was a library named `@
 
 ## Decision
 
-- pluginfinity is a command-line application built on `@effected/cli` and Effect v4, published to npm as its own package.
+- pluginfinity is a command-line application built on `@effected/cli-kit` and Effect v4, published to npm as its own package.
 - It lives in its own repository, `spencerbeggs/pluginfinity`, which started from the pnpm module template.
 - pluginfinity has a companion plugin, `plugins/pluginfinity/`, that teaches how to author plugins for pluginfinity and is the first plugin pluginfinity builds. It succeeds plugin-bot and covers much of what plugin-bot does, but plugin-bot itself does not move: it stays in the bot repository and its marketplaces, and may keep changing there.
 - The move happened before any builder code was written, because nothing yet had to be extracted.

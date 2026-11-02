@@ -1,5 +1,5 @@
 import type { ToolDiscovery } from "@effected/commands";
-import type { Distribution } from "@effected/engine";
+import type { Distribution } from "@effected/kit";
 import type { Layer } from "effect";
 import { Cause, ConfigProvider, Effect, Exit, Runtime } from "effect";
 import { TestConsole } from "effect/testing";

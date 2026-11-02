@@ -1,6 +1,6 @@
 import type { ToolResolutionFailure } from "@effected/commands";
 import { Tool, ToolDiscovery } from "@effected/commands";
-import { CurrentDistribution, DistributionField, Remediation } from "@effected/engine";
+import { CurrentDistribution, DistributionField, Remediation } from "@effected/kit";
 import { SemVer } from "@effected/semver";
 import { Walker } from "@effected/walker";
 import type { KnownTargetId } from "@pluginfinity/targets";
