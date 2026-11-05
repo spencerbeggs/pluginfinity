@@ -150,7 +150,9 @@ describe("runDoctor", () => {
 
 		it.effect("no lockfile: the package manager checked is npm", () =>
 			Effect.gen(function* () {
-				const report = yield* doctorIn({ "pluginfinity.config.ts": VALID }, ALL_PRESENT);
+				// The .git stops the upward search at this tree: a lockfile above the
+				// system temp directory must not decide the answer.
+				const report = yield* doctorIn({ ".git/HEAD": "", "pluginfinity.config.ts": VALID }, ALL_PRESENT);
 				assert.strictEqual(byId(report, "package-manager").label, "npm");
 			}),
 		);
