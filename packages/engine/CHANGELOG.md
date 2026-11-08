@@ -1,5 +1,22 @@
 # @pluginfinity/engine
 
+## 0.3.13
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/glob | dependency | updated | ^0.19.0 | ^0.20.0 |
+| @effected/walker | dependency | updated | ^0.25.1 | ^0.26.0 |
+
+[#80][#80]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#80]: https://github.com/spencerbeggs/pluginfinity/pull/80
+
 ## 0.3.12
 
 ### Dependencies
