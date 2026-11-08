@@ -2,7 +2,7 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import { CliTest } from "@effected/cli-kit/testing";
 import { Effect, FileSystem, Option, Stream } from "effect";
-import { BUILT_BIN } from "./utils/paths.js";
+import { SOURCE_BIN } from "./utils/paths.js";
 
 // Ctrl-C ends `logs --follow` as it ends `tail -f`: exit 0 after the lines
 // already read, where any other interrupted command exits 130.
@@ -21,7 +21,7 @@ describe("pluginfinity logs --follow", () => {
 					"2026-10-06T10:00:00Z [claude] hook/a.sh: hello\n",
 				);
 				// The SIGINT exit gets the old 8 s before the scope's SIGKILL, not the 2 s default.
-				const child = yield* CliTest.spawn(BUILT_BIN, ["logs", "--agent", "--follow", "--plugin", "p"], {
+				const child = yield* CliTest.spawn(SOURCE_BIN, ["logs", "--agent", "--follow", "--plugin", "p"], {
 					sandbox,
 					execPath: process.execPath,
 					forceKillAfter: "8 seconds",

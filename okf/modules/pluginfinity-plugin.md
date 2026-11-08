@@ -32,10 +32,10 @@ sources:
     title: The plugin-engineer build test
 generated:
   by: okfit/claude-code
-  at: 2026-10-07T06:53:05Z
+  at: 2026-11-08T19:52:50Z
 integrity:
   generated:
-    body: 417bff1e98be9a72
+    body: a343e46ceb4b0eff
 ---
 
 # pluginfinity companion plugin
@@ -47,7 +47,7 @@ integrity:
 ## Shape
 
 - `package.json` is a private tracking package, `@pluginfinity/ai-plugins`, that is never published to npm. A changeset against it bumps its version, which the build copies into each generated manifest, and CI cuts a GitHub-only release that the marketplaces track; `.changeset/config.json` lists both built manifests as its version files.[^package-manifest]
-- It depends on the CLI as `"pluginfinity": "workspace:*"` in `devDependencies`, so its scripts run the locally built `pluginfinity`, through `node node_modules/pluginfinity/bin/pluginfinity.js` rather than the bin shim, which a clean install with `--ignore-scripts` never creates. See [the bin-link gotcha](../gotchas/workspace-bin-needs-built-cli.md).
+- It depends on the CLI as `"pluginfinity": "workspace:*"` in `devDependencies`, and its `build` and `validate` scripts call the bin shim directly, as `pluginfinity build` and `pluginfinity validate`.[^package-manifest] The [carrier's](pluginfinity.md) bin points at its source file, so pnpm creates the shim on every install, `--ignore-scripts` included, and it runs from source with no package built.
 - Once there is a source to build, it follows the target layout in [the roadmap](../roadmaps/pluginfinity-first-release.md): host-neutral source at the root, `pluginfinity.config.ts`, and generated, committed output under `builds/<id>/`.
 
 ## Status

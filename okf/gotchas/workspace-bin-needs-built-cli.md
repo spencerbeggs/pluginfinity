@@ -1,53 +1,46 @@
 ---
 type: Gotcha
-title: A workspace plugin gets no pluginfinity bin unless the carrier is relinked after its build
-description: pnpm links the plugin workspaces before any prepare build runs, so no pluginfinity shim is created and a repeat install or a later build does not repair it; the carrier's postprepare relinks.
+title: A workspace plugin got no pluginfinity bin until the carrier was relinked after its build
+description: Deprecated, the trap is gone. The carrier's bin now points at its source file, which exists at install time, so pnpm creates node_modules/.bin/pluginfinity on every install, --ignore-scripts included.
 resource: ../../packages/pluginfinity/package.json
-status: draft
-stale_after: 2026-12-31T00:00:00Z
+status: deprecated
 tags:
   - dx
   - ci
 sources:
+  - id: carrier-manifest
+    resource: ../../packages/pluginfinity/package.json
+    title: Carrier manifest, whose bin points at src/bin/pluginfinity.ts with no publishConfig.directory
+  - id: bin
+    resource: ../../packages/pluginfinity/src/bin/pluginfinity.ts
+    title: The source bin, which registers tsx before importing the CLI
   - id: plugin-manifest
     resource: ../../plugins/pluginfinity/package.json
     title: The companion plugin's package manifest and build scripts
-  - id: carrier-manifest
-    resource: ../../packages/pluginfinity/package.json
-    title: Carrier manifest with publishConfig.linkDirectory and the postprepare relink
 generated:
   by: okfit/claude-code
-  at: 2026-10-03T03:39:43Z
+  at: 2026-11-08T19:52:50Z
 integrity:
   generated:
-    body: 45ce66d1977fa543
+    body: 76ac7d4d9cc09c9e
 ---
 
-# A workspace plugin gets no pluginfinity bin unless the carrier is relinked after its build
+# A workspace plugin got no pluginfinity bin until the carrier was relinked after its build
 
-## What you see
+## Deprecated
 
-After a clean install, `plugins/dogfood/node_modules/pluginfinity` exists as a symlink but there is no `node_modules/.bin/pluginfinity`, and `pnpm --filter @pluginfinity/dogfood-plugin exec pluginfinity` fails with `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL`. The install log shows every package's `prepare` build succeeding in layer order. Running `pnpm install` again reports "Already up to date", and `pnpm build` or a test run that builds first leaves `dist/` in place, but neither creates the shim.
+This trap no longer exists. Read the [carrier module](../modules/pluginfinity.md) for how the bin resolves now.
 
-## What you will wrongly conclude
+## What the trap was
 
-That the build failed or ran in the wrong order, that the `workspace:*` dependency is wrong, or that building the carrier is enough. None of those is the cause.
+The carrier used to link dependents to a built directory (`publishConfig.directory` with `linkDirectory`), whose bin did not exist until a lifecycle build ran. pnpm decides which bins to create before it runs any build, so a clean install left the plugin workspaces with a `node_modules/pluginfinity` link and no `node_modules/.bin/pluginfinity`, and `pnpm exec pluginfinity` failed until the carrier was relinked.
 
-## What is actually true
+## What removed it
 
-The carrier sets `publishConfig.directory` to `dist/dev/pkg` with `linkDirectory: true`, so pnpm links dependents to the built package, whose `bin` points at `bin/pluginfinity.js`.[^carrier-manifest] pnpm links every workspace, and decides which bins to create, before it runs any `prepare` script. On a clean install `dist/dev/pkg` does not exist at that moment, so no shim is created, and pnpm does not revisit the link when the directory appears later. Building is necessary but not sufficient: only a relink creates the shim.
+The packages now build with `effected package build`, and the carrier no longer sets `publishConfig.directory` or `linkDirectory`, so workspace links resolve through `exports` to each package's `src/`.[^carrier-manifest] The carrier's `bin` points at `src/bin/pluginfinity.ts`, a file that exists at install time, so pnpm creates the shim on every install, including `pnpm install --ignore-scripts`. The source bin registers tsx itself when it runs as a `.ts` file, then imports the CLI, so it runs with no package built.[^bin] The plugins' scripts call the shim directly, as `pluginfinity build` and `pluginfinity validate`.[^plugin-manifest]
 
-The fix is the carrier's `postprepare` script, which pnpm runs right after the carrier's own `prepare` build, when its whole dependency chain is already built:[^carrier-manifest]
-
-```sh
-cd ../.. && pnpm rebuild pluginfinity
-```
-
-`pnpm rebuild pluginfinity`, run from the workspace root, is the step that creates the shims in every dependent workspace. It does not re-run the carrier's `prepare`, so it does not loop. The built manifests under `dist/` carry no `scripts`, so the hook never reaches the published package. To recover by hand, for example after `pnpm install --ignore-scripts`, run `pnpm build` and then `pnpm rebuild pluginfinity` from the root. A filtered `pnpm rebuild --filter "./plugins/*"` does not relink.
-
-`postprepare` does not run when lifecycle scripts are skipped, and the release workflow installs with `--ignore-scripts`. So the plugins in this repository never rely on the shim. Their `build:dev`, `build:prod` and `validate` scripts run `node node_modules/pluginfinity/bin/pluginfinity.js`, through the package link, which exists from the install onward and resolves once turbo has built the carrier, since a plugin's `build:dev` waits on `^build:dev`.[^plugin-manifest] A release once failed here: the plugins' builds exited 127, command not found, after a clean `--ignore-scripts` install.
-
-The source `bin` at `src/bin/pluginfinity.ts` is not a usable fallback: it imports `@pluginfinity/cli/main`, which resolves to the CLI's built output, so it cannot run before the build either.
+If `pnpm exec pluginfinity` fails in a plugin workspace now, this is not the cause; check that the install completed and that the root devDependency `tsx` is present.
 
 [^carrier-manifest]: `../../packages/pluginfinity/package.json`
+[^bin]: `../../packages/pluginfinity/src/bin/pluginfinity.ts`
 [^plugin-manifest]: `../../plugins/pluginfinity/package.json`

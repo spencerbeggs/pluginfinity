@@ -2,11 +2,11 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import { CliTest } from "@effected/cli-kit/testing";
 import { Effect, FileSystem } from "effect";
-import { BUILT_BIN } from "./utils/paths.js";
+import { SOURCE_BIN } from "./utils/paths.js";
 
 const LINE = "2026-10-06T10:00:00Z [claude] hook/a.sh: hello\n";
 
-// The built bin reads logs where log.sh writes them:
+// The bin reads logs where log.sh writes them:
 // ${XDG_STATE_HOME:-${HOME:-/nonexistent}/.local/state}.
 describe("pluginfinity logs state directory", () => {
 	it.live(
@@ -17,7 +17,7 @@ describe("pluginfinity logs state directory", () => {
 				const sandbox = yield* CliTest.sandbox({ path: process.env.PATH ?? "" });
 				yield* fs.makeDirectory(`${sandbox.root}/rel-state/pluginfinity/p`, { recursive: true });
 				yield* fs.writeFileString(`${sandbox.root}/rel-state/pluginfinity/p/error.log`, LINE);
-				const result = yield* CliTest.run(BUILT_BIN, ["logs", "--agent", "--plugin", "p"], {
+				const result = yield* CliTest.run(SOURCE_BIN, ["logs", "--agent", "--plugin", "p"], {
 					sandbox,
 					execPath: process.execPath,
 					env: { XDG_STATE_HOME: "rel-state" },
@@ -36,7 +36,7 @@ describe("pluginfinity logs state directory", () => {
 				const sandbox = yield* CliTest.sandbox({ path: process.env.PATH ?? "" });
 				yield* fs.makeDirectory(`${sandbox.home}/.local/state/pluginfinity/p`, { recursive: true });
 				yield* fs.writeFileString(`${sandbox.home}/.local/state/pluginfinity/p/error.log`, LINE);
-				const result = yield* CliTest.run(BUILT_BIN, ["logs", "--agent", "--plugin", "p"], {
+				const result = yield* CliTest.run(SOURCE_BIN, ["logs", "--agent", "--plugin", "p"], {
 					sandbox,
 					execPath: process.execPath,
 					env: { XDG_STATE_HOME: "" },

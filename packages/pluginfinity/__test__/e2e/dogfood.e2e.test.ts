@@ -3,9 +3,9 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import { CliTest } from "@effected/cli-kit/testing";
 import { Effect } from "effect";
-import { BUILT_BIN, DOGFOOD } from "./utils/paths.js";
+import { DOGFOOD, SOURCE_BIN } from "./utils/paths.js";
 
-// The built carrier bin, run the way a user runs it: inside the dogfood
+// The carrier bin, run the way a user runs it: inside the dogfood
 // plugin, which loads its real pluginfinity.config.ts through `import "pluginfinity"`.
 // The host tools are whatever this machine has; doctor without --strict
 // exits 0 either way, so only the config check is asserted.
@@ -13,7 +13,7 @@ describe("dogfood smoke", () => {
 	it.effect("pluginfinity doctor --agent in plugins/dogfood loads its config and exits 0", () =>
 		Effect.gen(function* () {
 			const sandbox = yield* CliTest.sandbox({ path: process.env.PATH ?? "" });
-			const result = yield* CliTest.run(BUILT_BIN, ["doctor", "--agent"], {
+			const result = yield* CliTest.run(SOURCE_BIN, ["doctor", "--agent"], {
 				sandbox,
 				execPath: process.execPath,
 				cwd: DOGFOOD,

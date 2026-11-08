@@ -36,10 +36,10 @@ sources:
     title: The audience-aware renderers for config errors, the doctor report and build and validate results
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:14:25Z
+  at: 2026-11-08T19:52:50Z
 integrity:
   generated:
-    body: 22b455b8ba1d937f
+    body: 4f74e9fd8d6378fd
 ---
 
 # @pluginfinity/cli
@@ -72,7 +72,7 @@ Behind the entry:
 
 ### Teardown
 
-`main.ts` passes `NodeRuntime.runMain` a teardown that always calls `process.exit` once stdout has flushed, including on exit 0.[^main] The engine loads a user's config in-process through jiti, so a timer or socket the config leaves open would otherwise keep a successful run alive after its output. Waiting for the flush keeps piped JSON whole. An end-to-end test in the carrier runs the built bin against such a config and requires it to exit promptly.
+`main.ts` passes `NodeRuntime.runMain` a teardown that always calls `process.exit` once stdout has flushed, including on exit 0.[^main] The engine loads a user's config in-process through jiti, so a timer or socket the config leaves open would otherwise keep a successful run alive after its output. Waiting for the flush keeps piped JSON whole. An end-to-end test in the carrier runs the carrier's source bin against such a config and requires it to exit promptly.
 
 As an installed package it declares its full runtime closure as regular `dependencies`, including entries that only satisfy a library's peer.
 

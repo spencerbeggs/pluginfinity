@@ -1,5 +1,5 @@
 # Gotcha
 
-* [A workspace plugin gets no pluginfinity bin unless the carrier is relinked after its build](workspace-bin-needs-built-cli.md) - pnpm links the plugin workspaces before any prepare build runs, so no pluginfinity shim is created and a repeat install or a later build does not repair it; the carrier's postprepare relinks.
+* [A workspace plugin got no pluginfinity bin until the carrier was relinked after its build](workspace-bin-needs-built-cli.md) - Deprecated, the trap is gone. The carrier's bin now points at its source file, which exists at install time, so pnpm creates node_modules/.bin/pluginfinity on every install, --ignore-scripts included.
 * [Hook scripts change mode around every commit with no diff, and build --check ignores it](build-check-stale-on-sh-after-commit.md) - The managed husky hooks chmod +x every tracked \*.sh after a commit, merge or checkout with core.fileMode=false, while lint-staged strips the bit at commit; build --check compares content and only a copied file's executable bit, so the churn is not drift.
 * [Under Claude Code a plain pluginfinity doctor prints JSON, not the checklist](agent-environment-selects-json-output.md) - CLAUDECODE and AI_AGENT in the environment select the agent audience, so doctor and config errors come out as one JSON object even with no --agent flag; --human forces the checklist.

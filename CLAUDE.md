@@ -10,14 +10,13 @@ pluginfinity is a CLI that builds one host-neutral agent-plugin source into ever
 - Why the name pluginfinity → `okf/decisions/pluginfinity-name.md` — Load when: naming a package, bin, env var or config file.
 - Commands, flags and exit codes → `okf/interfaces/cli.md` — Load when: adding or changing a command or flag, or deciding what exit code or output a failure gets.
 - Config file → `okf/interfaces/config.md` — Load when: changing the `pluginfinity.config.ts` shape, discovery or loading, or `defineConfig`.
-- Carrier package → `okf/modules/pluginfinity.md` — Load when: working under `packages/pluginfinity/`.
+- Carrier package → `okf/modules/pluginfinity.md` — Load when: working under `packages/pluginfinity/`, or `pnpm exec pluginfinity` fails in a plugin workspace.
 - CLI front end → `okf/modules/cli.md` — Load when: working under `packages/cli/`.
 - Engine → `okf/modules/engine.md` — Load when: working under `packages/engine/`.
 - Targets → `okf/modules/targets.md` — Load when: working under `packages/targets/`.
 - Core → `okf/modules/core.md` — Load when: working under `packages/core/`.
 - Companion plugin → `okf/modules/pluginfinity-plugin.md` — Load when: working under `plugins/pluginfinity/`.
 - dogfood fixture → `okf/modules/dogfood.md` — Load when: working under `plugins/dogfood/` or adding an end-to-end exercise of a CLI feature.
-- Missing `pluginfinity` bin in a plugin workspace → `okf/gotchas/workspace-bin-needs-built-cli.md` — Load when: `pnpm exec pluginfinity` fails, or touching a `prepare` or `postprepare` script.
 - Hook library → `okf/decisions/hook-library-is-build-injected.md` — Load when: writing or changing a hook script, the hook library or the bats helper.
 - Server launchers and the server library → `okf/decisions/server-launchers-ship-by-discovery-and-files.md` — Load when: writing an MCP or LSP launcher, changing the server library, or deciding which files a build ships.
 - Body tokens and `pluginfinity://` links → `okf/decisions/body-tokens-and-links-are-built-per-target.md` — Load when: writing `{{tool …}}`, `{{agent …}}`, `{{skill …}}` or `{{plugin_root}}` in a skill or agent body, a `pluginfinity://` link, or changing `tokens.ts` or a target's run-time names.

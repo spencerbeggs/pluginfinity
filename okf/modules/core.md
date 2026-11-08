@@ -36,10 +36,10 @@ sources:
     title: The Target class and its entries
 generated:
   by: okfit/claude-code
-  at: 2026-10-07T07:34:27Z
+  at: 2026-11-08T19:52:50Z
 integrity:
   generated:
-    body: 80c91e426ea812d1
+    body: ff92a268f1a3ed5e
 ---
 
 # @pluginfinity/core
@@ -73,7 +73,7 @@ The decoded skill and agent models, which hold a body and support files, land wi
 
 ## Rules
 
-- It is platform-free: no `process`, no Node built-ins, no `@effect/platform*`. A boundary test pins this. Its `CORE_VERSION` reads `process.env.__PACKAGE_VERSION__` only as a build-time define the bundler replaces.
+- It is platform-free: no `process`, no Node built-ins, no `@effect/platform*`. A boundary test pins this. Its `CORE_VERSION` reads `process.env.__PACKAGE_VERSION__` only as a build-time define `effected package build` replaces, falling back to `0.0.0` in unbuilt source.
 - As a library it declares `effect` as a peer dependency, with the same name in `devDependencies` for its own tests.
 
 [^package-manifest]: `../../packages/core/package.json`
