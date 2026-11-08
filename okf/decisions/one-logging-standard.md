@@ -38,11 +38,13 @@ integrity:
     body: d70a944c60f6ebea
   verified:
     by: human:spencer
-    at: 2026-10-27T16:19:43Z
-    content: f60fcbeccaad00aa
+    at: 2026-11-08T20:18:47Z
+    content: 88e082b829450221
 verified:
   - by: human:spencer
     at: 2026-10-27T16:19:43Z
+  - by: human:spencer
+    at: 2026-11-08T20:18:47Z
 ---
 
 # Hooks, servers, monitors and scripts share one logging standard
