@@ -1,13 +1,9 @@
 {
 	"extends": ["//"],
 	"tasks": {
-		"build:dev": {
+		"build": {
 			"cache": false,
-			"inputs": ["package.json", "pluginfinity.config.ts", "skills/**", "agents/**", "hooks/**"],
-			"outputs": ["builds/**"]
-		},
-		"build:prod": {
-			"cache": false,
+			"dependsOn": [],
 			"inputs": ["package.json", "pluginfinity.config.ts", "skills/**", "agents/**", "hooks/**"],
 			"outputs": ["builds/**"]
 		}

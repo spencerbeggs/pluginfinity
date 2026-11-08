@@ -1,5 +1,15 @@
 # Log
 
+## 2026-11-08
+
+* Updated @pluginfinity/cli
+* Updated @pluginfinity/core
+* Updated A workspace plugin got no pluginfinity bin until the carrier was relinked after its build
+* Updated pluginfinity carrier package
+* Updated pluginfinity companion plugin
+* Updated Hooks, servers, monitors and scripts share one logging standard
+* Updated pluginfinity is a CLI application in its own repository
+
 ## 2026-11-02
 
 * Updated @pluginfinity/cli

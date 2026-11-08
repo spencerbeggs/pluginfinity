@@ -3,7 +3,7 @@
  * to the front ends as the distribution a bin was installed through.
  *
  * @remarks
- * A build-time literal: the bundler replaces `process.env.__PACKAGE_VERSION__`
+ * A build-time literal: the build replaces `process.env.__PACKAGE_VERSION__`
  * with this package's own version, so this is not a runtime environment read.
  * `"0.0.0"` is the unbuilt-source fallback.
  */

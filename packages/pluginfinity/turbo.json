@@ -1,10 +1,7 @@
 {
 	"extends": ["//"],
 	"tasks": {
-		"build:dev": {
-			"inputs": ["$TURBO_EXTENDS$", "bats/**"]
-		},
-		"build:prod": {
+		"build": {
 			"inputs": ["$TURBO_EXTENDS$", "bats/**"]
 		}
 	}

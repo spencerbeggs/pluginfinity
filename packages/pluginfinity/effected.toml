@@ -1,0 +1,4 @@
+# The bats helper plugin tests load from node_modules/pluginfinity/bats/. The
+# build ships only what the exports and bin reach, so copy it into the package.
+[package.build]
+copy = ["bats"]

@@ -4,7 +4,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { CliTest } from "@effected/cli-kit/testing";
 import { Effect, FileSystem, Option } from "effect";
 import { LEAVES_LIVE_HANDLE } from "./fixtures/configs.js";
-import { BUILT_BIN } from "./utils/paths.js";
+import { SOURCE_BIN } from "./utils/paths.js";
 
 // jiti evaluates the config in-process, so a timer it starts would keep a
 // successful run alive after its output unless the bin exits explicitly.
@@ -19,7 +19,7 @@ describe("a config that leaves a live handle", () => {
 				const root = yield* fs.realPath(sandbox.root);
 				const config = join(root, "pluginfinity.config.mjs");
 				yield* fs.writeFileString(config, LEAVES_LIVE_HANDLE);
-				const result = yield* CliTest.run(BUILT_BIN, ["doctor", "--agent"], {
+				const result = yield* CliTest.run(SOURCE_BIN, ["doctor", "--agent"], {
 					sandbox,
 					execPath: process.execPath,
 					cwd: root,
