@@ -1,5 +1,31 @@
 # pluginfinity
 
+## 0.3.15
+
+### Build System
+
+- The package is now built with `effected package build` instead of `@savvy-web/bundler`. The published files, exports and dependencies are unchanged. The `pluginfinity` bin registers tsx only when it runs from TypeScript source inside this repository's workspace. In an installed package that branch never runs, and `--version` still reports the release version. [#80][#80]
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli-kit | dependency | updated | ^0.27.0 | ^0.27.1 |
+| @effected/config-file | dependency | updated | ^0.25.0 | ^0.26.0 |
+| @effected/glob | dependency | updated | ^0.19.0 | ^0.20.0 |
+| @effected/walker | dependency | updated | ^0.25.1 | ^0.26.0 |
+| @effected/xdg | dependency | updated | ^0.19.1 | ^0.19.2 |
+| @pluginfinity/cli | dependency | updated | 0.3.14 | 0.3.15 |
+| @pluginfinity/engine | dependency | updated | 0.3.12 | 0.3.13 |
+
+[#80][#80]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#80]: https://github.com/spencerbeggs/pluginfinity/pull/80
+
 ## 0.3.14
 
 ### Dependencies
