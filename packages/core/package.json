@@ -36,7 +36,7 @@
 		"typescript": "catalog:effected:build"
 	},
 	"peerDependencies": {
-		"effect": "catalog:effected"
+		"effect": "catalog:effected:peers"
 	},
 	"engines": {
 		"node": ">=24.11.0"
