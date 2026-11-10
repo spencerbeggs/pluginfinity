@@ -1,5 +1,22 @@
 # @pluginfinity/targets
 
+## 0.3.3
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @pluginfinity/core | dependency | updated | 0.3.2 | 0.3.3 |
+| effect | peerDependency | updated | ~4.1.2 | ~4.1.0 |
+
+[#83][#83]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#83]: https://github.com/spencerbeggs/pluginfinity/pull/83
+
 ## 0.3.2
 
 ### Dependencies

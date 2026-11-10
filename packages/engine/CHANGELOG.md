@@ -1,5 +1,30 @@
 # @pluginfinity/engine
 
+## 0.3.14
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/commands | dependency | updated | ^0.20.0 | ^0.21.0 |
+| @effected/glob | dependency | updated | ^0.20.0 | ^0.21.0 |
+| @effected/kit | dependency | updated | ^0.13.0 | ^0.14.0 |
+| @effected/semver | dependency | updated | ^0.22.0 | ^0.24.0 |
+| @effected/walker | dependency | updated | ^0.26.0 | ^0.27.0 |
+| @effected/yaml | dependency | updated | ^0.29.0 | ^0.30.0 |
+| @pluginfinity/core | dependency | updated | 0.3.2 | 0.3.3 |
+| @pluginfinity/targets | dependency | updated | 0.3.2 | 0.3.3 |
+| @effect/platform-node | peerDependency | updated | ~4.1.2 | ~4.1.0 |
+| effect | peerDependency | updated | ~4.1.2 | ~4.1.0 |
+
+[#83][#83]
+
+### Thanks
+
+Thanks to [@spencerbeggs](https://github.com/spencerbeggs) for their contributions!
+
+[#83]: https://github.com/spencerbeggs/pluginfinity/pull/83
+
 ## 0.3.13
 
 ### Dependencies
