@@ -1,5 +1,11 @@
 # Log
 
+## 2026-11-12
+
+* Updated @pluginfinity/cli
+* Added The tool packages pin Effect and the kit exactly, so pluginfinity's closure is sealed
+* Updated pluginfinity carrier package
+
 ## 2026-11-08
 
 * Updated @pluginfinity/cli

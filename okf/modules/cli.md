@@ -36,10 +36,10 @@ sources:
     title: The audience-aware renderers for config errors, the doctor report and build and validate results
 generated:
   by: okfit/claude-code
-  at: 2026-11-08T19:52:50Z
+  at: 2026-11-12T03:02:39Z
 integrity:
   generated:
-    body: 4f74e9fd8d6378fd
+    body: 4f1f25b9c75f3114
 ---
 
 # @pluginfinity/cli
@@ -74,7 +74,7 @@ Behind the entry:
 
 `main.ts` passes `NodeRuntime.runMain` a teardown that always calls `process.exit` once stdout has flushed, including on exit 0.[^main] The engine loads a user's config in-process through jiti, so a timer or socket the config leaves open would otherwise keep a successful run alive after its output. Waiting for the flush keeps piped JSON whole. An end-to-end test in the carrier runs the carrier's source bin against such a config and requires it to exit promptly.
 
-As an installed package it declares its full runtime closure as regular `dependencies`, including entries that only satisfy a library's peer.
+As an installed package it declares its full runtime closure as regular `dependencies`, including entries that only satisfy a library's peer, and pins every Effect-family entry exactly ([invariant](../invariants/tool-closure-pins.md)).
 
 ## Status
 

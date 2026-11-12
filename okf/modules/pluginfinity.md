@@ -33,10 +33,10 @@ sources:
     title: End-to-end tests that spawn the source bin
 generated:
   by: okfit/claude-code
-  at: 2026-11-08T19:52:50Z
+  at: 2026-11-12T03:02:39Z
 integrity:
   generated:
-    body: 4a0591a43c9b83f5
+    body: ac9d22dc484e6db3
 ---
 
 # pluginfinity carrier package
@@ -50,7 +50,7 @@ integrity:
 - `src/bin/pluginfinity.ts` is the bin shim. It imports `main` from `@pluginfinity/cli/main` and passes the carrier's own name and version as the distribution, so `--version` reports `via pluginfinity <version>`.[^bin] The build keeps that import external, so the shim is not a second copy of the CLI. The manifest's `bin` points at this source file, which exists at install time, so pnpm creates `node_modules/.bin/pluginfinity` in every dependent workspace on every install, `--ignore-scripts` included.[^package-manifest] Run as a `.ts` file, the shim first registers tsx (a root devDependency), then imports the CLI and its version dynamically, so a workspace plugin runs it with no package built; from source `--version` prints the `0.0.0` fallback, and only built output carries the real version.
 - `src/index.ts` is the library entry. It exports `defineConfig` and the `PluginfinityConfig`, `PluginfinityConfigInput` and `KnownTargetId` types from [`@pluginfinity/targets`](targets.md).[^index] `defineConfig` returns its argument unchanged; its value is the type, which makes a misspelt target key, `false` as a target value, or a missing `name` an editor error. pluginfinity decodes the config again when it loads the file. The contract is the [config interface](../interfaces/config.md).
 - Only the bin may import a front end. A boundary test fails if the library entry imports `@pluginfinity/cli`, so `import "pluginfinity"` in a user's config never loads the command tree.[^boundaries]
-- It depends on every front end and on the full runtime closure (jiti and the `@effected/*` packages included) as regular `dependencies`, never `peerDependencies`, because npm, pnpm, yarn and bun only link bins for direct dependencies.
+- It depends on every front end and on the full runtime closure (jiti and the `@effected/*` packages included) as regular `dependencies`, never `peerDependencies`, because npm, pnpm, yarn and bun only link bins for direct dependencies. Every `effect`, `@effect/*` and `@effected/*` entry is pinned exactly, so the closure is sealed ([invariant](../invariants/tool-closure-pins.md)).
 - It builds with `effected package build`, its one `build` script, with no `prepare` or `postprepare`. It sets no `publishConfig.directory`, so workspace dependents link to the package root and resolve through `exports` to `src/`.[^package-manifest]
 - Its manifest is still `private: true`, so nothing publishes it until the first-publish phase of [the roadmap](../roadmaps/pluginfinity-first-release.md).
 

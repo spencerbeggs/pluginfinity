@@ -8,6 +8,7 @@ pluginfinity is a CLI that builds one host-neutral agent-plugin source into ever
 - Why a standalone CLI → `okf/decisions/pluginfinity-is-a-cli-application.md` — Load when: tempted to add a public library API or move code into the `@effected/*` kit.
 - Why the carrier split → `okf/decisions/pluginfinity-ships-as-a-carrier-package.md` — Load when: adding a package, adding a dependency edge between packages, or deciding where code belongs.
 - Why the name pluginfinity → `okf/decisions/pluginfinity-name.md` — Load when: naming a package, bin, env var or config file.
+- Sealed tool closure (exact kit pins) → `okf/invariants/tool-closure-pins.md` — Load when: adding or changing a dependency of `pluginfinity`, `@pluginfinity/cli` or `@pluginfinity/engine`, choosing a `catalog:` spec for one, or adding a front end.
 - Commands, flags and exit codes → `okf/interfaces/cli.md` — Load when: adding or changing a command or flag, or deciding what exit code or output a failure gets.
 - Config file → `okf/interfaces/config.md` — Load when: changing the `pluginfinity.config.ts` shape, discovery or loading, or `defineConfig`.
 - Carrier package → `okf/modules/pluginfinity.md` — Load when: working under `packages/pluginfinity/`, or `pnpm exec pluginfinity` fails in a plugin workspace.
