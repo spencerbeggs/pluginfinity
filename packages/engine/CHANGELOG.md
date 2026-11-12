@@ -1,5 +1,14 @@
 # @pluginfinity/engine
 
+## 0.3.17
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/glob | dependency | updated | 0.21.0 | 0.22.0 |
+| @effected/walker | dependency | updated | 0.28.0 | 0.29.0 |
+
 ## 0.3.16
 
 ### Dependencies
