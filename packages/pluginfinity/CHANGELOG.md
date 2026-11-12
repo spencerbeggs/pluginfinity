@@ -1,5 +1,29 @@
 # pluginfinity
 
+## 0.3.18
+
+### Build System
+
+- pluginfinity now pins Effect and every `@effected/*` package it runs on to an exact version, across the CLI and the build engine as well as the `pluginfinity` package itself. Installing pluginfinity in a project that uses a different Effect or `@effected` release no longer lets a newer kit patch slip into pluginfinity's own copies. Each pluginfinity version now runs exactly the kit it was tested with, beside whatever versions the project uses.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effect/platform-node | dependency | updated | 4.1.3 | 4.1.4 |
+| @effected/cli-kit | dependency | updated | ^0.28.1 | 0.28.2 |
+| @effected/commands | dependency | updated | ^0.21.0 | 0.21.0 |
+| @effected/config-file | dependency | updated | ^0.27.1 | 0.27.1 |
+| @effected/env | dependency | updated | ^0.12.0 | 0.12.0 |
+| @effected/glob | dependency | updated | ^0.21.0 | 0.21.0 |
+| @effected/kit | dependency | updated | ^0.14.0 | 0.14.0 |
+| @effected/semver | dependency | updated | ^0.24.0 | 0.24.0 |
+| @effected/walker | dependency | updated | ^0.28.0 | 0.28.0 |
+| @effected/xdg | dependency | updated | ^0.20.1 | 0.20.1 |
+| @pluginfinity/cli | dependency | updated | 0.3.17 | 0.3.18 |
+| @pluginfinity/engine | dependency | updated | 0.3.15 | 0.3.16 |
+| effect | dependency | updated | 4.1.3 | 4.1.4 |
+
 ## 0.3.17
 
 ### Dependencies
