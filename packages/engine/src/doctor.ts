@@ -3,6 +3,7 @@ import { Tool, ToolDiscovery } from "@effected/commands";
 import { CurrentDistribution, DistributionField, Remediation } from "@effected/kit";
 import { SemVer } from "@effected/semver";
 import { Walker } from "@effected/walker";
+import { PackageManagerDetector } from "@effected/workspaces";
 import type { KnownTargetId } from "@pluginfinity/targets";
 import { TARGETS } from "@pluginfinity/targets";
 import type { FileSystem } from "effect";
@@ -105,14 +106,6 @@ export interface DoctorInput {
 type Severity = typeof CheckSeverity.Type;
 type Group = typeof CheckGroup.Type;
 
-const LOCKFILES: ReadonlyArray<readonly [file: string, manager: string]> = [
-	["pnpm-lock.yaml", "pnpm"],
-	["package-lock.json", "npm"],
-	["yarn.lock", "yarn"],
-	["bun.lock", "bun"],
-	["bun.lockb", "bun"],
-];
-
 const check = (fields: {
 	readonly id: string;
 	readonly group: Group;
@@ -187,17 +180,29 @@ const toolCheck = (
 		});
 	});
 
+/**
+ * The package manager at the nearest directory, from `start` up to the one
+ * holding `.git`, where `@effected/workspaces` finds evidence of one. yarn is a
+ * manager the kit does not act on, but its workspaces are npm's, so a yarn root
+ * is still named and its CLI checked. With no evidence anywhere, npm: it ships
+ * with Node, so it is the manager that is there.
+ */
 const detectPackageManager = (start: string): Effect.Effect<string, never, FileSystem.FileSystem | Path.Path> =>
 	Effect.gen(function* () {
-		const path = yield* Path.Path;
+		const detector = yield* PackageManagerDetector.make;
 		const dirs = yield* Walker.ascendToMarker(start, [".git"]);
-		const lockfile = yield* Walker.findUpward(dirs, (dir) => LOCKFILES.map(([file]) => path.join(dir, file)));
-		const manager = Option.flatMapNullishOr(
-			lockfile,
-			(found) => LOCKFILES.find(([file]) => file === path.basename(found))?.[1],
-		);
-		// No lockfile: npm ships with Node, so it is the manager that is there.
-		return Option.getOrElse(manager, () => "npm");
+		for (const dir of dirs) {
+			const detected = yield* detector.detect(dir).pipe(
+				Effect.map((found) => Option.some<string>(found.name)),
+				Effect.catchTags({
+					UnsupportedPackageManagerError: (error) => Effect.succeed(Option.some<string>(error.manager)),
+					PackageManagerDetectionError: () => Effect.succeedNone,
+					WorkspaceManifestError: () => Effect.succeedNone,
+				}),
+			);
+			if (Option.isSome(detected)) return detected.value;
+		}
+		return "npm";
 	});
 
 const configFailure = (error: ConfigError): DoctorCheck =>

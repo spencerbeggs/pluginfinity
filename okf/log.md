@@ -1,5 +1,9 @@
 # Log
 
+## 2026-11-13
+
+* Updated @pluginfinity/engine
+
 ## 2026-11-12
 
 * Updated @pluginfinity/cli

@@ -198,6 +198,56 @@ describe("runDoctor", () => {
 			}),
 		);
 
+		it.effect("a manager named in devEngines counts without a lockfile", () =>
+			Effect.gen(function* () {
+				const report = yield* doctorIn(
+					{
+						".git/HEAD": "",
+						"pluginfinity.config.ts": VALID,
+						"package.json": JSON.stringify({ devEngines: { packageManager: { name: "pnpm" } } }),
+					},
+					ALL_PRESENT,
+				);
+				assert.strictEqual(byId(report, "package-manager").label, "pnpm");
+			}),
+		);
+
+		it.effect("a yarn root is still named yarn, though the kit does not act on it", () =>
+			Effect.gen(function* () {
+				const report = yield* doctorIn(
+					{
+						".git/HEAD": "",
+						"pluginfinity.config.ts": VALID,
+						"package.json": JSON.stringify({ packageManager: "yarn@4.5.0" }),
+					},
+					ALL_PRESENT,
+				);
+				assert.strictEqual(byId(report, "package-manager").label, "yarn");
+			}),
+		);
+
+		it.effect("a bun lockfile the manifest does not back is not evidence", () =>
+			Effect.gen(function* () {
+				const report = yield* doctorIn(
+					{ ".git/HEAD": "", "pluginfinity.config.ts": VALID, "bun.lock": "" },
+					ALL_PRESENT,
+				);
+				assert.strictEqual(byId(report, "package-manager").label, "npm");
+			}),
+		);
+
+		it.effect("an unreadable package.json is skipped, not fatal", () =>
+			Effect.gen(function* () {
+				const report = yield* doctorIn(
+					{ "pnpm-lock.yaml": "", "plugin/pluginfinity.config.ts": VALID, "plugin/package.json": "{ not json" },
+					ALL_PRESENT,
+					undefined,
+					"plugin",
+				);
+				assert.strictEqual(byId(report, "package-manager").label, "pnpm");
+			}),
+		);
+
 		it.effect("the report names the distribution a carrier passed", () =>
 			Effect.gen(function* () {
 				const report = yield* doctorIn({ "pluginfinity.config.ts": VALID }, ALL_PRESENT).pipe(
