@@ -1,5 +1,22 @@
 # @pluginfinity/cli
 
+## 0.3.20
+
+### Bug Fixes
+
+- `pluginfinity doctor` now detects the package manager with `@effected/workspaces`. It still searches from the config up to the directory holding `.git`, but a `devEngines.packageManager` or `packageManager` field in `package.json` now names the manager even without a lockfile. A yarn project is still reported as yarn. A `bun.lock` alone no longer names bun unless `package.json` also declares bun.
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/cli-kit | dependency | updated | 0.29.0 | 0.29.1 |
+| @effected/commands | dependency | updated | 0.21.0 | 0.22.0 |
+| @pluginfinity/engine | dependency | updated | 0.3.17 | 0.3.18 |
+| @effected/bun | dependency | added | — | 0.1.0 |
+| @effected/npm | dependency | added | — | 0.35.0 |
+| @effected/pnpm | dependency | added | — | 0.1.0 |
+
 ## 0.3.19
 
 ### Dependencies
