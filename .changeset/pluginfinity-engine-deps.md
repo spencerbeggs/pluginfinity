@@ -1,9 +1,0 @@
----
-"@pluginfinity/engine": patch
----
-
-## Dependencies
-
-| Dependency | Type | Action | From | To |
-| --- | --- | --- | --- | --- |
-| @effected/workspaces | dependency | updated | 0.48.2 | 0.49.0 |

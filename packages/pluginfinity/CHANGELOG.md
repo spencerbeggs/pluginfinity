@@ -1,5 +1,14 @@
 # pluginfinity
 
+## 0.3.23
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @pluginfinity/cli | dependency | updated | 0.3.22 | 0.3.23 |
+| @pluginfinity/engine | dependency | updated | 0.3.20 | 0.3.21 |
+
 ## 0.3.22
 
 ### Dependencies
