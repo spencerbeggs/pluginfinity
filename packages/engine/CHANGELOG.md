@@ -1,5 +1,13 @@
 # @pluginfinity/engine
 
+## 0.3.20
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/workspaces | dependency | updated | 0.48.1 | 0.48.2 |
+
 ## 0.3.19
 
 ### Dependencies
