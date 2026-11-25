@@ -2,8 +2,8 @@
 type: Module
 title: pluginfinity carrier package
 description: The unscoped pluginfinity package users install; it owns the pluginfinity bin as a thin shim over @pluginfinity/cli and exports defineConfig, typed against the targets registry, for pluginfinity.config.ts.
-kind: package
-layer: carrier
+x-okfit-kind: package
+x-okfit-layer: carrier
 resource: ../../packages/pluginfinity
 status: draft
 tags:
@@ -34,7 +34,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-12T03:02:39Z
-integrity:
+x-okfit-integrity:
   generated:
     body: ac9d22dc484e6db3
 ---

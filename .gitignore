@@ -42,3 +42,10 @@ docs/superpowers/
 
 # dogfood mailbox (silk:dogfood)
 .claude/dogfood/
+
+# Zig (the native hook library, build.zig at the root)
+**/.zig-cache
+**/zig-out
+**/zig-pkg
+zig/examples/*/hooks/bin
+zig/examples/*/builds

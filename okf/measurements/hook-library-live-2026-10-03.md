@@ -8,7 +8,7 @@ tags:
   - dx
 status: draft
 stale_after: 2027-01-01T00:00:00Z
-justifies: ../decisions/hook-library-is-build-injected.md
+x-okfit-justifies: ../decisions/hook-library-is-build-injected.md
 sources:
   - id: owner-live-runs
     resource: conversation with the repository owner
@@ -24,7 +24,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-05T16:27:40Z
-integrity:
+x-okfit-integrity:
   generated:
     body: d37b49f6a931d37f
 ---

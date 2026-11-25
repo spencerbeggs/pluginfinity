@@ -13,6 +13,17 @@ pluginfinity builds one plugin source into each host's format. You edit the sour
 `builds/claude/` and `builds/copilot/`. Never edit a file under `builds/`: the next build reverts it,
 and `build --check` fails until it does.
 
+This skill covers the source, the config and the build. Six skills beside it cover the parts:
+
+| When you are | Read |
+| :-- | :-- |
+| Writing or testing a skill | `skill-authoring` |
+| Writing an agent | `agent-authoring` |
+| Choosing a hook event, or checking what a hook receives and may answer | `hook-events` |
+| Writing a hook as a bash script, a server launcher, or a script a skill runs | `bash-hooks` |
+| Writing a hook as a compiled program | `native-hooks` |
+| Wording text meant to change what an agent does | `persuasion` |
+
 ## The source
 
 ```text
@@ -22,6 +33,8 @@ and `build --check` fails until it does.
   skills/<skill>/SKILL.md     plus references/, scripts/, assets/
   agents/<agent>.md
   hooks/                      hook scripts; the directory ships whole
+  hooks/bin/                  prebuilt native hooks, one file per platform
+  native/, build.zig          native hook sources and their Zig build; never shipped
   bin/                        server launchers; they ship because a server names them
   monitors/                   monitor scripts; they ship because a monitor names them (Claude Code only)
   builds/<target>/            generated and committed; never edited
@@ -96,6 +109,37 @@ In an agent id or skill command `<plugin>` is the plugin's name on that host (`c
 
 The full rules are in [skills and agents](references/components.md#tokens-and-links).
 
+## Hooks
+
+Hooks are declared once in the config, keyed by Claude Code's event names. Each entry has exactly one handler:
+
+```ts
+hooks: {
+  SessionStart: [{ script: "hooks/session-start.sh", timeout: 5 }],
+  PreToolUse: [{ matcher: "Bash", binary: "hooks/bin/guard", timeout: 5, failClosed: true }],
+  Stop: [{ prompt: "Did the tests run? $ARGUMENTS", fallback: "omit" }],
+},
+```
+
+- **`script` runs a bash script** on the hook library, which adapts one script to both hosts. This is the
+  default; write it with the `bash-hooks` skill.
+- **`binary` runs a prebuilt native program.** It names a path prefix, and the build ships every
+  `<prefix>-<os>-<arch>` file beside it. pluginfinity does not compile them: build them first, with the
+  `native-hooks` skill, and rebuild them before every `pluginfinity build`.
+- **`command` is a shell string as written.** Nothing adapts it to the host, and a matcher the host ignores is
+  not applied for it.
+- **`http`, `mcpTool`, `prompt` and `agent` run on Claude Code only.** On Copilot they fail the build unless the
+  entry sets `fallback: "omit"`.
+- **Never write a hooks file.** The build writes `hooks/hooks.json` for each host, and a source file there fails it.
+- **A hook fails open** unless its entry sets `failClosed: true`. Set it only on a guard that must not let a call
+  through when it breaks.
+- **`if`, `statusMessage`, `async` and `asyncRewake` are Claude Code's.** Copilot's copy drops them with a
+  `hook-field-dropped` note, so there a hook with an `if` runs on every matcher hit.
+- **An event Copilot lacks fails its build** unless every entry for it sets `fallback: "omit"`.
+
+Every field is in [hooks](references/hooks.md); which event to use and what it can answer on each host is the
+`hook-events` skill.
+
 ## Servers and launchers
 
 MCP and LSP servers are declared once in the config, in Claude Code's shape, and a server's launcher is
@@ -114,36 +158,16 @@ lspServers: {
 files: ["share/"],
 ```
 
-- **`${PLUGIN_ROOT}` is the one placeholder.** It is rewritten for each host in a local MCP server's
-  `command`, `args`, `env` values and `cwd`, and in an LSP server's `command`, `args`, `env` values and
-  `workspaceFolder`. Nowhere else. Never write a host's spelling there, such as
-  `${CLAUDE_PLUGIN_ROOT}` or `$CLAUDE_PLUGIN_ROOT`, or a brace-less `$PLUGIN_ROOT`: the build would
-  pass it through unrewritten and ship nothing, so it fails the build. Write `${PLUGIN_ROOT}`.
-- **A path a server names after `${PLUGIN_ROOT}/` ships** to every host whose servers name it. The path
-  ends at whitespace, a quote, a shell metacharacter, `:` or `,`, so `"${PLUGIN_ROOT}/bin:/usr/bin"` in a
-  `PATH` names `bin`, and a comma list names each path. A directory ships every file under it, like a
-  `files` directory. The path must exist inside the plugin, be written without `.` or `..` segments
-  (a directory may end in `/`), and, when it is the whole `command`, be an executable file, not a
-  directory. Prefer `command: "sh"` with the launcher in `args`.
-- **`files`** ships what no server names, such as data a launcher reads: files, or directories ending in
-  `/`.
-- **A Copilot MCP server cannot learn the user's project.** It starts in the plugin root, its client offers no
-  MCP roots and no variable names the project (Copilot CLI 1.0.92, measured 2026-10-07), so
-  `server_project_dir` returns 1 there. Design such a server to take the project from its tool arguments. A
-  Claude Code server gets `CLAUDE_PROJECT_DIR`, starts in the project and can ask for roots.
-- **Never put a `cwd` on a Claude MCP server.** Claude ignores it and starts the server in the project,
-  so the build fails. Set `cwd` under `copilot.mcpServers`, or `cd` in the launcher.
-- **Copilot has no LSP `workspaceFolder` or `settings`.** Setting either fails the Copilot build; give
-  that server a Copilot copy without them under `copilot.lspServers`.
-- **`PLUGINFINITY_` env keys are reserved.** The build adds `PLUGINFINITY_HOST`, `PLUGINFINITY_PLUGIN`
-  and `PLUGINFINITY_LIB` to every local server's `env`.
-- **Biome warns `noTemplateCurlyInString`** on `"${PLUGIN_ROOT}/..."` in the config. It is a warning, and
-  the string is meant literally: keep it a plain string, never a template literal. To silence it, put
-  `// biome-ignore lint/suspicious/noTemplateCurlyInString: pluginfinity placeholder` on the line
-  above, or turn the rule off for `pluginfinity.config.ts` in a Biome `overrides` entry. A monitor `command`
-  that holds `${PLUGIN_ROOT}` needs the same ignore.
+- **`${PLUGIN_ROOT}` is the one placeholder,** and only in a server's `command`, `args`, `env` values and `cwd`
+  or `workspaceFolder`. A host's own spelling, such as `$CLAUDE_PLUGIN_ROOT`, fails the build.
+- **A path a server names after `${PLUGIN_ROOT}/` ships.** `files` ships what no server names.
+- **A Copilot MCP server cannot learn the user's project.** Design it to take the project from its tool arguments.
+- **Never put a `cwd` on a Claude MCP server,** and Copilot has no LSP `workspaceFolder` or `settings`: each fails
+  that host's build.
 
-Write the launcher on the server library with the `plugin-scripts` skill.
+Read [servers and launchers](references/servers.md) before you add or change a server: it has the full rules,
+the reserved `PLUGINFINITY_` variables and the Biome warning on `${PLUGIN_ROOT}`. Write the launcher with the
+`bash-hooks` skill's [scripts outside hooks](pluginfinity://skill/bash-hooks/references/scripts.md).
 
 ## Session env
 
@@ -180,8 +204,7 @@ The whole contract, the dogfood example, the bats helpers and the migration from
 A monitor is a background script whose stdout lines reach the model as notifications. Declare it once under
 `monitors` in the config; Claude Code builds it and Copilot drops it with a `monitor-omitted` note. Write
 the script on the monitor library, with `monitor_every` and `monitor_notify`, as in
-[monitors](references/monitors.md). A monitor script follows the logging standard in the `plugin-scripts`
-skill.
+[monitors](references/monitors.md). A monitor script follows the [logging](references/logging.md) standard.
 
 ## Per-host files and skills
 
@@ -205,11 +228,11 @@ what each means.
 
 - **Read the notes under each target.** `build`, `build --check` and `validate` list, under each target's
   `✓` line, every field the host dropped or degraded, every tool it cannot name, every hook event or
-  monitor it omitted, every matcher it leaves to the hook library at run time or rewrites, every hook helper
+  monitor it omitted, every hook field it dropped, every matcher it leaves to the hook library at run time or rewrites, every hook helper
   whose output it ignores and what session env cannot do there, one line per file:
   `· agents/x.md: dropped color; tool-dropped ToolSearch`. Notes never fail a command, but a name you meant to
   keep, such as an MCP tool, shows up there first. A `hook-matcher-runtime` note is honoured only for a script
-  that sources the hook library; a plain `command` entry gets none. See [the findings](references/findings.md).
+  that sources the hook library or a binary built on the native one; a plain `command` entry gets none. See [the findings](references/findings.md).
 - **A Copilot `SessionStart` matcher that holds `startup` also matches `new`.** Copilot reports a fresh session
   as `new`, so the build widens `startup` to `startup|new` and notes `hook-matcher-widened`. A regex matcher it
   cannot widen is noted `hook-matcher-regex`: add `new` to it yourself.
@@ -248,10 +271,15 @@ build does:
 - [The config](references/config.md): every field, hooks and server overrides, and the target keys.
 - [Skills and agents](references/components.md): frontmatter, `targets` blocks, host blocks, tokens and
   links, and support files.
-- [Hooks](references/hooks.md): script and command entries, `scripts.invoke`, `failClosed`, run-time
-  matchers, fallbacks and what ships.
-- [Session env](references/session-env.md): declared variables, the setup script, `.env`, `hook_env_set`,
-  what each host's shell sees, testing and migrating.
+- [Hooks](references/hooks.md): every entry field and handler, how each kind of entry runs, `failClosed`,
+  run-time matchers, fallbacks and what ships. The bash library and the bats helper are in the `bash-hooks`
+  skill, and the native library in `native-hooks`.
+- [Servers and launchers](references/servers.md): placeholders, what ships, per-host limits and reserved
+  variables.
+- [Session env](references/session-env.md): declared variables, the setup script, `.env`, reading and setting a
+  value from a bash or native hook, and what each host's shell sees. Testing and migrating each have a page it
+  links to.
+- [Logging](references/logging.md): the two log files, the debug switch, who calls what, and `pluginfinity logs`.
 - [Monitors](references/monitors.md): the config, the monitor library and a test recipe.
 - [What each host gets](references/targets.md): how every field, tool, model, path and server is
   translated.

@@ -1,8 +1,9 @@
 # Session env
 
 A plugin declares the session variables it keeps under `env` in the config. pluginfinity resolves them once
-when a session starts. Every hook that sources `hook.sh` has them as plain shell variables, and a skill script
-or monitor gets them by sourcing `env.sh`, on both hosts, with no per-plugin plumbing. A plain `command` hook
+when a session starts. Every hook that sources `hook.sh` has them as plain shell variables, a native hook reads one with
+`h.env("NAME")`, and a skill script or monitor gets them by sourcing `env.sh`, on both hosts, with no per-plugin
+plumbing. A plain `command` hook
 entry that does not source the library sees none of them.
 
 ## When to reach for it
@@ -10,13 +11,13 @@ entry that does not source the library sees none of them.
 Reach for `env` when a value is decided once per session and read in several places: a package manager
 detected in the project, a feature switch a user sets in `.env`, a directory a later hook needs. It replaces
 the hand-rolled pattern of a `SessionStart` hook that writes `export` lines to `CLAUDE_ENV_FILE` and a file
-of its own, and reader hooks that source that file; see [migrating](#migrating-a-hand-rolled-session-env).
+of its own, and reader hooks that source that file; see [migrating](session-env-migrating.md).
 
 Do not use it for:
 
-- **A fact in the event.** Read the payload with `hook_input`; it is fresher than anything stored.
+- **A fact in the event.** Read the payload with `hook_input`, or `h.input` in a native hook; it is fresher than anything stored.
 - **Persistent state.** Values belong to one session and start again with the next. Keep caches and history
-  in the data directory; see the `plugin-scripts` skill's State section.
+  in the data directory; see the State section of the `bash-hooks` skill's scripts reference.
 - **Secrets.** Values sit in plain files under the state directory and, on Claude Code, in the shell the model
   runs commands in.
 - **Several lines.** A value is one line; a value holding a newline is refused.
@@ -175,11 +176,24 @@ walked up to its git root. Two consequences:
 `env_reload` loads the values again. A monitor that runs for the whole session calls it in each tick to pick up
 a `hook_env_set` made after it started.
 
+**A native hook calls `h.env`.** It resolves the same chain and reads the same session values file, so a bash
+hook and a native one in one plugin agree:
+
+```zig
+const color = h.env("PFDOG_COLOR") orelse "none";
+```
+
+`h.env` returns null for a name the config does not declare. Give a `SessionStart` entry that reads one a
+`timeout` of 5 or more, as for a script.
+
 ## Setting a value at run time
 
 ```bash
 hook_env_set PFDOG_COLOR "$detected"
 ```
+
+A native hook calls `h.envSet("PFDOG_COLOR", detected)`, with the same rules and the same file, so either kind
+of hook reads what the other set.
 
 `hook_env_set NAME value` is rung 6. It writes the session's values file, exports the name in the calling hook,
 and on Claude Code appends `export NAME='value'` to `CLAUDE_ENV_FILE`, so the model's shell sees it too.
@@ -265,121 +279,9 @@ So the reader hook should say `PFDOG_COLOR=green` on both hosts, and the probe s
 run as each host runs them. On Claude Code `echo $PFDOG_COLOR` in the model's shell should print green too, and
 on Copilot nothing. No live session has confirmed this yet.
 
-## Testing
+## Testing, debugging and migrating
 
-The bats helper reads and writes the library's own files under the test's state directory, so a test never
-touches the user's sessions.
-
-- **`--session-env <file>`** seeds the session's values as if `SessionStart` had run. The file holds
-  `NAME=value` or `export NAME=value` lines, parsed and not sourced. `run_hook` seeds the fixture's
-  `session_id`; `run_script` and `run_monitor` seed session `test-session` and point the project they run in at
-  it (for a Claude Code script outside `skills/`, the project its `CLAUDE_PROJECT_DIR` names).
-- **Seeds follow the run's state directory.** A call that passes its own `XDG_STATE_HOME` (a trailing
-  `XDG_STATE_HOME=…` on `run_hook` or `run_monitor`, `--env XDG_STATE_HOME=…` on `run_script`, the last one
-  winning) gets its seeded values, pointer and done marker there; otherwise they go under
-  `$BATS_TEST_TMPDIR/state`.
-- **An unseeded `SessionStart` hook does not wait.** `run_hook` writes the runner's done marker for the
-  fixture's session, so the hook resolves live at once; pass `--env-wait` to keep the 3 second wait and test it.
-- **`--env-file <file>`** on `run_script` puts a file's lines in the script's environment, as the exports a
-  `SessionStart` hook wrote to `CLAUDE_ENV_FILE` are on Claude Code. They are ambient values (rung 5), not a
-  session.
-- **Nothing seeded** tests the live chain: defaults, then a `.env` you write into `$(_pf_project_dir)`.
-- **The runner itself** runs like any hook, so a test can run it and then a reader, end to end. Pass
-  `CLAUDE_ENV_FILE` on Claude Code to check what the model's shell would get.
-
-From dogfood's `__test__/env.bats`:
-
-```bash
-setup() {
-	printf 'PFDOG_COLOR=red\nexport PFDOG_SHAPE="triangle"\n' >"$BATS_TEST_TMPDIR/session.env"
-}
-
-@test "a reader hook puts a seeded session value into context, on both targets" {
-	run_hook claude hooks/env-reader.sh posttooluse.env.json --session-env "$BATS_TEST_TMPDIR/session.env"
-	assert_hook_json .hookSpecificOutput.additionalContext "pluginfinity-dogfood env: PFDOG_COLOR=red"
-	run_hook copilot hooks/env-reader.sh posttooluse.env.json --session-env "$BATS_TEST_TMPDIR/session.env"
-	assert_hook_json .additionalContext "pluginfinity-dogfood env: PFDOG_COLOR=red"
-}
-
-@test "a skill script takes the project's .env over the default" {
-	local target project
-	project=$(_pf_project_dir)
-	printf 'PFDOG_LEVEL=7\n' >"$project/.env"
-	for target in claude copilot; do
-		run_script "$target" skills/env-probe/scripts/print-env.sh
-		[ "$output" = $'PFDOG_COLOR=blue\nPFDOG_SHAPE=circle\nPFDOG_LEVEL=7' ]
-	done
-}
-```
-
-The runner, then a script, on both hosts:
-
-```bash
-@test "the setup script's values reach a skill script" {
-	local target
-	for target in claude copilot; do
-		run_hook "$target" lib/pluginfinity/env-run.sh "$(hook_fixture SessionStart '{"source":"startup"}')" \
-			CLAUDE_ENV_FILE="$BATS_TEST_TMPDIR/claude-env.sh"
-		run_script "$target" skills/env-probe/scripts/print-env.sh
-		[ "$output" = $'PFDOG_COLOR=green\nPFDOG_SHAPE=square\nPFDOG_LEVEL=1' ]
-	done
-	grep -qx "export PFDOG_COLOR='green'" "$BATS_TEST_TMPDIR/claude-env.sh"
-}
-```
-
-## Debugging
-
-Every problem is a line in `error.log` with the component and `env:`, never a failed hook. Read it with
-`pluginfinity logs`, and `pluginfinity logs --debug` with `PLUGINFINITY_DEBUG=1` set for the reader's
-`no session values; resolving live` lines and the setup script's stderr.
-
-The files, under `${XDG_STATE_HOME:-$HOME/.local/state}/pluginfinity/<plugin>/`:
-
-| Path | Holds |
-| :-- | :-- |
-| `session/<session id>/env` | One `NAME=value` line per declared name, the resolved value |
-| `session/<session id>/set` | The names `hook_env_set` wrote |
-| `session/<session id>/done` | Written when the runner has finished |
-| `project/<key>` | The latest session id for one project, and the project's path |
-
-An invalid session id (empty, `.`, holding `/`, `..`, a backslash or a control character) is logged and nothing is
-read or written.
-
-## Migrating a hand-rolled session env
-
-A plugin-bot-era plugin, such as silk with its `source-session-env.sh`, shares values with three pieces: a
-`SessionStart` hook that computes them and writes `export` lines to `CLAUDE_ENV_FILE` and to a
-`~/.claude/session-env/<session_id>/<plugin>-hook.sh` file of its own, a `source_session_env "$session_id"`
-call at the top of every reader hook, and, on Copilot, nothing. Replace all three:
-
-1. **List the variables.** `grep -rn 'CLAUDE_ENV_FILE\|session-env\|source_session_env' hooks scripts skills`
-   finds the producer and the readers; every name the producer exports becomes a `vars` entry. Drop names the
-   library already answers: the plugin root is `hook_plugin_root`, and the session id is `hook_input session_id`.
-   An old fallback becomes the `default`, except under these two rules:
-   - **A name whose readers detect a value when it is empty gets `default: ""`.** A non-empty default fills the
-     name whenever there is no values file, so the readers' detection never runs.
-   - **Never declare a name that works as a deliberate per-command override**, such as a `*_PROJECT_DIR` a user
-     sets for one command. Every declared name is resolved and exported, at worst as `""`, and on Claude Code
-     appended to `CLAUDE_ENV_FILE`, which pins the model's shell to the session-start value. Leave such a name
-     ambient-only: the scripts read it from their environment, as before.
-2. **Move the computing into `setup`.** A function such as `detect_package_manager` moves to a script that
-   prints `NAME=value` and is named as `env.setup`. A value only a hook can compute stays in that hook, which
-   calls `hook_env_set NAME "$value"` instead of writing exports.
-3. **Delete the plumbing.** Remove the exports to `CLAUDE_ENV_FILE`, the per-session file, its `grep -q`
-   guards and `printf '%q'` quoting, the `source-session-env.sh` helper and every `source_session_env` call.
-   Reader hooks use the names directly.
-4. **Make skill scripts source `env.sh`.** A script that read `$MYPLUGIN_X` because Claude Code exported it now
-   sources `env.sh` with the one line above, which makes it work on Copilot too.
-5. **Check `SessionStart` timeouts.** Raise any under 5 seconds.
-6. **Rewrite the tests.** Seed values with `--session-env` instead of writing `~/.claude/session-env/` files,
-   and run every reader on both targets.
-7. **Build and read the notes.** Copilot lists `env-shell-unsupported`; `env-wait-timeout` means step 5 is not
-   done.
-
-Behaviour that changes:
-
-- The old reader sourced every `*hook*.sh` file in the session directory, other plugins' included. `env.sh`
-  reads this plugin's declared names only, so a value another plugin exported no longer leaks in.
-- The old files were shell code, sourced; the new ones are data, parsed, so a value can no longer run anything.
-- A project's `.env` and `.env.local` now set declared names, above the setup script.
-- Copilot gets the values in hooks and in skill scripts that source `env.sh`, where it got nothing before.
+- Read [testing and debugging session env](session-env-testing.md) before you write a test for a reader or a
+  setter, or when a value is wrong at run time.
+- Read [migrating a hand-rolled session env](session-env-migrating.md) when a plugin writes `CLAUDE_ENV_FILE`
+  or a per-session file of its own.

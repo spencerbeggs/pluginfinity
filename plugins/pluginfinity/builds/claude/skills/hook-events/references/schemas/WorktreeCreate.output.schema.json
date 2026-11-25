@@ -1,0 +1,38 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		},
+		"hookSpecificOutput": {
+			"type": "object",
+			"properties": {
+				"hookEventName": {
+					"type": "string",
+					"enum": [
+						"WorktreeCreate"
+					],
+					"description": "Required whenever hookSpecificOutput is present: \"WorktreeCreate\"."
+				},
+				"worktreePath": {
+					"type": "string",
+					"description": "HTTP hooks only: the absolute, normalized path of the created worktree, not passing through a symlink."
+				}
+			},
+			"required": [
+				"hookEventName"
+			],
+			"additionalProperties": true,
+			"description": "The WorktreeCreate-specific fields."
+		}
+	},
+	"additionalProperties": true,
+	"title": "WorktreeCreate hook output",
+	"description": "Returns the created worktree's path. A command hook does not print JSON: it prints the path as the last non-empty line of stdout, with everything else on stderr. Only an HTTP hook returns this object. Any non-zero exit, or no path, fails creation. Claude Code discards continue, systemMessage, stopReason on this event."
+}

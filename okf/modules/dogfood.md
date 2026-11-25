@@ -2,7 +2,7 @@
 type: Module
 title: dogfood plugin fixture
 description: plugins/dogfood, an end-to-end fixture that builds a plugin with the real CLI to exercise features the companion plugin does not use; never released.
-kind: harness
+x-okfit-kind: harness
 resource: ../../plugins/dogfood
 status: draft
 tags:
@@ -37,10 +37,10 @@ sources:
     title: The doctor smoke test that runs inside the fixture
 generated:
   by: okfit/claude-code
-  at: 2026-10-07T07:34:27Z
-integrity:
+  at: 2026-11-25T22:36:21Z
+x-okfit-integrity:
   generated:
-    body: 1a729786f6dc3040
+    body: a6382ee33e162ee3
 ---
 
 # dogfood plugin fixture
@@ -77,7 +77,7 @@ The `env` block declares `PFDOG_COLOR` and `PFDOG_SHAPE` (both set by the setup 
 
 Where a step needs a subagent, hook-eval delegates to `eval-subagent`, a neutral agent (`tools: Read, Bash`, `model: inherit`, no skills preloaded or listed) whose only context is what the hooks inject, so a quoted prompt or context shows hook output and nothing else. It is for hook-eval runs only, and a build test checks it builds to both hosts without skills.[^eval-subagent]
 
-hook-eval's Step A checks the companion plugin, which the debug scripts now load: A1 that the `plugin-engineer` agent is listed, A2 that the four hook and script skills are listed, A3 the `paths` behaviour (on Claude, read a file matching `hook-authoring`'s globs and record whether the skill was invoked; the expectation is no automatic injection, and on Copilot the globs sit in the skill description), and A4 that `plugin-engineer` is delegated to and names its skills.
+hook-eval's Step A checks the companion plugin, which the debug scripts now load: A1 that the `plugin-engineer` agent is listed, A2 that the three hook and script skills (`bash-hooks`, `native-hooks`, `hook-events`) are listed, A3 the `paths` behaviour (on Claude, read a file matching `bash-hooks`'s globs and record whether the skill was invoked; the expectation is no automatic injection, and on Copilot the globs sit in the skill description), and A4 that `plugin-engineer` is delegated to and names its skills.
 
 ## Status
 

@@ -9,7 +9,7 @@ tags:
   - dx
 status: draft
 stale_after: 2026-12-31T00:00:00Z
-gate: pluginfinity is published to npm, it builds the companion plugin's claude and copilot outputs from one source under plugins/pluginfinity/, and the companion covers the plugin-authoring guidance it takes over from plugin-bot.
+x-okfit-gate: pluginfinity is published to npm, it builds the companion plugin's claude and copilot outputs from one source under plugins/pluginfinity/, and the companion covers the plugin-authoring guidance it takes over from plugin-bot.
 sources:
   - id: owner-direction
     resource: conversation with the repository owner
@@ -30,10 +30,10 @@ sources:
     title: impeccable's post-build rewrite of the Claude Code plugin copy
 generated:
   by: okfit/claude-code
-  at: 2026-11-02T19:14:25Z
-integrity:
+  at: 2026-11-25T22:36:21Z
+x-okfit-integrity:
   generated:
-    body: a295f21d81e45fdd
+    body: c3f45356caafe694
 ---
 
 # pluginfinity first release
@@ -116,7 +116,7 @@ What to avoid: impeccable's main output is a project install, and the Claude Cod
 0. **Workspace.** Done on 2026-10-02: the template became a workspace with the CLI split into carrier-pattern layer packages under `packages/` ([decision](../decisions/pluginfinity-ships-as-a-carrier-package.md)) and two plugin workspaces, `plugins/pluginfinity/` (the companion) and `plugins/dogfood/` (the end-to-end fixture), each depending on the `pluginfinity` carrier through `workspace:*`; and this bundle was seeded.
 1. **Design.** Done on 2026-10-02. The command surface and the first `pluginfinity.config.ts` shape landed first ([CLI interface](../interfaces/cli.md), [config interface](../interfaces/config.md)); the [plugin source model](../models/plugin-source-model.md), the [target description](../models/target-description.md), the pipeline and the test plan above complete it.
 2. **Builder.** Mostly done. Config discovery, loading and `doctor` work. `build` runs the whole pipeline: manifests, skills, agents, hooks with the injected [hook library](../decisions/hook-library-is-build-injected.md), MCP and LSP servers with their [launchers](../decisions/server-launchers-ship-by-discovery-and-files.md), `files` entries, [body tokens and `pluginfinity://` links](../decisions/body-tokens-and-links-are-built-per-target.md), and [build notes](../decisions/build-notes-cover-hooks-and-monitors.md), through the reconciling emit. `build --check` reports `BuildStale` on content or executable-bit differences, and `validate` runs both hosts' checks. The Claude Code and Copilot capability descriptions in `@pluginfinity/targets` carry the run-time names the [measurements](../measurements/copilot-runtime-names.md) established. `plugins/dogfood/` exercises each of these end to end on both hosts. What remains is the `init` and `plugin add` scaffolding, which are stubs that fail with `NotImplemented`.
-3. **Companion plugin.** Under way. `plugins/pluginfinity/` is a single source built into `builds/claude/` and `builds/copilot/`: the `pluginfinity`, `hook-authoring`, `hook-events`, `plugin-scripts` and `migrating-hooks` skills and the `plugin-engineer` agent. What remains is plugin-bot's host-reference and authoring skills, rewritten for one source, and the comparison of the generated `builds/` with plugin-bot's hand-maintained targets.
+3. **Companion plugin.** Under way. `plugins/pluginfinity/` is a single source built into `builds/claude/` and `builds/copilot/`: the `pluginfinity`, `bash-hooks`, `native-hooks`, `hook-events`, `skill-authoring`, `agent-authoring` and `persuasion` skills and the `plugin-engineer` agent. What remains is plugin-bot's host-reference skills, rewritten for one source, and the comparison of the generated `builds/` with plugin-bot's hand-maintained targets.
 4. **Guards and docs.** Not started. Wire `build --check` into CI, which no workflow runs yet, and add a hook to the companion that blocks direct edits under `plugins/*/builds/**`. The authoring pattern itself is already taught by the companion's skills.
 5. **First publish.** The name is settled as pluginfinity ([decision](../decisions/pluginfinity-name.md)). Write the README, make the carrier publishable (its manifest is still `private: true`), and publish to npm.
 

@@ -6,7 +6,7 @@ tags:
   - portability
 status: draft
 stale_after: 2027-01-07T00:00:00Z
-justifies:
+x-okfit-justifies:
   - ../decisions/server-launchers-ship-by-discovery-and-files.md
   - ../decisions/session-env-is-declared-and-resolved-once.md
 sources:
@@ -31,7 +31,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T09:13:23Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 28d52b5823dc746a
 ---

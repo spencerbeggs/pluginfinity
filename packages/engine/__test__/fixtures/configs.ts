@@ -371,3 +371,54 @@ export const ENVED_SHORT_TIMEOUT = `export default {
 	claude: true,
 	copilot: true,
 };\n`;
+
+export const HOOKED_BINARY_MATCHERS = `export default {
+	name: "hooked",
+	description: "Fixture plugin.",
+	hooks: {
+		SessionStart: [
+			{ matcher: "^start", binary: "hooks/bin/guard" },
+			{ matcher: "startup|resume", binary: "hooks/bin/guard" },
+			{ matcher: "^start", script: "hooks/start.sh" },
+		],
+		PreToolUse: [{ matcher: "mcp__.*", binary: "hooks/bin/guard" }],
+	},
+	claude: true,
+	copilot: true,
+};\n`;
+
+export const HOOKED_BINARY = `export default {
+	name: "hooked",
+	description: "Fixture plugin.",
+	hooks: { PreToolUse: [{ matcher: "Bash", binary: "hooks/bin/guard" }] },
+	claude: true,
+	copilot: true,
+};\n`;
+
+export const HOOKED_SURFACE = `export default {
+	name: "hooked",
+	description: "Fixture plugin.",
+	hooks: {
+		PreToolUse: [
+			{ matcher: "Bash", script: "hooks/start.sh", if: "Bash(git *)", statusMessage: "Checking", async: true },
+			{ matcher: "Bash", http: "http://localhost:8080/pre", fallback: "omit" },
+		],
+	},
+	claude: true,
+	copilot: true,
+};\n`;
+
+export const HOOKED_HTTP_EVERYWHERE = `export default {
+	name: "hooked",
+	description: "Fixture plugin.",
+	hooks: { PreToolUse: [{ http: "http://localhost:8080/pre" }] },
+	claude: true,
+	copilot: true,
+};\n`;
+
+export const HOOKED_IF_MISPLACED = `export default {
+	name: "hooked",
+	description: "Fixture plugin.",
+	hooks: { Stop: [{ script: "hooks/start.sh", if: "Bash(git *)" }] },
+	claude: true,
+};\n`;

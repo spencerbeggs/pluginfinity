@@ -1,0 +1,25 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"url": {
+			"type": "string",
+			"description": "URL to fetch content from."
+		},
+		"prompt": {
+			"type": "string",
+			"description": "Prompt to run on the fetched content."
+		},
+		"offset": {
+			"type": "number",
+			"description": "Characters to skip from the start of the page. Claude Code 2.1.290 or later."
+		}
+	},
+	"required": [
+		"url",
+		"prompt"
+	],
+	"additionalProperties": true,
+	"title": "WebFetch tool_input",
+	"description": "Arguments of the WebFetch tool, which fetches and processes web content."
+}

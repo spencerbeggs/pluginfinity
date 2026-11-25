@@ -6,7 +6,7 @@ tags:
   - portability
 status: draft
 stale_after: 2027-01-06T00:00:00Z
-justifies: ../roadmaps/pluginfinity-first-release.md
+x-okfit-justifies: ../roadmaps/pluginfinity-first-release.md
 sources:
   - id: runtime-names-probe
     resource: conversation with the repository owner
@@ -16,7 +16,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-06T03:16:22Z
-integrity:
+x-okfit-integrity:
   generated:
     body: bb7a5a3e9c8c53e5
 ---

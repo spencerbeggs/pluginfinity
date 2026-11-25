@@ -6,7 +6,7 @@ tags:
   - portability
 status: draft
 stale_after: 2027-01-07T00:00:00Z
-justifies: ../decisions/monitors-are-a-component.md
+x-okfit-justifies: ../decisions/monitors-are-a-component.md
 sources:
   - id: monitor-live-run
     resource: conversation with the repository owner
@@ -33,7 +33,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T02:45:11Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 49e2ec7f3a05f1f9
 ---

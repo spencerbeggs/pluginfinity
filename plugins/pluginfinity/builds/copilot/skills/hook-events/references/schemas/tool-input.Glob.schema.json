@@ -1,0 +1,20 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"pattern": {
+			"type": "string",
+			"description": "Glob pattern to match files against."
+		},
+		"path": {
+			"type": "string",
+			"description": "Directory to search in. Defaults to the current working directory."
+		}
+	},
+	"required": [
+		"pattern"
+	],
+	"additionalProperties": true,
+	"title": "Glob tool_input",
+	"description": "Arguments of the Glob tool, which finds files matching a glob pattern."
+}

@@ -1,0 +1,11 @@
+.{
+    .name = .recipes,
+    .version = "0.0.0",
+    .fingerprint = 0xa369e2b5f0f4ef5d, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.17.1",
+    .dependencies = .{
+        // A plugin outside this repository uses `zig fetch --save <url>` instead of a path.
+        .pluginfinity_hooks = .{ .path = "../../.." },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "native" },
+}

@@ -66,14 +66,27 @@ export {
 } from "./errors.js";
 export type { FieldDrop, MappedFrontmatter, OwnMcp, SplitMarkdown, UnresolvedField } from "./frontmatter.js";
 export { appendSections, mapFrontmatter, splitFrontmatter } from "./frontmatter.js";
-export type { TargetHookEvent, UnsupportedHookEvent } from "./hooks.js";
+export type {
+	FileHookEntry,
+	HookFacts,
+	HookProblem,
+	TargetHookEvent,
+	UnsupportedHookEvent,
+	UnsupportedHookHandler,
+} from "./hooks.js";
 export {
+	BINARY_DISPATCH,
+	IF_EVENTS,
 	commandFiles,
 	entryEnv,
+	eventHandlers,
+	hookBinaries,
 	hookCommand,
 	hookCommandFiles,
 	hookExec,
+	hookProblems,
 	hookScripts,
+	isRegexMatcher,
 	renderHooks,
 	sessionStartMatcher,
 	shellEnvPrefix,

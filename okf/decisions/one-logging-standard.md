@@ -33,7 +33,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-28T23:29:43Z
-integrity:
+x-okfit-integrity:
   generated:
     body: d70a944c60f6ebea
   verified:

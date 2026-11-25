@@ -1,6 +1,6 @@
 # Hook events
 
-One section per event in the library's set. Field names are Claude Code's. Copilot's PascalCase form carries the same names in snake_case, except where a section says otherwise. Every event also receives `session_id`, `cwd` and `hook_event_name` (Claude Code hooks docs). Choose an event with the [hook-events](../SKILL.md) skill.
+One section per event both hosts run, with what each sends and the traps measured on it. An event only Claude Code has is described by its schema under `schemas/`; its description says what the event is for. Answers are named as in the skill's Answers table, which gives each one's bash and native spelling. Field names are Claude Code's. Copilot's PascalCase form carries the same names in snake_case, except where a section says otherwise. Every event also receives `session_id`, `cwd` and `hook_event_name` (Claude Code hooks docs). Choose an event with the [hook-events](../SKILL.md) skill.
 
 ## SessionStart
 
@@ -26,22 +26,22 @@ One section per event in the library's set. Field names are Claude Code's. Copil
 ## PreToolUse
 
 - Input: `tool_name`, `tool_input` and `tool_use_id`, plus `mcp_server` for an MCP tool (Claude Code hooks docs).
-- The only event for `hook_deny`, `hook_allow` and `hook_ask`. When hooks disagree on Claude Code, deny beats ask, which beats allow (Claude Code hooks docs).
+- The event for deny, allow and ask on both hosts. On Claude Code they also answer `PreModelSwitch`, and deny answers `PreSkillShellCommand`. When hooks disagree on Claude Code, deny beats ask, which beats allow (Claude Code hooks docs).
 - On Copilot `tool_input` keeps Copilot's key names (`path`, `file_text`, `old_str`, `new_str`). A hook reading `tool_input.file_path` never fired on Copilot's Read. Copilot CLI 1.0.91, 2026-10-03.
 - A non-zero exit denies the call on Copilot and lets it proceed on Claude Code (GitHub Copilot hooks reference; Claude Code hooks docs). A timeout is fail-open on both.
 
 ## PostToolUse
 
 - Input: `tool_name`, `tool_input`, `tool_response` and `tool_use_id` (Claude Code hooks docs). On Copilot the result arrives as `tool_result` (`result_type`, `text_result_for_llm`) (GitHub Copilot hooks reference).
-- The `tool_response` of an MCP tool is an array, not an object (plugin-bot hook-scripts).
+- The `tool_response` of an MCP tool is an array, not an object (seen in earlier plugins' hooks; not measured again here).
 - The tool has already run, so a block only adds its `reason` beside the result (Claude Code hooks docs).
 - Context was delivered on both hosts. Claude Code 2.1.288; Copilot CLI 1.0.91, 2026-10-03.
 
 ## PostToolUseFailure
 
 - Input: `tool_name`, `tool_input`, `tool_use_id` and `error`, and optionally `is_interrupt` (Claude Code hooks docs).
-- The Claude Code docs document only `additionalContext` for it, so the library offers context and no block (Claude Code hooks docs).
-- Copilot takes context for this event only from an exit-2 run, and the library always exits 0. There is no way to add context on Copilot PostToolUseFailure through the library (GitHub Copilot hooks reference).
+- The Claude Code docs document only `additionalContext` for it, so the libraries offer context and no block (Claude Code hooks docs).
+- Copilot takes context for this event only from an exit-2 run, and both libraries always exit 0. There is no way to add context on Copilot PostToolUseFailure through either (GitHub Copilot hooks reference).
 
 ## Stop
 
@@ -60,7 +60,7 @@ One section per event in the library's set. Field names are Claude Code's. Copil
 
 - Input: `stop_hook_active`, `agent_id`, `agent_type`, `agent_transcript_path` and `last_assistant_message` (Claude Code hooks docs).
 - The same `stop_hook_active` and eight-block cap as Stop apply (Claude Code hooks docs). Key per-agent state on `agent_id`, not `session_id`.
-- Copilot also accepts `modifiedResponse`, which the library does not emit (GitHub Copilot hooks reference).
+- Copilot also accepts `modifiedResponse`, which neither library emits (GitHub Copilot hooks reference).
 
 ## PreCompact
 
@@ -79,4 +79,4 @@ One section per event in the library's set. Field names are Claude Code's. Copil
 
 - Input: `tool_name` and `tool_input`, and optionally `permission_suggestions`. There is no `tool_use_id` (Claude Code hooks docs).
 - Claude Code decides through `hookSpecificOutput.decision.behavior` (`allow` or `deny`), and ignores exit 2 here (Claude Code hooks docs). Copilot answers with `behavior`, `message` and `interrupt`, and reads exit 2 as deny (GitHub Copilot hooks reference).
-- `hook_deny` and `hook_allow` build the PreToolUse shape and do not cover either. Send the object with `hook_raw claude '<json>'` and `hook_raw copilot '<json>'`.
+- Deny and allow build the PreToolUse shape and do not cover either. Send the object as a raw answer for `claude` and another for `copilot`.

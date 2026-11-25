@@ -52,6 +52,8 @@ const minimalTarget = {
 		format: "copilot-hooks-v1" as const,
 		events: { Stop: "Stop", Setup: absent },
 		ownEvents: [],
+		handlers: ["command" as const],
+		entryFields: [],
 		matcherIgnored: [],
 		output: { context: [], system_message: [] },
 		envShell: [],

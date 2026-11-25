@@ -1,0 +1,76 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"continue": {
+			"type": "boolean",
+			"description": "Default true. false stops Claude entirely after the hook runs, and beats an event-specific decision. It does not by itself block a PreToolUse tool call."
+		},
+		"stopReason": {
+			"type": "string",
+			"description": "Shown to the user when continue is false. It stays in the conversation, so Claude sees it later."
+		},
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"systemMessage": {
+			"type": "string",
+			"description": "A warning shown to the user, not added to Claude's context. Capped at 10,000 characters; longer text is saved to a file and replaced by its path and a 2,000 character preview."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		},
+		"decision": {
+			"type": "string",
+			"enum": [
+				"block"
+			],
+			"description": "Blocks the command."
+		},
+		"reason": {
+			"type": "string",
+			"description": "The reason for the block."
+		},
+		"hookSpecificOutput": {
+			"type": "object",
+			"properties": {
+				"hookEventName": {
+					"type": "string",
+					"enum": [
+						"PreToolUse",
+						"PreSkillShellCommand"
+					],
+					"description": "Required whenever hookSpecificOutput is present: \"PreToolUse\" or \"PreSkillShellCommand\"."
+				},
+				"permissionDecision": {
+					"type": "string",
+					"enum": [
+						"allow",
+						"deny",
+						"ask",
+						"defer"
+					],
+					"description": "deny blocks the command. allow changes nothing: the command runs unless another hook blocks it. ask and defer are treated as deny."
+				},
+				"permissionDecisionReason": {
+					"type": "string",
+					"description": "The reason for a block."
+				},
+				"updatedInput": {
+					"type": "object",
+					"description": "Not supported here: any updatedInput blocks the command, the same as deny."
+				}
+			},
+			"required": [
+				"hookEventName"
+			],
+			"additionalProperties": true,
+			"description": "The PreSkillShellCommand-specific fields."
+		}
+	},
+	"additionalProperties": true,
+	"title": "PreSkillShellCommand hook output",
+	"description": "Can only block the command; the skill still loads, with a note in place of the command's output. Exit code 2 blocks too. continue: false makes invoking the skill fail and none of its commands run."
+}

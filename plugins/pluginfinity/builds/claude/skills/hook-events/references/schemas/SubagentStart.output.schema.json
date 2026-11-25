@@ -1,0 +1,50 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"continue": {
+			"type": "boolean",
+			"description": "Default true. false stops Claude entirely after the hook runs, and beats an event-specific decision. It does not by itself block a PreToolUse tool call."
+		},
+		"stopReason": {
+			"type": "string",
+			"description": "Shown to the user when continue is false. It stays in the conversation, so Claude sees it later."
+		},
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"systemMessage": {
+			"type": "string",
+			"description": "A warning shown to the user, not added to Claude's context. Capped at 10,000 characters; longer text is saved to a file and replaced by its path and a 2,000 character preview."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		},
+		"hookSpecificOutput": {
+			"type": "object",
+			"properties": {
+				"hookEventName": {
+					"type": "string",
+					"enum": [
+						"SubagentStart"
+					],
+					"description": "Required whenever hookSpecificOutput is present: \"SubagentStart\"."
+				},
+				"additionalContext": {
+					"type": "string",
+					"description": "Text added to Claude's context at the start of the subagent's conversation, before its first prompt, wrapped in a system reminder and not shown as a chat message. State facts rather than give commands. Capped at 10,000 characters."
+				}
+			},
+			"required": [
+				"hookEventName"
+			],
+			"additionalProperties": true,
+			"description": "The SubagentStart-specific fields."
+		}
+	},
+	"additionalProperties": true,
+	"title": "SubagentStart hook output",
+	"description": "Adds context to the subagent. Cannot block its creation; exit code 2 only shows stderr to the user."
+}

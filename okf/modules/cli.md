@@ -2,8 +2,8 @@
 type: Module
 title: "@pluginfinity/cli"
 description: The pluginfinity command-line front end on @effected/cli-kit; it holds the command tree, renders what the engine computes for people or agents, declares no bin, and runs through the carrier's shim.
-kind: package
-layer: front end
+x-okfit-kind: package
+x-okfit-layer: front end
 resource: ../../packages/cli
 status: draft
 tags:
@@ -37,7 +37,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-12T03:02:39Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 4f1f25b9c75f3114
 ---

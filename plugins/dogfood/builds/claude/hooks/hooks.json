@@ -1,4 +1,5 @@
 {
+	"description": "End-to-end fixture for the pluginfinity CLI",
 	"hooks": {
 		"SessionStart": [
 			{
@@ -55,7 +56,8 @@
 							"bash",
 							"${CLAUDE_PLUGIN_ROOT}/hooks/pre-tool-use.sh"
 						],
-						"timeout": 5
+						"timeout": 5,
+						"onFailure": "block"
 					}
 				]
 			},

@@ -7,11 +7,12 @@ const decodeEntry = decodeStrict(HookEntry);
 const decodeHooks = decodeStrict(Hooks);
 
 describe("CLAUDE_HOOK_EVENTS", () => {
-	it("lists the 33 Claude Code hook events once each", () => {
-		assert.strictEqual(CLAUDE_HOOK_EVENTS.length, 33);
-		assert.strictEqual(new Set(CLAUDE_HOOK_EVENTS).size, 33);
+	it("lists the 34 Claude Code hook events once each", () => {
+		assert.strictEqual(CLAUDE_HOOK_EVENTS.length, 34);
+		assert.strictEqual(new Set(CLAUDE_HOOK_EVENTS).size, 34);
 		assert.include(CLAUDE_HOOK_EVENTS, "PreToolUse");
 		assert.include(CLAUDE_HOOK_EVENTS, "PostModelSwitch");
+		assert.include(CLAUDE_HOOK_EVENTS, "PreSkillShellCommand");
 	});
 });
 

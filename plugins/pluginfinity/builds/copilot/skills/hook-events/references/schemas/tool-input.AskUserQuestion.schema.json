@@ -1,0 +1,64 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"questions": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"question": {
+						"type": "string",
+						"description": "The question text."
+					},
+					"header": {
+						"type": "string",
+						"description": "A short header."
+					},
+					"options": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"label": {
+									"type": "string",
+									"description": "The option's label."
+								},
+								"description": {
+									"type": "string",
+									"description": "What the option means."
+								}
+							},
+							"required": [
+								"label"
+							],
+							"additionalProperties": true
+						},
+						"description": "The choices."
+					},
+					"multiSelect": {
+						"type": "boolean",
+						"description": "Whether several options may be chosen."
+					}
+				},
+				"required": [
+					"question",
+					"header",
+					"options"
+				],
+				"additionalProperties": true
+			},
+			"description": "The questions to present."
+		},
+		"answers": {
+			"type": "object",
+			"description": "Maps question text to the chosen option label; multi-select answers join labels with commas. Claude never sets it: supply it through updatedInput."
+		}
+	},
+	"required": [
+		"questions"
+	],
+	"additionalProperties": true,
+	"title": "AskUserQuestion tool_input",
+	"description": "Arguments of the AskUserQuestion tool, which asks the user one to four multiple-choice questions. To answer from a PreToolUse hook, return allow with updatedInput holding the original questions plus answers."
+}

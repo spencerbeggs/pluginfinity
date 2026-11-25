@@ -1,0 +1,28 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		},
+		"decision": {
+			"type": "string",
+			"enum": [
+				"block"
+			],
+			"description": "Blocks compaction."
+		},
+		"reason": {
+			"type": "string",
+			"description": "The reason; for a manual /compact it is shown to the user."
+		}
+	},
+	"additionalProperties": true,
+	"title": "PreCompact hook output",
+	"description": "Can block compaction. Exit code 2 blocks it too. When the hook exits 0 without blocking, its plain stdout becomes instructions for the compaction summary. Claude Code discards continue, systemMessage, stopReason on this event."
+}

@@ -16,7 +16,7 @@ when_to_use: the situations that should trigger it
 ```
 
 `description` is required. `name`, when set, must equal the directory name; every build writes it
-either way. Support files are copied to every host: a `.md` file gets the same host-block pass as the
+either way. The `skill-authoring` skill covers what makes a description trigger and how to test one. Support files are copied to every host: a `.md` file gets the same host-block pass as the
 body, and any other file is copied byte for byte. Files keep their source mode. `build --check` compares
 content, and a copied file's executable bit, so only a commit hook that sets or clears the executable bit
 on one side fails the check; see the `pluginfinity` skill's "Repository hygiene".
@@ -24,7 +24,8 @@ on one side fails the check; see the `pluginfinity` skill's "Repository hygiene"
 ## Agents
 
 An agent is one file, `agents/<name>.md`. Its `name` is required and must equal the file stem; its
-`description` is required too. Write the body as the agent's system prompt.
+`description` is required too. Write the body as the agent's system prompt. The `agent-authoring` skill
+covers what makes a good one and what each host does with its frontmatter.
 
 ## Frontmatter rules
 

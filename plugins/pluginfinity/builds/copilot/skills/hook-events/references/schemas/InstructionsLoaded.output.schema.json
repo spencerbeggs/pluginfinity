@@ -1,0 +1,17 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		}
+	},
+	"additionalProperties": true,
+	"title": "InstructionsLoaded hook output",
+	"description": "Claude Code reads no decision from this event; a hook here is for side effects. It cannot block or change the load. Claude Code discards continue, systemMessage, stopReason on this event."
+}
