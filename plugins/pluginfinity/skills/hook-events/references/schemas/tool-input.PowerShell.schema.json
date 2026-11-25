@@ -1,0 +1,28 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"command": {
+			"type": "string",
+			"description": "The command to execute."
+		},
+		"description": {
+			"type": "string",
+			"description": "What the command does."
+		},
+		"timeout": {
+			"type": "number",
+			"description": "Timeout in milliseconds. A value above the maximum is reduced to it."
+		},
+		"run_in_background": {
+			"type": "boolean",
+			"description": "Whether to run the command in the background."
+		}
+	},
+	"required": [
+		"command"
+	],
+	"additionalProperties": true,
+	"title": "PowerShell tool_input",
+	"description": "Arguments of the PowerShell tool, which executes PowerShell commands; match Bash|PowerShell in a hook that inspects shell commands."
+}

@@ -50,3 +50,49 @@ export const renderToolMap = (
 		"",
 	].join("\n");
 };
+
+/**
+ * `lib/pluginfinity/facts.json`: what a native hook reads where a script
+ * sources `tools.sh`, `host.sh` and `env.sh`. It holds the host's run-time
+ * tool names, the components this build ships and the plugin's declared
+ * session variables with their defaults. A `binary` hook finds it through the
+ * plugin root its entry hands over.
+ *
+ * @public
+ */
+export const renderFacts = (
+	target: Target,
+	host: string,
+	plugin: { readonly host: string; readonly claude: string },
+	servers: ReadonlyArray<string>,
+	has: ToolMapComponents,
+	env: Readonly<Record<string, { readonly default?: string }>> = {},
+): string => {
+	const runtime = target.tools.runtime;
+	return `${JSON.stringify(
+		{
+			host,
+			plugin: plugin.host,
+			tools: {
+				names: Object.fromEntries(
+					Object.entries(runtime.names).flatMap(([name, spelled]) =>
+						typeof spelled === "string" ? [[name, spelled]] : [],
+					),
+				),
+				plugin: plugin.claude,
+				mcp: runtime.mcp,
+				servers,
+				unlisted: runtime.unlisted,
+			},
+			has: {
+				skills: has.skills,
+				agents: has.agents,
+				monitors: "path" in target.monitors ? has.monitors : [],
+				servers,
+			},
+			env: { vars: Object.fromEntries(Object.entries(env).map(([name, declared]) => [name, declared.default ?? ""])) },
+		},
+		null,
+		"\t",
+	)}\n`;
+};

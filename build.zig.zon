@@ -1,0 +1,24 @@
+.{
+    // The Zig package in this repository: the native hook library, for plugins
+    // that write hooks as compiled programs. Everything else here is the
+    // pluginfinity CLI, which Zig never sees: `paths` below is the whole package.
+    .name = .pluginfinity_hooks,
+    .version = "0.0.0",
+    .fingerprint = 0x5bb3f1dcf1cdee5c, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.17.1",
+    .dependencies = .{
+        // The regular-expression engine behind `addHooks(.{ .regex = true })`. Lazy,
+        // so a plugin that does not opt in never fetches it.
+        .regex = .{
+            .url = "git+https://github.com/muhammad-fiaz/regex.zig#fa39c1c391b306eec5312a18ed50f103cdbf1b6f",
+            .hash = "regex-0.0.2-7f9IuKFaCgAkaYHM_0gCjcbKkXN8EogWrCk1vLItp2tX",
+            .lazy = true,
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "zig/src",
+        "LICENSE",
+    },
+}

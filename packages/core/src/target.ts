@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { HOOK_ENTRY_FIELDS, HOOK_HANDLERS } from "./hooks.js";
 
 /**
  * The forms a field can be moved into when a host lacks it. The engine owns
@@ -217,6 +218,10 @@ export class Target extends Schema.Class<Target>("Target")({
 		format: HooksFormat,
 		events: Schema.Record(Schema.String, EventMapping),
 		ownEvents: Schema.Array(Schema.String),
+		/** The handler kinds the host runs. An entry of another kind is unsupported there. */
+		handlers: Schema.Array(Schema.Literals(HOOK_HANDLERS)),
+		/** The optional entry fields the host's hooks format carries; the build drops the rest with a note. */
+		entryFields: Schema.Array(Schema.Literals(HOOK_ENTRY_FIELDS)),
 		/**
 		 * The Claude events whose matcher the host ignores. The build drops the
 		 * host `matcher` key there and the hook library applies the matcher at

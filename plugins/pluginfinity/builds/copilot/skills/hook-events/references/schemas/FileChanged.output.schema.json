@@ -1,0 +1,45 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"systemMessage": {
+			"type": "string",
+			"description": "A warning shown to the user, not added to Claude's context. Capped at 10,000 characters; longer text is saved to a file and replaced by its path and a 2,000 character preview."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		},
+		"hookSpecificOutput": {
+			"type": "object",
+			"properties": {
+				"hookEventName": {
+					"type": "string",
+					"enum": [
+						"FileChanged"
+					],
+					"description": "Required whenever hookSpecificOutput is present: \"FileChanged\"."
+				},
+				"watchPaths": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Absolute paths. Replaces the dynamic watch list. Paths from a matcher stay watched."
+				}
+			},
+			"required": [
+				"hookEventName"
+			],
+			"additionalProperties": true,
+			"description": "The FileChanged-specific fields."
+		}
+	},
+	"additionalProperties": true,
+	"title": "FileChanged hook output",
+	"description": "Cannot block the change. systemMessage is shown as a brief terminal notification. The docs do not say where watchPaths sits in the output; it is modelled under hookSpecificOutput, as on SessionStart. Claude Code discards continue, stopReason on this event."
+}

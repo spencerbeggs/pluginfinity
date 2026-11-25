@@ -1,0 +1,28 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		},
+		"decision": {
+			"type": "string",
+			"enum": [
+				"block"
+			],
+			"description": "Prevents the change from being applied."
+		},
+		"reason": {
+			"type": "string",
+			"description": "Accepted but never shown."
+		}
+	},
+	"additionalProperties": true,
+	"title": "ConfigChange hook output",
+	"description": "Can stop the change from applying to the running session. Exit code 2 blocks it too. A policy_settings change cannot be blocked. A blocked change shows no message to the user or Claude. Claude Code discards continue, systemMessage, stopReason on this event."
+}

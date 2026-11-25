@@ -1,0 +1,151 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"session_id": {
+			"type": "string",
+			"description": "Current session identifier."
+		},
+		"transcript_path": {
+			"type": "string",
+			"description": "Path to the conversation JSON. Written asynchronously, so it can lag the current turn; on Stop and SubagentStop read last_assistant_message instead."
+		},
+		"cwd": {
+			"type": "string",
+			"description": "Working directory when the hook is invoked. Follows Claude into a worktree or after a cd, while CLAUDE_PROJECT_DIR stays at the project root where the session started."
+		},
+		"prompt_id": {
+			"type": "string",
+			"description": "UUID of the user prompt being processed; matches the prompt.id attribute on OpenTelemetry events. Absent until the first user input."
+		},
+		"scratchpad_dir": {
+			"type": "string",
+			"description": "Path to the session's scratchpad directory. Absent when the session has none or the temp directory is unavailable. Claude Code 2.1.257 or later."
+		},
+		"permission_mode": {
+			"type": "string",
+			"enum": [
+				"default",
+				"plan",
+				"acceptEdits",
+				"auto",
+				"dontAsk",
+				"bypassPermissions"
+			],
+			"description": "Current permission mode. The mode labelled Manual arrives as default. Not every event carries this field."
+		},
+		"effort": {
+			"type": "object",
+			"properties": {
+				"level": {
+					"type": "string",
+					"enum": [
+						"low",
+						"medium",
+						"high",
+						"xhigh",
+						"max"
+					],
+					"description": "The effort level that ran, including a skill's, subagent's or ultrathink level. CLAUDE_EFFORT holds the same value."
+				}
+			},
+			"required": [
+				"level"
+			],
+			"additionalProperties": true,
+			"description": "Present on events with a tool-use context, on models that support effort."
+		},
+		"agent_id": {
+			"type": "string",
+			"description": "Unique identifier of the subagent or in-process teammate the hook fires in."
+		},
+		"agent_type": {
+			"type": "string",
+			"description": "Agent name, such as Explore or a plugin-scoped my-plugin:reviewer. Present inside a subagent, or when the session runs with --agent; a subagent's type wins over the session's."
+		},
+		"hook_event_name": {
+			"type": "string",
+			"enum": [
+				"PostModelSwitch"
+			],
+			"description": "Always \"PostModelSwitch\"."
+		},
+		"from_model": {
+			"type": "string",
+			"description": "Model ID the switch changes from."
+		},
+		"to_model": {
+			"type": "string",
+			"description": "Model ID the switch changes to. The matcher compares against this model's canonical name."
+		},
+		"requested_model": {
+			"anyOf": [
+				{
+					"type": "string"
+				},
+				{
+					"type": "null"
+				}
+			],
+			"description": "The model the request named: an alias such as opus, a full model ID, or null for the default model or a change Claude Code made on its own."
+		},
+		"source": {
+			"type": "string",
+			"enum": [
+				"command",
+				"picker",
+				"sdk",
+				"auto",
+				"resume"
+			],
+			"description": "As on PreModelSwitch, plus auto for a fallback or other change Claude Code made itself and resume for the model restored on resume."
+		},
+		"context_tokens": {
+			"type": "number",
+			"description": "Tokens the next request re-sends as its prompt. 0 before the first response."
+		},
+		"prompt_cache_warm": {
+			"type": "boolean",
+			"description": "Whether the current model's prompt cache is likely still warm, so the switch forfeits it."
+		},
+		"cache_ttl": {
+			"type": "string",
+			"enum": [
+				"5m",
+				"1h"
+			],
+			"description": "Prompt cache lifetime of the main conversation at the time of the switch."
+		},
+		"estimated_cache_write_usd": {
+			"type": "number",
+			"description": "Estimated cost in US dollars of writing context_tokens to the prompt cache on to_model. An estimate only."
+		},
+		"pricing": {
+			"type": "string",
+			"enum": [
+				"configured",
+				"catalog",
+				"default"
+			],
+			"description": "How the estimate was priced: your organization's rates, list price, or an assumed default rate."
+		}
+	},
+	"required": [
+		"session_id",
+		"transcript_path",
+		"cwd",
+		"hook_event_name",
+		"from_model",
+		"to_model",
+		"requested_model",
+		"source",
+		"context_tokens",
+		"prompt_cache_warm",
+		"cache_ttl",
+		"estimated_cache_write_usd",
+		"pricing"
+	],
+	"additionalProperties": true,
+	"title": "PostModelSwitch hook input",
+	"description": "The session's model changed, including changes Claude Code makes on its own. Claude Code 2.1.251 or later. The matcher compares against the canonical name of to_model. Default timeout 30 seconds."
+}

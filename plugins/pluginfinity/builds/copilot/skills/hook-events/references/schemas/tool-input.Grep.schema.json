@@ -1,0 +1,41 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"pattern": {
+			"type": "string",
+			"description": "Regular expression to search for."
+		},
+		"path": {
+			"type": "string",
+			"description": "File or directory to search in."
+		},
+		"glob": {
+			"type": "string",
+			"description": "Glob pattern to filter files."
+		},
+		"output_mode": {
+			"type": "string",
+			"enum": [
+				"content",
+				"files_with_matches",
+				"count"
+			],
+			"description": "Defaults to files_with_matches."
+		},
+		"-i": {
+			"type": "boolean",
+			"description": "Case insensitive search."
+		},
+		"multiline": {
+			"type": "boolean",
+			"description": "Enable multiline matching."
+		}
+	},
+	"required": [
+		"pattern"
+	],
+	"additionalProperties": true,
+	"title": "Grep tool_input",
+	"description": "Arguments of the Grep tool, which searches file contents with regular expressions."
+}

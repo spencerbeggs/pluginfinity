@@ -248,7 +248,7 @@ build does:
 - [The config](references/config.md): every field, hooks and server overrides, and the target keys.
 - [Skills and agents](references/components.md): frontmatter, `targets` blocks, host blocks, tokens and
   links, and support files.
-- [Hooks](references/hooks.md): script and command entries, `scripts.invoke`, `failClosed`, run-time
+- [Hooks](references/hooks.md): script, command and binary entries, `scripts.invoke`, `failClosed`, run-time
   matchers, fallbacks and what ships.
 - [Session env](references/session-env.md): declared variables, the setup script, `.env`, `hook_env_set`,
   what each host's shell sees, testing and migrating.

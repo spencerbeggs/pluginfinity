@@ -1,0 +1,17 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		}
+	},
+	"additionalProperties": true,
+	"title": "WorktreeRemove hook output",
+	"description": "No decision is read from JSON. Only the exit code counts: non-zero fails the removal if the directory still exists afterwards. Claude Code discards continue, systemMessage, stopReason on this event."
+}

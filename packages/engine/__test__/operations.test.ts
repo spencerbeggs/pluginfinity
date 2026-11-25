@@ -22,8 +22,13 @@ import {
 	FILES_SHADOW_SERVER,
 	FILES_SHARE,
 	HOOKED,
+	HOOKED_BINARY,
+	HOOKED_BINARY_MATCHERS,
 	HOOKED_COMMAND,
 	HOOKED_EXEC,
+	HOOKED_HTTP_EVERYWHERE,
+	HOOKED_IF_MISPLACED,
+	HOOKED_SURFACE,
 	HOOKED_UNSUPPORTED,
 	LSP_UNRESOLVED,
 	MONITORED,
@@ -2244,6 +2249,180 @@ describe("build with session env", () => {
 				const hooks = (yield* readJson(root, "builds/claude/hooks/hooks.json")).hooks;
 				assert.strictEqual(hooks.SessionStart.length, 1);
 				assert.notInclude(JSON.stringify(hooks), "env-run.sh");
+			}),
+		);
+	});
+});
+
+describe("build with binary hooks", () => {
+	const binaryPlugin = (files: Readonly<Record<string, string>>) =>
+		writeTree({ "pluginfinity.config.ts": HOOKED_BINARY, "package.json": PACKAGE_JSON, ...files });
+
+	layer(NodeServices.layer)((it) => {
+		it.effect("every platform binary of the prefix ships to both targets with its mode, and nothing else joins", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* binaryPlugin({
+					"hooks/bin/guard-Darwin-arm64": "mach-o",
+					"hooks/bin/guard-Linux-x86_64": "elf",
+					"hooks/bin/guardian-Linux-x86_64": "another hook's binary",
+				});
+				for (const name of ["guard-Darwin-arm64", "guard-Linux-x86_64"]) {
+					yield* fs.chmod(path.join(root, "hooks/bin", name), 0o755);
+				}
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				for (const entry of builds) {
+					const binaries = entry.plan.added.filter((file) => file.startsWith("hooks/bin/"));
+					assert.includeMembers(binaries, ["hooks/bin/guard-Darwin-arm64", "hooks/bin/guard-Linux-x86_64"]);
+				}
+				const info = yield* fs.stat(path.join(root, "builds/copilot/hooks/bin/guard-Linux-x86_64"));
+				assert.strictEqual(info.mode & 0o777, 0o755);
+				const hooks = yield* fs.readFileString(path.join(root, "builds/claude/hooks/hooks.json"));
+				assert.include(hooks, "PLUGINFINITY_HOST=claude");
+				assert.include(hooks, "PLUGINFINITY_PLUGIN=hooked");
+				// Each target gets the facts a native hook reads, spelled for that host.
+				const facts = (target: string) =>
+					fs
+						.readFileString(path.join(root, "builds", target, "lib/pluginfinity/facts.json"))
+						.pipe(Effect.map(JSON.parse));
+				const claude = yield* facts("claude");
+				const copilot = yield* facts("copilot");
+				assert.deepStrictEqual([claude.host, claude.plugin, copilot.host], ["claude", "hooked", "copilot"]);
+				// Claude Code's names are the vocabulary, so its table is empty and an unlisted name is kept.
+				assert.deepStrictEqual([claude.tools.names.Read, claude.tools.unlisted], [undefined, "keep"]);
+				assert.strictEqual(copilot.tools.names.Read, "view");
+				assert.deepStrictEqual(claude.has, { skills: [], agents: [], monitors: [], servers: [] });
+				assert.deepStrictEqual(claude.env, { vars: {} });
+			}),
+		);
+
+		it.effect("a regex matcher on a binary hook is noted only where the host ignores the matcher", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* writeTree({
+					"pluginfinity.config.ts": HOOKED_BINARY_MATCHERS,
+					"package.json": PACKAGE_JSON,
+					"hooks/bin/guard-Linux-x86_64": "elf",
+					"hooks/start.sh": "#!/usr/bin/env bash\n",
+				});
+				yield* fs.chmod(path.join(root, "hooks/bin/guard-Linux-x86_64"), 0o755);
+				const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+				const noted = (target: string) =>
+					builds
+						.filter((entry) => entry.target === target)
+						.flatMap((entry) => entry.notes)
+						.filter((note) => note.kind === "hook-matcher-native-regex")
+						.map((note) => note.name);
+				// Copilot ignores the SessionStart matcher, so the library must apply it. The exact list,
+				// the script entry and the PreToolUse matcher Copilot applies itself are not noted.
+				assert.deepStrictEqual(noted("copilot"), ["SessionStart ^start"]);
+				assert.deepStrictEqual(noted("claude"), []);
+			}),
+		);
+
+		it.effect("a prefix with no platform binary is HookScriptInvalid naming the pattern", () =>
+			Effect.gen(function* () {
+				const root = yield* binaryPlugin({ "hooks/bin/guardian-Linux-x86_64": "x" });
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookScriptInvalid");
+				if (error._tag !== "HookScriptInvalid") return;
+				assert.deepStrictEqual([error.script, error.problem], ["hooks/bin/guard-<os>-<arch>", "missing"]);
+			}),
+		);
+
+		it.effect("a platform binary without the executable bit is HookScriptInvalid", () =>
+			Effect.gen(function* () {
+				const fs = yield* FileSystem.FileSystem;
+				const path = yield* Path.Path;
+				const root = yield* binaryPlugin({ "hooks/bin/guard-Linux-x86_64": "elf" });
+				yield* fs.chmod(path.join(root, "hooks/bin/guard-Linux-x86_64"), 0o644);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookScriptInvalid");
+				if (error._tag !== "HookScriptInvalid") return;
+				assert.deepStrictEqual(
+					[error.script, error.problem],
+					["hooks/bin/guard-Linux-x86_64", "binary-not-executable"],
+				);
+			}),
+		);
+	});
+});
+
+describe("build with the wider hook surface", () => {
+	const plugin = (config: string) =>
+		writeTree({
+			"pluginfinity.config.ts": config,
+			"package.json": PACKAGE_JSON,
+			"hooks/start.sh": "#!/usr/bin/env bash\n",
+		});
+
+	layer(NodeServices.layer)((it) => {
+		it.effect(
+			"claude keeps every field and handler; copilot drops the fields and omits the http hook, with notes",
+			() =>
+				Effect.gen(function* () {
+					const fs = yield* FileSystem.FileSystem;
+					const path = yield* Path.Path;
+					const root = yield* plugin(HOOKED_SURFACE);
+					const builds = yield* build({ selection: nearest(root), targets: [], check: false });
+					const claude = JSON.parse(yield* fs.readFileString(path.join(root, "builds/claude/hooks/hooks.json")));
+					assert.strictEqual(claude.description, "Fixture plugin.");
+					assert.deepStrictEqual(
+						claude.hooks.PreToolUse.map((group: { hooks: ReadonlyArray<{ type: string }> }) => group.hooks[0]?.type),
+						["command", "http"],
+					);
+					assert.include(claude.hooks.PreToolUse[0].hooks[0], {
+						if: "Bash(git *)",
+						statusMessage: "Checking",
+						async: true,
+					});
+					const copilot = JSON.parse(
+						yield* fs.readFileString(path.join(root, "builds/copilot/com.github.copilot/hooks/hooks.json")),
+					);
+					const entries = Object.values(copilot.hooks)[0] as ReadonlyArray<Record<string, unknown>>;
+					assert.strictEqual(entries.length, 1);
+					assert.notProperty(entries[0], "if");
+					assert.notProperty(entries[0], "async");
+					const notes = (target: string, kind: string) =>
+						builds
+							.filter((entry) => entry.target === target)
+							.flatMap((entry) => entry.notes)
+							.filter((note) => note.kind === kind)
+							.map((note) => note.name)
+							.sort();
+					assert.deepStrictEqual(notes("copilot", "hook-field-dropped"), [
+						"PreToolUse async",
+						"PreToolUse if",
+						"PreToolUse statusMessage",
+					]);
+					assert.deepStrictEqual(notes("copilot", "hook-omitted"), ["PreToolUse (http)"]);
+					assert.deepStrictEqual(notes("claude", "hook-field-dropped"), []);
+				}),
+		);
+
+		it.effect("a handler copilot cannot run fails its build unless the entry sets fallback omit", () =>
+			Effect.gen(function* () {
+				const root = yield* plugin(HOOKED_HTTP_EVERYWHERE);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "HookEventUnsupported");
+				if (error._tag !== "HookEventUnsupported") return;
+				assert.deepStrictEqual([error.target, error.handlers], ["copilot", ["PreToolUse (http)"]]);
+				assert.include(error.message, 'copilot runs only command hooks, not "PreToolUse (http)"');
+			}),
+		);
+
+		it.effect("an if on an event that never evaluates it is ConfigInvalid, naming the entry", () =>
+			Effect.gen(function* () {
+				const root = yield* plugin(HOOKED_IF_MISPLACED);
+				const error = yield* Effect.flip(build({ selection: nearest(root), targets: [], check: false }));
+				assert.strictEqual(error._tag, "ConfigInvalid");
+				if (error._tag !== "ConfigInvalid") return;
+				assert.deepStrictEqual(
+					error.issues.map((issue) => issue.key),
+					["hooks.Stop[0].if"],
+				);
 			}),
 		);
 	});

@@ -17,6 +17,8 @@ export const BUILD_NOTE_KINDS = [
 	"env-wait-timeout",
 	"hook-matcher-widened",
 	"hook-matcher-regex",
+	"hook-matcher-native-regex",
+	"hook-field-dropped",
 ] as const;
 
 /**
@@ -33,7 +35,11 @@ export const BUILD_NOTE_KINDS = [
  * (`env-wait-timeout`), or widened a SessionStart matcher that matches
  * `startup` to match a host's `new` source too (`hook-matcher-widened`), or left
  * a regex matcher as written that matches `startup` but not `new`
- * (`hook-matcher-regex`).
+ * (`hook-matcher-regex`), or met a regular-expression matcher on a `binary`
+ * hook where the host ignores the matcher, which the native library applies only
+ * when the hooks were built with regex support (`hook-matcher-native-regex`),
+ * or left out a hook entry field the host's hooks format has no place for, such
+ * as `if` or `async` (`hook-field-dropped`).
  *
  * @public
  */

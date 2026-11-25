@@ -1,0 +1,59 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		},
+		"decision": {
+			"type": "string",
+			"enum": [
+				"block"
+			],
+			"description": "Declines, the same as action decline, and overrides an action in the same output. Read from Claude Code 2.1.284; ignored from 2.1.105 until then."
+		},
+		"reason": {
+			"type": "string",
+			"description": "Accepted and discarded: neither the user nor the server sees it."
+		},
+		"hookSpecificOutput": {
+			"type": "object",
+			"properties": {
+				"hookEventName": {
+					"type": "string",
+					"enum": [
+						"ElicitationResult"
+					],
+					"description": "Required whenever hookSpecificOutput is present: \"ElicitationResult\"."
+				},
+				"action": {
+					"type": "string",
+					"enum": [
+						"accept",
+						"decline",
+						"cancel"
+					],
+					"description": "accept sends your content in place of the user's values; decline and cancel send that to the server."
+				},
+				"content": {
+					"type": "object",
+					"description": "With accept: the form field values, keyed by the property names of requested_schema. It replaces the whole content object."
+				}
+			},
+			"required": [
+				"hookEventName",
+				"action"
+			],
+			"additionalProperties": true,
+			"description": "The ElicitationResult-specific fields."
+		}
+	},
+	"additionalProperties": true,
+	"title": "ElicitationResult hook output",
+	"description": "Answers, changes, declines or cancels an MCP elicitation. Print nothing to leave it as it is. Exit code 2 declines, and a hookSpecificOutput without an action is ignored. Claude Code discards continue, systemMessage, stopReason on this event."
+}

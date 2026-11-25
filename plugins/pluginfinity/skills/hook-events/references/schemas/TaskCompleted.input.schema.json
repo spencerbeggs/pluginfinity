@@ -1,0 +1,105 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"session_id": {
+			"type": "string",
+			"description": "Current session identifier."
+		},
+		"transcript_path": {
+			"type": "string",
+			"description": "Path to the conversation JSON. Written asynchronously, so it can lag the current turn; on Stop and SubagentStop read last_assistant_message instead."
+		},
+		"cwd": {
+			"type": "string",
+			"description": "Working directory when the hook is invoked. Follows Claude into a worktree or after a cd, while CLAUDE_PROJECT_DIR stays at the project root where the session started."
+		},
+		"prompt_id": {
+			"type": "string",
+			"description": "UUID of the user prompt being processed; matches the prompt.id attribute on OpenTelemetry events. Absent until the first user input."
+		},
+		"scratchpad_dir": {
+			"type": "string",
+			"description": "Path to the session's scratchpad directory. Absent when the session has none or the temp directory is unavailable. Claude Code 2.1.257 or later."
+		},
+		"permission_mode": {
+			"type": "string",
+			"enum": [
+				"default",
+				"plan",
+				"acceptEdits",
+				"auto",
+				"dontAsk",
+				"bypassPermissions"
+			],
+			"description": "Current permission mode. The mode labelled Manual arrives as default. Not every event carries this field."
+		},
+		"effort": {
+			"type": "object",
+			"properties": {
+				"level": {
+					"type": "string",
+					"enum": [
+						"low",
+						"medium",
+						"high",
+						"xhigh",
+						"max"
+					],
+					"description": "The effort level that ran, including a skill's, subagent's or ultrathink level. CLAUDE_EFFORT holds the same value."
+				}
+			},
+			"required": [
+				"level"
+			],
+			"additionalProperties": true,
+			"description": "Present on events with a tool-use context, on models that support effort."
+		},
+		"agent_id": {
+			"type": "string",
+			"description": "Unique identifier of the subagent or in-process teammate the hook fires in."
+		},
+		"agent_type": {
+			"type": "string",
+			"description": "Agent name, such as Explore or a plugin-scoped my-plugin:reviewer. Present inside a subagent, or when the session runs with --agent; a subagent's type wins over the session's."
+		},
+		"hook_event_name": {
+			"type": "string",
+			"enum": [
+				"TaskCompleted"
+			],
+			"description": "Always \"TaskCompleted\"."
+		},
+		"task_id": {
+			"type": "string",
+			"description": "Identifier of the task."
+		},
+		"task_subject": {
+			"type": "string",
+			"description": "Title of the task."
+		},
+		"task_description": {
+			"type": "string",
+			"description": "Detailed description of the task."
+		},
+		"teammate_name": {
+			"type": "string",
+			"description": "Name of the teammate acting on the task."
+		},
+		"team_name": {
+			"type": "string",
+			"description": "Deprecated: a session-derived team name that will be removed."
+		}
+	},
+	"required": [
+		"session_id",
+		"transcript_path",
+		"cwd",
+		"hook_event_name",
+		"task_id",
+		"task_subject"
+	],
+	"additionalProperties": true,
+	"title": "TaskCompleted hook input",
+	"description": "A task is being marked completed, through TaskUpdate or when a teammate finishes its turn with tasks in progress. No matcher."
+}

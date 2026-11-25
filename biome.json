@@ -9,7 +9,7 @@
 			"formatter": {
 				"enabled": false
 			},
-			"includes": ["plugins/*/builds/**"],
+			"includes": ["plugins/*/builds/**", "plugins/pluginfinity/skills/hook-events/references/schemas/**"],
 			"linter": {
 				"enabled": false
 			}

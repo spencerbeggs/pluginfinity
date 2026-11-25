@@ -1,0 +1,80 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"continue": {
+			"type": "boolean",
+			"description": "Default true. false stops Claude entirely after the hook runs, and beats an event-specific decision. It does not by itself block a PreToolUse tool call."
+		},
+		"stopReason": {
+			"type": "string",
+			"description": "Shown to the user when continue is false. It stays in the conversation, so Claude sees it later."
+		},
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"systemMessage": {
+			"type": "string",
+			"description": "A warning shown to the user, not added to Claude's context. Capped at 10,000 characters; longer text is saved to a file and replaced by its path and a 2,000 character preview."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		},
+		"hookSpecificOutput": {
+			"type": "object",
+			"properties": {
+				"hookEventName": {
+					"type": "string",
+					"enum": [
+						"PreToolUse"
+					],
+					"description": "Required whenever hookSpecificOutput is present: \"PreToolUse\"."
+				},
+				"permissionDecision": {
+					"type": "string",
+					"enum": [
+						"allow",
+						"deny",
+						"ask",
+						"defer"
+					],
+					"description": "allow skips the permission prompt (deny and ask rules still apply); deny prevents the call; ask prompts the user; defer ends the turn so the call can resume later, in -p mode with a single tool call only."
+				},
+				"permissionDecisionReason": {
+					"type": "string",
+					"description": "For deny, shown to Claude. For ask, shown to the user in the prompt. For allow and defer, written to the debug log only."
+				},
+				"updatedInput": {
+					"type": "object",
+					"description": "Replaces the tool's whole input before it runs, so include the unchanged fields. Pair with allow to auto-approve or ask to show the user. Ignored with defer."
+				},
+				"additionalContext": {
+					"type": "string",
+					"description": "Text added to Claude's context next to the tool result, wrapped in a system reminder and not shown as a chat message. State facts rather than give commands. Capped at 10,000 characters."
+				}
+			},
+			"required": [
+				"hookEventName"
+			],
+			"additionalProperties": true,
+			"description": "The PreToolUse-specific fields."
+		},
+		"decision": {
+			"type": "string",
+			"enum": [
+				"approve",
+				"block"
+			],
+			"description": "Deprecated on this event: maps to allow and deny. Use hookSpecificOutput.permissionDecision."
+		},
+		"reason": {
+			"type": "string",
+			"description": "Deprecated on this event. Use hookSpecificOutput.permissionDecisionReason."
+		}
+	},
+	"additionalProperties": true,
+	"title": "PreToolUse hook output",
+	"description": "Allows, denies, asks about or defers the tool call, and can rewrite its input. Exit code 2 denies, with stderr shown to Claude. When hooks disagree, deny beats defer, which beats ask, which beats allow. Printing nothing leaves the call to the normal permission flow."
+}

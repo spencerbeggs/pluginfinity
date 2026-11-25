@@ -1,0 +1,38 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"query": {
+			"type": "string",
+			"description": "Search query."
+		},
+		"allowed_domains": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			},
+			"description": "Only include results from these domains."
+		},
+		"blocked_domains": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			},
+			"description": "Exclude results from these domains."
+		},
+		"mode": {
+			"type": "string",
+			"enum": [
+				"standard",
+				"extended"
+			],
+			"description": "standard requests a lighter search, extended the full one. Claude Code 2.1.282 or later."
+		}
+	},
+	"required": [
+		"query"
+	],
+	"additionalProperties": true,
+	"title": "WebSearch tool_input",
+	"description": "Arguments of the WebSearch tool, which searches the web."
+}

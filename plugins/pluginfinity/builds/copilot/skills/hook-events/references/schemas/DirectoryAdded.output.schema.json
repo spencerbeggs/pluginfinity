@@ -1,0 +1,21 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"systemMessage": {
+			"type": "string",
+			"description": "A warning shown to the user, not added to Claude's context. Capped at 10,000 characters; longer text is saved to a file and replaced by its path and a 2,000 character preview."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		}
+	},
+	"additionalProperties": true,
+	"title": "DirectoryAdded hook output",
+	"description": "Claude Code reads no decision from this event; a hook here is for side effects. systemMessage is not shown to the user here: for /add-dir it is given to Claude as context on the next turn, and for the SDK request it goes to the debug log. Claude Code discards continue, stopReason on this event."
+}

@@ -1,0 +1,125 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"session_id": {
+			"type": "string",
+			"description": "Current session identifier."
+		},
+		"transcript_path": {
+			"type": "string",
+			"description": "Path to the conversation JSON. Written asynchronously, so it can lag the current turn; on Stop and SubagentStop read last_assistant_message instead."
+		},
+		"cwd": {
+			"type": "string",
+			"description": "Working directory when the hook is invoked. Follows Claude into a worktree or after a cd, while CLAUDE_PROJECT_DIR stays at the project root where the session started."
+		},
+		"prompt_id": {
+			"type": "string",
+			"description": "UUID of the user prompt being processed; matches the prompt.id attribute on OpenTelemetry events. Absent until the first user input."
+		},
+		"scratchpad_dir": {
+			"type": "string",
+			"description": "Path to the session's scratchpad directory. Absent when the session has none or the temp directory is unavailable. Claude Code 2.1.257 or later."
+		},
+		"permission_mode": {
+			"type": "string",
+			"enum": [
+				"default",
+				"plan",
+				"acceptEdits",
+				"auto",
+				"dontAsk",
+				"bypassPermissions"
+			],
+			"description": "Current permission mode. The mode labelled Manual arrives as default. Not every event carries this field."
+		},
+		"effort": {
+			"type": "object",
+			"properties": {
+				"level": {
+					"type": "string",
+					"enum": [
+						"low",
+						"medium",
+						"high",
+						"xhigh",
+						"max"
+					],
+					"description": "The effort level that ran, including a skill's, subagent's or ultrathink level. CLAUDE_EFFORT holds the same value."
+				}
+			},
+			"required": [
+				"level"
+			],
+			"additionalProperties": true,
+			"description": "Present on events with a tool-use context, on models that support effort."
+		},
+		"agent_id": {
+			"type": "string",
+			"description": "Unique identifier of the subagent or in-process teammate the hook fires in."
+		},
+		"agent_type": {
+			"type": "string",
+			"description": "Agent name, such as Explore or a plugin-scoped my-plugin:reviewer. Present inside a subagent, or when the session runs with --agent; a subagent's type wins over the session's."
+		},
+		"hook_event_name": {
+			"type": "string",
+			"enum": [
+				"PostToolUse"
+			],
+			"description": "Always \"PostToolUse\"."
+		},
+		"tool_name": {
+			"type": "string",
+			"description": "The tool being called: a built-in such as Bash, PowerShell, Edit, Write, Read, Glob, Grep, Agent, WebFetch or WebSearch, or an MCP tool named mcp__<server>__<tool> (mcp__plugin_<plugin>_<server>__<tool> for a plugin's own server)."
+		},
+		"tool_input": {
+			"type": "object",
+			"description": "The arguments sent to the tool. The keys depend on the tool; see the tool-input schemas beside this file."
+		},
+		"tool_response": {
+			"description": "The tool's result. A structured object whose shape depends on the tool (Write returns filePath and type; Bash returns stdout, stderr, interrupted and isImage); the error text as a string for a failed call."
+		},
+		"tool_use_id": {
+			"type": "string",
+			"description": "Identifier of this tool call."
+		},
+		"duration_ms": {
+			"type": "number",
+			"description": "Tool execution time in milliseconds, excluding permission prompts and PreToolUse hooks."
+		},
+		"mcp_server": {
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "The MCP server's name."
+				},
+				"source": {
+					"type": "string",
+					"description": "Where the server's definition came from, such as plugin, sdk, user or project. Base trust decisions on this, not on the name or the tool-name prefix."
+				}
+			},
+			"required": [
+				"name",
+				"source"
+			],
+			"additionalProperties": true,
+			"description": "Present for an MCP tool only. Claude Code 2.1.274 or later."
+		}
+	},
+	"required": [
+		"session_id",
+		"transcript_path",
+		"cwd",
+		"hook_event_name",
+		"tool_name",
+		"tool_input",
+		"tool_response",
+		"tool_use_id"
+	],
+	"additionalProperties": true,
+	"title": "PostToolUse hook input",
+	"description": "A tool call completed successfully. The matcher filters on tool_name. Does not fire when a Bash command or outside process rewrites a file; use FileChanged for that."
+}

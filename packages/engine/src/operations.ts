@@ -1,5 +1,6 @@
 import { Run } from "@effected/commands";
 import type { Target } from "@pluginfinity/core";
+import { HOOK_ENTRY_FIELDS } from "@pluginfinity/core";
 import type { KnownTargetId, PluginfinityConfig } from "@pluginfinity/targets";
 import { KNOWN_TARGET_IDS, TARGETS } from "@pluginfinity/targets";
 import type { PlatformError } from "effect";
@@ -17,6 +18,8 @@ import {
 	BuildStale,
 	ComponentInvalid,
 	ComponentsInvalid,
+	ConfigInvalid,
+	ConfigIssue,
 	HookEventUnsupported,
 	HookScriptInvalid,
 	HostRejected,
@@ -29,8 +32,11 @@ import { HOOK_LIB_DIR, hookLibFiles } from "./hook-lib.js";
 import { ignoredOutput } from "./hook-output.js";
 import type { TargetHookEvent } from "./hooks.js";
 import {
+	hookBinaries,
 	hookCommandFiles,
+	hookProblems,
 	hookScripts,
+	isRegexMatcher,
 	renderHooks,
 	sessionStartMatcher,
 	targetHooks,
@@ -50,7 +56,7 @@ import { mcpServerNames, renderServers, serverFiles } from "./servers.js";
 import type { SourceSkill } from "./skills.js";
 import { readSkills, renderSkill } from "./skills.js";
 import type { TokenContext } from "./tokens.js";
-import { renderToolMap } from "./tool-map.js";
+import { renderFacts, renderToolMap } from "./tool-map.js";
 
 /**
  * The input to `build`.
@@ -143,6 +149,7 @@ const targetOf = (id: KnownTargetId) => {
  */
 export type PlanError =
 	| PackageVersionMissing
+	| ConfigInvalid
 	| HookEventUnsupported
 	| HookScriptInvalid
 	| ShippedFileInvalid
@@ -209,6 +216,59 @@ const checkScript = (
 				new HookScriptInvalid({ path: config.path, script, problem: "not-executable", component }),
 			);
 		}
+	});
+
+/**
+ * The platform files of a hook `binary`: every `<binary>-<os>-<arch>` beside
+ * the prefix. Fails with `HookScriptInvalid` when there is none, or when one
+ * lacks the executable bit, since a binary is always executed.
+ */
+const binaryFiles = (
+	config: LoadedConfig,
+	binary: string,
+): Effect.Effect<
+	ReadonlyArray<string>,
+	HookScriptInvalid | PlatformError.PlatformError,
+	FileSystem.FileSystem | Path.Path
+> =>
+	Effect.gen(function* () {
+		const fs = yield* FileSystem.FileSystem;
+		const path = yield* Path.Path;
+		const slash = binary.lastIndexOf("/");
+		const dir = slash === -1 ? "" : binary.slice(0, slash);
+		const prefix = `${binary.slice(slash + 1)}-`;
+		const absolute = path.join(config.root, dir);
+		const names = (yield* fs.exists(absolute)) ? yield* fs.readDirectory(absolute) : [];
+		const files: Array<string> = [];
+		// What follows the prefix is exactly `<os>-<arch>`, so `guard` never claims `guard-helper-Linux-x86_64`.
+		const platform = (name: string) => name.startsWith(prefix) && /^\w+-\w+(\.exe)?$/.test(name.slice(prefix.length));
+		for (const name of names.filter(platform).sort()) {
+			const info = yield* fs.stat(path.join(absolute, name));
+			if (info.type !== "File") continue;
+			const file = dir === "" ? name : `${dir}/${name}`;
+			if ((info.mode & 0o111) === 0) {
+				return yield* Effect.fail(
+					new HookScriptInvalid({
+						path: config.path,
+						script: file,
+						problem: "binary-not-executable",
+						component: "hooks",
+					}),
+				);
+			}
+			files.push(file);
+		}
+		if (files.length === 0) {
+			return yield* Effect.fail(
+				new HookScriptInvalid({
+					path: config.path,
+					script: `${binary}-<os>-<arch>`,
+					problem: "missing",
+					component: "hooks",
+				}),
+			);
+		}
+		return files;
 	});
 
 /** Whether `real` is `root` or under it; both are real paths. */
@@ -409,17 +469,48 @@ const planPlugin = (
 			const target = targetOf(id);
 			return { id, target, ...targetHooks(target, id, config.config) };
 		});
-		for (const { id, unsupported } of hooks) {
-			if (unsupported.length > 0) {
+		// A combination the host would ignore or never run is a config mistake, whichever target is built.
+		const problems = [
+			...Object.entries(config.config.hooks ?? {}).flatMap(([event, entries]) => hookProblems(event, entries ?? [])),
+			...config.targets.flatMap((id) => {
+				const setting = config.config[id];
+				const own = typeof setting === "object" ? (setting.hooks ?? {}) : {};
+				return Object.entries(own).flatMap(([event, entries]) => hookProblems(event, entries ?? [], `${id}.hooks`));
+			}),
+		];
+		if (problems.length > 0) {
+			return yield* Effect.fail(
+				new ConfigInvalid({ path: config.path, issues: problems.map((problem) => ConfigIssue.make(problem)) }),
+			);
+		}
+		for (const { id, unsupported, unsupportedHandlers } of hooks) {
+			if (unsupported.length > 0 || unsupportedHandlers.length > 0) {
 				return yield* Effect.fail(
-					new HookEventUnsupported({ path: config.path, target: id, events: unsupported.map((u) => u.event) }),
+					new HookEventUnsupported({
+						path: config.path,
+						target: id,
+						events: unsupported.map((u) => u.event),
+						handlers: unsupportedHandlers.map((u) => `${u.event} (${u.handler})`),
+					}),
 				);
 			}
 		}
 		// The files each target's hooks run: script paths, and the paths command
 		// entries name after ${PLUGIN_ROOT}. A command file is only checked for
 		// existence, since the command says how it runs.
-		const filesOf = (events: ReadonlyArray<TargetHookEvent>) => [...hookScripts(events), ...hookCommandFiles(events)];
+		// A binary entry stands for one file per platform, found and checked once per prefix,
+		// for the targets this run builds.
+		const platformFiles = new Map<string, ReadonlyArray<string>>();
+		for (const { events } of hooks) {
+			for (const binary of hookBinaries(events)) {
+				if (!platformFiles.has(binary)) platformFiles.set(binary, yield* binaryFiles(config, binary));
+			}
+		}
+		const filesOf = (events: ReadonlyArray<TargetHookEvent>) => [
+			...hookScripts(events),
+			...hookCommandFiles(events),
+			...hookBinaries(events).flatMap((binary) => platformFiles.get(binary) ?? []),
+		];
 		// Over every enabled target, not just the selected ones, so what a target
 		// ships never depends on which targets this run builds.
 		const everyScript = new Set(
@@ -484,6 +575,31 @@ const planPlugin = (
 			for (const { event, entries } of events) {
 				if (target.hooks.matcherIgnored.includes(event) && entries.some((entry) => entry.matcher !== undefined)) {
 					notes.push({ target: id, path: CONFIG_NOTE_PATH, kind: "hook-matcher-runtime", name: event });
+				}
+				// A field the host's hooks format has no place for is left out, and said so.
+				for (const entry of entries) {
+					for (const field of HOOK_ENTRY_FIELDS) {
+						if (
+							(entry as Readonly<Record<string, unknown>>)[field] !== undefined &&
+							!target.hooks.entryFields.includes(field)
+						) {
+							notes.push({ target: id, path: CONFIG_NOTE_PATH, kind: "hook-field-dropped", name: `${event} ${field}` });
+						}
+					}
+				}
+				// The native hook library applies an exact list always, and a regular expression only when
+				// the hooks were built with regex support, which a prebuilt binary cannot tell the build.
+				if (target.hooks.matcherIgnored.includes(event)) {
+					for (const entry of entries) {
+						if ("binary" in entry && entry.matcher !== undefined && isRegexMatcher(entry.matcher)) {
+							notes.push({
+								target: id,
+								path: CONFIG_NOTE_PATH,
+								kind: "hook-matcher-native-regex",
+								name: `${event} ${entry.matcher}`,
+							});
+						}
+					}
 				}
 				if (widensSessionStart(target.hooks.matcherIgnored, event)) {
 					for (const entry of entries) {
@@ -569,6 +685,12 @@ const planPlugin = (
 				target,
 				env === undefined ? events : withEnvRunner(target, events, envRunnerEntry(LIB_DIR)),
 				invoke,
+				{
+					host: id,
+					plugin: pluginName(config.config, id),
+					description: config.config.description,
+					servers: mcpServerNames(id, config.config),
+				},
 			);
 			if (hooksFile !== undefined) generated.push({ path: target.hooks.path, content: hooksFile });
 			if (events.length > 0) {
@@ -584,6 +706,24 @@ const planPlugin = (
 						}),
 					),
 				);
+			}
+			// A native hook cannot source the generated shell files, so it gets the same facts as JSON.
+			if (hookBinaries(events).length > 0) {
+				generated.push({
+					path: `${LIB_DIR}/facts.json`,
+					content: renderFacts(
+						target,
+						id,
+						{ host: pluginName(config.config, id), claude: pluginName(config.config, "claude") },
+						[...mcpServerNames(id, config.config)],
+						{
+							skills: builtFor(skills, id).map((skill) => skill.name),
+							agents: builtFor(agents, id).map((agent) => agent.name),
+							monitors: Object.keys(targetMonitors(id, config.config)),
+						},
+						env?.vars ?? {},
+					),
+				});
 			}
 			if (monitored.rendered.file !== undefined) generated.push(monitored.rendered.file);
 			generated.push(

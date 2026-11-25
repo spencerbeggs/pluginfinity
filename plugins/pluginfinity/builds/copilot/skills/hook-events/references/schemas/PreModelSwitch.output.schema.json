@@ -1,0 +1,70 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"continue": {
+			"type": "boolean",
+			"description": "Default true. false stops Claude entirely after the hook runs, and beats an event-specific decision. It does not by itself block a PreToolUse tool call."
+		},
+		"stopReason": {
+			"type": "string",
+			"description": "Shown to the user when continue is false. It stays in the conversation, so Claude sees it later."
+		},
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"systemMessage": {
+			"type": "string",
+			"description": "A warning shown to the user, not added to Claude's context. Capped at 10,000 characters; longer text is saved to a file and replaced by its path and a 2,000 character preview."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		},
+		"decision": {
+			"type": "string",
+			"enum": [
+				"block"
+			],
+			"description": "Cancels the switch."
+		},
+		"reason": {
+			"type": "string",
+			"description": "The reason for cancelling."
+		},
+		"hookSpecificOutput": {
+			"type": "object",
+			"properties": {
+				"hookEventName": {
+					"type": "string",
+					"enum": [
+						"PreModelSwitch"
+					],
+					"description": "Required whenever hookSpecificOutput is present: \"PreModelSwitch\"."
+				},
+				"permissionDecision": {
+					"type": "string",
+					"enum": [
+						"allow",
+						"deny",
+						"ask"
+					],
+					"description": "allow proceeds and skips Claude Code's own confirmation; deny cancels; ask prompts the user, and is treated as a refusal everywhere but /model in an interactive session. defer is not accepted."
+				},
+				"permissionDecisionReason": {
+					"type": "string",
+					"description": "For deny, shown to the user. For ask, shown in the confirmation prompt. Ignored for allow."
+				}
+			},
+			"required": [
+				"hookEventName"
+			],
+			"additionalProperties": true,
+			"description": "The PreModelSwitch-specific fields."
+		}
+	},
+	"additionalProperties": true,
+	"title": "PreModelSwitch hook output",
+	"description": "Cancels the switch, asks the user to confirm it, or lets it proceed. Exit code 2 cancels it, with stderr shown to the user. When hooks disagree, deny beats ask, which beats allow. systemMessage is shown whatever the decision."
+}

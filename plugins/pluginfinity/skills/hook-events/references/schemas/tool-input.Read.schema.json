@@ -1,0 +1,24 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"file_path": {
+			"type": "string",
+			"description": "Absolute path of the file to read. Claude Code expands ~ and relative paths before hooks run. On Windows it arrives with backslashes: normalize separators before comparing."
+		},
+		"offset": {
+			"type": "number",
+			"description": "Line number to start reading from."
+		},
+		"limit": {
+			"type": "number",
+			"description": "Number of lines to read."
+		}
+	},
+	"required": [
+		"file_path"
+	],
+	"additionalProperties": true,
+	"title": "Read tool_input",
+	"description": "Arguments of the Read tool, which reads file contents."
+}

@@ -165,6 +165,9 @@ export const COPILOT: Target = Target.make({
 			CLAUDE_HOOK_EVENTS.map((event) => [event, PASCAL_CASE.has(event) ? event : (CAMEL_CASE[event] ?? absent)]),
 		),
 		ownEvents: [...COPILOT_OWN_EVENTS],
+		// Copilot's hooks file has command entries only, with no condition, status text or background run.
+		handlers: ["command"],
+		entryFields: [],
 		// Copilot filters only preToolUse, postToolUse, permissionRequest, subagentStart, preCompact and notification.
 		matcherIgnored: ["SessionStart", "SessionEnd", "SubagentStop"],
 		// Copied from `hook_supports` in the hook library; a test pins the two together. Copilot honours no system message.

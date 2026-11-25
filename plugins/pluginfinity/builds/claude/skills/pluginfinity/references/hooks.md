@@ -1,7 +1,7 @@
 # Hooks
 
 Hooks are declared once, in the config's `hooks`, keyed by Claude Code event name. Each event holds a
-list of entries; each entry is either a script or a command.
+list of entries; each entry is a script, a command or a prebuilt binary.
 
 ```ts
 hooks: {
@@ -22,7 +22,28 @@ hooks: {
 | `fallback` | What a host without the event does: `"fail"`, the default, or `"omit"` |
 | `failClosed` | Deny or block when the script fails before answering. Defaults to failing open; see [when a hook fails](#when-a-hook-fails) |
 
-An entry has exactly one of `script` or `command`.
+| `if` | A Claude Code permission rule, such as `Bash(git *)` or `Edit(*.ts)`: the hook runs only for a matching tool call, and no process starts otherwise. Only on `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `PermissionDenied` and `PreSkillShellCommand`; anywhere else the build fails, because Claude Code would never run the hook |
+| `statusMessage` | The spinner text shown while the hook runs |
+| `async` | `script`, `command` and `binary` only. Runs in the background; the hook can then decide nothing, and what it prints reaches the agent on the next turn |
+| `asyncRewake` | `script`, `command` and `binary` only. Runs in the background and may wake the agent: a script calls `hook_rewake "<message>"` |
+| `shell` | `command` only: `"bash"` or `"powershell"` |
+
+An entry has exactly one handler: `script`, `command`, `binary`, `http`, `mcpTool`, `prompt` or `agent`. A `binary` entry runs a prebuilt native program, one file per platform; the `native-hooks` skill covers it.
+
+### Handlers only Claude Code runs
+
+| Entry | What it does |
+| :-- | :-- |
+| `{ http: "<url>", headers?, allowedEnvVars? }` | POSTs the event's JSON to the URL and reads the response body as the answer. A header value may name an environment variable listed in `allowedEnvVars` |
+| `{ mcpTool: { server, tool, input? } }` | Calls a tool on an MCP server and reads its text as the answer. Name one of the plugin's own servers by its key in `mcpServers`; the build writes the scoped `plugin:<plugin>:<server>`. A string in `input` may take a field of the event, as `"${tool_input.file_path}"` |
+| `{ prompt: "<text>", model?, continueOnBlock? }` | Asks a model one question; `$ARGUMENTS` is the event's JSON |
+| `{ agent: "<text>", model? }` | Runs a subagent with tool access to verify a condition. Experimental on Claude Code |
+
+- Copilot runs `script`, `command` and `binary` hooks only. Another handler fails the Copilot build unless the entry sets `fallback: "omit"`, which leaves it out there with a `hook-omitted` note named `<Event> (<handler>)`.
+- Claude Code runs `prompt` and `agent` hooks only on `PermissionDenied`, `PostToolBatch`, `PostToolUse`, `PostToolUseFailure`, `PreToolUse`, `Stop`, `SubagentStop`, `TaskCompleted`, `TaskCreated`, `TeammateIdle`, `UserPromptExpansion` and `UserPromptSubmit`, plus `prompt` on `PermissionRequest`. `SessionStart` runs only `script`, `command`, `binary` and `mcpTool`; `Setup` only the first three. The build fails on any other pairing.
+- `failClosed` works on `http` and `mcpTool` as it does on a script, through Claude Code's `onFailure`. It is a build error on a `prompt` or `agent` hook and on a background hook, where nothing reads it.
+- `if`, `statusMessage`, `async`, `asyncRewake` and `shell` have no place in Copilot's hooks file. The build leaves them out there with a `hook-field-dropped` note named `<Event> <field>`, so on Copilot a hook with an `if` runs on every matcher hit and an `async` hook runs in the foreground.
+- The plugin's `description` is written at the top of Claude Code's hooks file.
 
 ## How scripts run
 
@@ -131,11 +152,11 @@ Call one of these to answer the host. What each does depends on the host:
 | Function | Claude | Copilot |
 | --- | --- | --- |
 | `hook_context "t"` | `hookSpecificOutput{hookEventName, additionalContext}` on SessionStart, SubagentStart, PostModelSwitch, UserPromptSubmit, UserPromptExpansion, PreToolUse, PostToolUse, PostToolUseFailure, PostToolBatch, Stop, SubagentStop; no-op (`{}`) elsewhere | flat `additionalContext` on SessionStart, SubagentStart, PostToolUse, Notification; no-op elsewhere (including UserPromptSubmit) |
-| `hook_deny "r"` | `hookSpecificOutput{hookEventName: "PreToolUse", permissionDecision: deny, permissionDecisionReason}` | flat `permissionDecision: deny` + `permissionDecisionReason` |
-| `hook_allow [reason] [json]` | `hookSpecificOutput{hookEventName: "PreToolUse", permissionDecision: allow}` (+ `permissionDecisionReason`, `updatedInput`) | `allow` (+ `permissionDecisionReason`, `modifiedArgs`) |
-| `hook_ask "r"` | `hookSpecificOutput{hookEventName: "PreToolUse", permissionDecision: ask}` | `ask` (the cloud agent treats it as deny; documented) |
-| `hook_block "r"` | top-level `decision: block` + `reason` on UserPromptSubmit, UserPromptExpansion, PostToolUse, PostToolBatch, Stop, SubagentStop, ConfigChange, PreCompact, TaskCreated, PreModelSwitch; no-op elsewhere | `decision: block` + `reason` on Stop, SubagentStop; no-op elsewhere |
-| `hook_system_message "t"` | `systemMessage`, shown to the user and not added to model context; no-op on Notification, SessionEnd, PreCompact and ConfigChange, which discard it | no-op |
+| `hook_deny "r"` | `hookSpecificOutput{hookEventName, permissionDecision: deny, permissionDecisionReason}` on PreToolUse, PreModelSwitch and PreSkillShellCommand | flat `permissionDecision: deny` + `permissionDecisionReason` |
+| `hook_allow [reason] [json]` | `hookSpecificOutput{hookEventName, permissionDecision: allow}` (+ `permissionDecisionReason`, and `updatedInput` on PreToolUse only) on PreToolUse and PreModelSwitch | `allow` (+ `permissionDecisionReason`, `modifiedArgs`) |
+| `hook_ask "r"` | `hookSpecificOutput{hookEventName, permissionDecision: ask}` on PreToolUse and PreModelSwitch | `ask` (the cloud agent treats it as deny; documented) |
+| `hook_block "r"` | top-level `decision: block` + `reason` on UserPromptSubmit, UserPromptExpansion, PreSkillShellCommand, PostToolUse, PostToolBatch, Stop, SubagentStop, ConfigChange, PreCompact, TaskCreated, TaskCompleted, TeammateIdle, PreModelSwitch, Elicitation, ElicitationResult; no-op elsewhere | `decision: block` + `reason` on Stop, SubagentStop; no-op elsewhere |
+| `hook_system_message "t"` | `systemMessage`, shown to the user and not added to model context; no-op on the events that discard it or hand it elsewhere: Setup, InstructionsLoaded, MessageDisplay, Notification, StopFailure, ConfigChange, DirectoryAdded, WorktreeCreate, WorktreeRemove, PreCompact, PostCompact, SessionEnd, Elicitation and ElicitationResult | no-op |
 | `hook_relay "<json>"` | Maps one Claude-shaped response onto the helpers above; see below | the same |
 | `hook_noop` | `{}` | `{}` |
 | `hook_raw <host> <json>` | compacted and sent as is, only when `<host>` is `claude` | compacted and sent as is, only when `<host>` is `copilot` |
@@ -165,7 +186,11 @@ The rules:
 
 - One response goes out per run. A second call is ignored, even from a subshell, and logged when debug is on.
 - A call the host cannot honour on the current event becomes `{}` with exit 0, and logs a debug line when
-  `PLUGINFINITY_DEBUG=1`. `hook_deny`, `hook_allow` and `hook_ask` work on `PreToolUse` only.
+  `PLUGINFINITY_DEBUG=1`. `hook_deny`, `hook_allow` and `hook_ask` work on `PreToolUse` on both hosts; on Claude Code all three also
+  answer `PreModelSwitch`, and `hook_deny` answers `PreSkillShellCommand`.
+- `hook_rewake "<message>"` wakes the agent from a background hook: it ends the script with exit code 2 and the
+  message on stderr. It works only on an entry that sets `asyncRewake: true`; on any other entry it logs and returns
+  0, since that exit code would block the action instead. Call it at the top level, not in a subshell.
 - `hook_raw <host> <json>` covers a field only one host has. The JSON is compacted and sent as is, and only
   when the host matches; on the other host it does nothing.
 - The output caps (10,000 characters on Claude Code, 10 KB for `postToolUse` on Copilot) are not enforced.
@@ -206,6 +231,12 @@ where a failing `preToolUse` hook denies the tool call.
   or a block (where the host honours one) instead. The entry form takes effect even when the script dies
   before it reaches a call, so prefer it for a guard. The call does nothing if the script already sent a
   response.
+- `failClosed: true` on the entry also writes Claude Code's `onFailure: "block"` (Claude Code 2.1.295 or
+  later), so a hook the host cannot start, that times out or that prints output it cannot read stops the
+  action too. The library cannot cover those from inside the script. `hook_fail_closed` in the script does
+  not add it.
+- A closed guard never blocks on `TaskCompleted` or `TeammateIdle`, and never on `Stop` or `SubagentStop`
+  once `stop_hook_active` is true: a block there sends the agent back to work on a hook it cannot repair.
 - **Fail closed only for a guard that must not let a call through when it breaks**, such as a hook that
   denies a destructive command or protects a path. Leave a hook that adds context, reacts to an edit or
   gates a Stop open: a crash there should cost one missing message, not a blocked session. On Copilot a
@@ -245,7 +276,7 @@ Claude Code applies an entry's `matcher`. Copilot ignores it on `SessionStart`, 
 `SubagentStop`. For those events on Copilot the build hands the matcher to the script as
 `PLUGINFINITY_MATCHER` and lists a `hook-matcher-runtime` note under `config`. The library then applies it
 with Claude Code's rules, against `source`, `reason` and `agent_type` respectively: empty or `*` matches all, a value of only letters,
-digits, `_`, `|`, spaces, `,` and `-` is an exact `|` list, and anything else is an unanchored extended
+digits, `_`, `|`, spaces, `,` and `-` is an exact list split on `|` or `,` (spaces around an item are ignored), and anything else is an unanchored extended
 regular expression. A hook that does not match ends quietly with exit 0 and no response.
 
 This holds **only for an entry whose script sources the library**. A plain `command` entry on such an event

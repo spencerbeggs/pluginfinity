@@ -1,0 +1,114 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"session_id": {
+			"type": "string",
+			"description": "Current session identifier."
+		},
+		"transcript_path": {
+			"type": "string",
+			"description": "Path to the conversation JSON. Written asynchronously, so it can lag the current turn; on Stop and SubagentStop read last_assistant_message instead."
+		},
+		"cwd": {
+			"type": "string",
+			"description": "Working directory when the hook is invoked. Follows Claude into a worktree or after a cd, while CLAUDE_PROJECT_DIR stays at the project root where the session started."
+		},
+		"prompt_id": {
+			"type": "string",
+			"description": "UUID of the user prompt being processed; matches the prompt.id attribute on OpenTelemetry events. Absent until the first user input."
+		},
+		"scratchpad_dir": {
+			"type": "string",
+			"description": "Path to the session's scratchpad directory. Absent when the session has none or the temp directory is unavailable. Claude Code 2.1.257 or later."
+		},
+		"permission_mode": {
+			"type": "string",
+			"enum": [
+				"default",
+				"plan",
+				"acceptEdits",
+				"auto",
+				"dontAsk",
+				"bypassPermissions"
+			],
+			"description": "Current permission mode. The mode labelled Manual arrives as default. Not every event carries this field."
+		},
+		"effort": {
+			"type": "object",
+			"properties": {
+				"level": {
+					"type": "string",
+					"enum": [
+						"low",
+						"medium",
+						"high",
+						"xhigh",
+						"max"
+					],
+					"description": "The effort level that ran, including a skill's, subagent's or ultrathink level. CLAUDE_EFFORT holds the same value."
+				}
+			},
+			"required": [
+				"level"
+			],
+			"additionalProperties": true,
+			"description": "Present on events with a tool-use context, on models that support effort."
+		},
+		"agent_id": {
+			"type": "string",
+			"description": "Unique identifier of the subagent or in-process teammate the hook fires in."
+		},
+		"agent_type": {
+			"type": "string",
+			"description": "Agent name, such as Explore or a plugin-scoped my-plugin:reviewer. Present inside a subagent, or when the session runs with --agent; a subagent's type wins over the session's."
+		},
+		"hook_event_name": {
+			"type": "string",
+			"enum": [
+				"ElicitationResult"
+			],
+			"description": "Always \"ElicitationResult\"."
+		},
+		"mcp_server_name": {
+			"type": "string",
+			"description": "Name of the MCP server."
+		},
+		"action": {
+			"type": "string",
+			"enum": [
+				"accept",
+				"decline",
+				"cancel"
+			],
+			"description": "What the user did. Check it is accept before returning accept, or a declined request becomes an accepted one."
+		},
+		"mode": {
+			"type": "string",
+			"enum": [
+				"form",
+				"url"
+			],
+			"description": "The request's mode."
+		},
+		"elicitation_id": {
+			"type": "string",
+			"description": "Identifier of the request."
+		},
+		"content": {
+			"type": "object",
+			"description": "The values the user submitted."
+		}
+	},
+	"required": [
+		"session_id",
+		"transcript_path",
+		"cwd",
+		"hook_event_name",
+		"mcp_server_name",
+		"action"
+	],
+	"additionalProperties": true,
+	"title": "ElicitationResult hook input",
+	"description": "The user responded to an MCP elicitation, before the response goes to the server. Does not run when an Elicitation hook answered. The matcher filters on mcp_server_name."
+}

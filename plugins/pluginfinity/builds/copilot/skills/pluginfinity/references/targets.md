@@ -174,6 +174,8 @@ Besides the three above, a build can list these kinds, in this order within a fi
   `startup|new|resume`. A list that already holds `new`, an empty or `*` matcher and one without `startup`
   stay as written.
 - `hook-matcher-regex`: a `SessionStart` regex matcher matches `startup` but not `new`, and is left as written.
+- `hook-matcher-native-regex`: a `binary` hook has a regular-expression matcher on one of the events above. The
+  native library applies it only when the hooks were built with `addHooks(.{ .regex = true })`.
 
 A value the host's table drops is not reported, since the host does the same without it: `model: inherit`
 on Copilot is the one today. See [the findings](findings.md) for the kinds and the JSON form.

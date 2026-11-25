@@ -15,6 +15,8 @@ paths:
 
 pluginfinity builds one hook script for both hosts. The hook library, sourced at the top of every script, adapts input and output to each host. The bats helper then tests the script against `builds/<target>/`, so one test proves both hosts.
 
+A hook can instead be a prebuilt native program, a `binary` entry; that is the `native-hooks` skill.
+
 ## The loop
 
 1. Choose the event. Check what it can do on each host in the `hook-events` skill's table. `hook_supports <capability> <Event>` works only inside a sourced hook, so it is no use at authoring time.

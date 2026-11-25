@@ -27,17 +27,27 @@ export {
 	SKILL_FIELDS,
 	SkillFrontmatter,
 } from "./frontmatter.js";
-export type { HooksFields } from "./hooks.js";
+export type { HookIo, HookSchemaFile } from "./hook-io/index.js";
+export { HOOK_IO, TOOL_INPUTS, hookEventsZig, hookSchemaFiles } from "./hook-io/index.js";
+export type { HookHandler, HooksFields } from "./hooks.js";
 export {
+	AgentHook,
+	BinaryHook,
 	CLAUDE_HOOK_EVENTS,
 	ClaudeHookEvent,
 	CommandHook,
+	HOOK_ENTRY_FIELDS,
+	HOOK_HANDLERS,
 	HookEntries,
 	HookEntry,
 	HookFallback,
 	Hooks,
+	HttpHook,
+	McpToolHook,
 	PluginRelativePath,
+	PromptHook,
 	ScriptHook,
+	hookHandler,
 	makeHooks,
 } from "./hooks.js";
 export type { LspField } from "./lsp.js";

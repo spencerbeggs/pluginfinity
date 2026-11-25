@@ -6,7 +6,8 @@
 	"license": "MIT",
 	"type": "module",
 	"scripts": {
-		"build": "pluginfinity build",
+		"build": "pnpm run schemas && pluginfinity build",
+		"schemas": "tsx ../../packages/core/scripts/write-hook-schemas.ts skills/hook-events/references/schemas",
 		"types:check": "tsc --noEmit",
 		"validate": "pluginfinity validate"
 	},

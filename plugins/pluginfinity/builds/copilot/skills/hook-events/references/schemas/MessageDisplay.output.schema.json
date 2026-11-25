@@ -1,0 +1,38 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		},
+		"hookSpecificOutput": {
+			"type": "object",
+			"properties": {
+				"hookEventName": {
+					"type": "string",
+					"enum": [
+						"MessageDisplay"
+					],
+					"description": "Required whenever hookSpecificOutput is present: \"MessageDisplay\"."
+				},
+				"displayContent": {
+					"type": "string",
+					"description": "Text displayed in place of delta. Omit it to display the original."
+				}
+			},
+			"required": [
+				"hookEventName"
+			],
+			"additionalProperties": true,
+			"description": "The MessageDisplay-specific fields."
+		}
+	},
+	"additionalProperties": true,
+	"title": "MessageDisplay hook output",
+	"description": "Replaces what is shown on screen. Display only: the transcript and what Claude sees keep the original. If the hook fails or times out the original text is displayed. Claude Code discards continue, systemMessage, stopReason on this event."
+}

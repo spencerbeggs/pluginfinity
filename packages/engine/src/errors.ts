@@ -303,9 +303,17 @@ export class HookEventUnsupported extends Schema.TaggedError<HookEventUnsupporte
 	path: Schema.String,
 	target: Schema.String,
 	events: Schema.Array(Schema.String),
+	/** Entries on events the target has, whose handler kind it cannot run, as `<Event> (<handler>)`. */
+	handlers: Schema.optionalKey(Schema.Array(Schema.String)),
 }) {
 	override get message(): string {
-		return `${this.target} has no hook event ${this.events.map((event) => `"${event}"`).join(", ")}, used in ${this.path}`;
+		const quoted = (names: ReadonlyArray<string>) => names.map((name) => `"${name}"`).join(", ");
+		const events = this.events.length === 0 ? [] : [`has no hook event ${quoted(this.events)}`];
+		const handlers =
+			this.handlers === undefined || this.handlers.length === 0
+				? []
+				: [`runs only command hooks, not ${quoted(this.handlers)}`];
+		return `${this.target} ${[...events, ...handlers].join(" and ")}, used in ${this.path}`;
 	}
 
 	get remediation(): Remediation {
@@ -317,11 +325,17 @@ export class HookEventUnsupported extends Schema.TaggedError<HookEventUnsupporte
 
 /**
  * What is wrong with a hook script: absent from the plugin, or lacking the
- * executable bit under `scripts.invoke: "exec"`.
+ * executable bit under `scripts.invoke: "exec"`. A hook `binary` is always
+ * executed, so one without the bit is `binary-not-executable`.
  *
  * @public
  */
-export const HookScriptProblem = Schema.Literals(["missing", "not-executable", "equals-in-path"]);
+export const HookScriptProblem = Schema.Literals([
+	"missing",
+	"not-executable",
+	"equals-in-path",
+	"binary-not-executable",
+]);
 
 /**
  * A hook `script` cannot be shipped as configured.
@@ -350,7 +364,9 @@ export class HookScriptInvalid extends Schema.TaggedError<HookScriptInvalid>()("
 			? `${this.kind} ${this.script} named in ${this.path} does not exist`
 			: this.problem === "equals-in-path"
 				? `${this.kind} ${this.script} has "=" in its path, and ${this.path} sets scripts.invoke to "exec", where Claude Code runs it after env and env reads it as a variable assignment`
-				: `${this.kind} ${this.script} is not executable, and ${this.path} sets scripts.invoke to "exec"`;
+				: this.problem === "binary-not-executable"
+					? `hook binary ${this.script} named in ${this.path} is not executable`
+					: `${this.kind} ${this.script} is not executable, and ${this.path} sets scripts.invoke to "exec"`;
 	}
 
 	get remediation(): Remediation {
@@ -358,7 +374,9 @@ export class HookScriptInvalid extends Schema.TaggedError<HookScriptInvalid>()("
 			? { hint: `Create ${this.script} under the plugin root, or fix the path in ${this.path}.` }
 			: this.problem === "equals-in-path"
 				? { hint: `Rename ${this.script} without "=", or drop scripts.invoke so scripts run through bash.` }
-				: { hint: `Run \`chmod +x ${this.script}\`, or drop scripts.invoke so scripts run through bash.` };
+				: this.problem === "binary-not-executable"
+					? { hint: `Run \`chmod +x ${this.script}\`.` }
+					: { hint: `Run \`chmod +x ${this.script}\`, or drop scripts.invoke so scripts run through bash.` };
 	}
 }
 

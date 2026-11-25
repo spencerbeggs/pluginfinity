@@ -1,0 +1,11 @@
+.{
+    .name = .guard,
+    .version = "0.0.0",
+    .fingerprint = 0xaf1213cca01933b6, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.17.1",
+    .dependencies = .{
+        // A plugin outside this repository uses `zig fetch --save <url>` instead of a path.
+        .pluginfinity_hooks = .{ .path = "../../.." },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "native" },
+}

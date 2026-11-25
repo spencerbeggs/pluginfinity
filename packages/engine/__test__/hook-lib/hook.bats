@@ -222,7 +222,7 @@ echo done'
 
 @test "hook_supports claude:block lists" {
 	make_plugin claude
-	hook_script 'for e in UserPromptSubmit UserPromptExpansion PostToolUse PostToolBatch Stop SubagentStop ConfigChange PreCompact TaskCreated PreModelSwitch; do hook_supports block "$e" || echo "missing $e"; done
+	hook_script 'for e in UserPromptSubmit UserPromptExpansion PreSkillShellCommand PostToolUse PostToolBatch Stop SubagentStop ConfigChange PreCompact TaskCreated TaskCompleted TeammateIdle PreModelSwitch Elicitation ElicitationResult; do hook_supports block "$e" || echo "missing $e"; done
 for e in SessionStart PreToolUse Notification PostToolUseFailure; do ! hook_supports block "$e" || echo "extra $e"; done
 echo done'
 	run_script "$FIXTURES/stop.json"
@@ -247,7 +247,7 @@ echo done'
 	[ "$output" = "done" ]
 }
 
-@test "hook_supports deny, allow and ask only on PreToolUse, on both hosts" {
+@test "hook_supports deny, allow and ask on PreToolUse on both hosts, and nowhere they mean nothing" {
 	for host in claude copilot; do
 		make_plugin "$host"
 		hook_script 'for c in deny allow ask; do hook_supports "$c" PreToolUse || echo "missing $c"; for e in PostToolUse Stop SessionStart; do ! hook_supports "$c" "$e" || echo "extra $c $e"; done; done
@@ -255,6 +255,47 @@ echo done'
 		run_script "$FIXTURES/stop.json"
 		[ "$output" = "done" ]
 	done
+}
+
+@test "hook_supports claude: a model switch takes deny, allow and ask, an injected skill command only deny" {
+	make_plugin claude
+	hook_script 'for c in deny allow ask; do hook_supports "$c" PreModelSwitch || echo "missing $c PreModelSwitch"; done
+hook_supports deny PreSkillShellCommand || echo "missing deny PreSkillShellCommand"
+for c in allow ask; do ! hook_supports "$c" PreSkillShellCommand || echo "extra $c PreSkillShellCommand"; done
+echo done'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = "done" ]
+	make_plugin copilot
+	hook_script 'for e in PreModelSwitch PreSkillShellCommand; do ! hook_supports deny "$e" || echo "extra $e"; done; echo done'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = "done" ]
+}
+
+@test "hook_deny on a model switch and on an injected skill command names that event" {
+	make_plugin claude
+	hook_script 'hook_deny "no"'
+	for event in PreModelSwitch PreSkillShellCommand; do
+		run_script "{\"hook_event_name\":\"$event\"}"
+		[ "$(jq -r .hookSpecificOutput.hookEventName <<<"$output")" = "$event" ]
+		[ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = "deny" ]
+	done
+}
+
+@test "hook_allow outside PreToolUse sends no updated input" {
+	make_plugin claude
+	hook_script 'hook_allow "fine" "{\"model\":\"x\"}"'
+	run_script '{"hook_event_name":"PreModelSwitch"}'
+	[ "$(jq -r .hookSpecificOutput.permissionDecision <<<"$output")" = "allow" ]
+	[ "$(jq -r '.hookSpecificOutput | has("updatedInput")' <<<"$output")" = "false" ]
+}
+
+@test "hook_supports claude:system_message leaves out the events that discard it" {
+	make_plugin claude
+	hook_script 'for e in Setup InstructionsLoaded MessageDisplay Notification StopFailure ConfigChange DirectoryAdded WorktreeCreate WorktreeRemove PreCompact PostCompact SessionEnd Elicitation ElicitationResult; do ! hook_supports system_message "$e" || echo "extra $e"; done
+for e in SessionStart UserPromptSubmit PreToolUse PreSkillShellCommand PostToolUse Stop CwdChanged FileChanged PreModelSwitch PostModelSwitch TaskCompleted; do hook_supports system_message "$e" || echo "missing $e"; done
+echo done'
+	run_script "$FIXTURES/stop.json"
+	[ "$output" = "done" ]
 }
 
 @test "hook_supports system_message only on claude" {
@@ -479,6 +520,30 @@ echo done'
 	[ -z "$output" ]
 	run_script '{"hook_event_name":"SubagentStop","stop_hook_active":true}'
 	[ -z "$output" ]
+}
+
+@test "hook_fail_closed never keeps a teammate working or a task open over a crash" {
+	make_plugin claude
+	hook_script 'hook_fail_closed; false'
+	for event in TaskCompleted TeammateIdle; do
+		run_script "{\"hook_event_name\":\"$event\"}"
+		[ "$status" -eq 0 ]
+		[ -z "$output" ]
+	done
+}
+
+@test "hook_rewake exits 2 with the message on stderr, only where the entry sets asyncRewake" {
+	make_plugin claude
+	hook_script 'hook_rewake "tests failed"; echo not-reached'
+	run_script '{"hook_event_name":"PostToolUse"}' PLUGINFINITY_ASYNC_REWAKE=1
+	[ "$status" -eq 2 ]
+	[[ "$stderr" == *"tests failed"* ]]
+	[[ "$output" != *"not-reached"* ]]
+	hook_script 'hook_rewake "tests failed"; hook_noop'
+	run_script '{"hook_event_name":"PostToolUse"}'
+	[ "$status" -eq 0 ]
+	[ "$output" = "{}" ]
+	[[ "$(error_log)" == *"does not set asyncRewake"* ]]
 }
 
 @test "hook_fail_closed keeps a response already sent" {
@@ -971,6 +1036,16 @@ has_tools() {
 	make_plugin copilot; hook_script 'echo ran'
 	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER='startup|resume'
 	[ "$output" = ran ]
+}
+
+@test "a comma list matches either word, with or without spaces" {
+	make_plugin copilot; hook_script 'echo ran'
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER='startup, resume'
+	[ "$output" = ran ]
+	run_script '{"source":"resume"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER='startup,resume'
+	[ "$output" = ran ]
+	run_script '{"source":"clear"}' PLUGINFINITY_EVENT=SessionStart PLUGINFINITY_MATCHER='startup, resume'
+	[ -z "$output" ]
 }
 
 @test "a regex matcher is unanchored, as on Claude" {

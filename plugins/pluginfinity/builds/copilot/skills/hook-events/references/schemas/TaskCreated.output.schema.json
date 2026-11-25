@@ -1,0 +1,32 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"suppressOutput": {
+			"type": "boolean",
+			"description": "Accepted and has no effect."
+		},
+		"systemMessage": {
+			"type": "string",
+			"description": "A warning shown to the user, not added to Claude's context. Capped at 10,000 characters; longer text is saved to a file and replaced by its path and a 2,000 character preview."
+		},
+		"terminalSequence": {
+			"type": "string",
+			"description": "A terminal escape sequence Claude Code emits for the hook: only OSC 0, 1, 2, 9, 99, 777 and BEL. Anything else makes the field ignored. Interactive sessions only, and not from an async hook."
+		},
+		"decision": {
+			"type": "string",
+			"enum": [
+				"block"
+			],
+			"description": "Deletes the task."
+		},
+		"reason": {
+			"type": "string",
+			"description": "Returned to Claude as the tool's error."
+		}
+	},
+	"additionalProperties": true,
+	"title": "TaskCreated hook output",
+	"description": "Can cancel the task. Exit code 2 cancels it too, with stderr returned to Claude as the tool's error. continue: false is ignored. Claude Code discards continue, stopReason on this event."
+}

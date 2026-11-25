@@ -26,7 +26,7 @@ One section per event in the library's set. Field names are Claude Code's. Copil
 ## PreToolUse
 
 - Input: `tool_name`, `tool_input` and `tool_use_id`, plus `mcp_server` for an MCP tool (Claude Code hooks docs).
-- The only event for `hook_deny`, `hook_allow` and `hook_ask`. When hooks disagree on Claude Code, deny beats ask, which beats allow (Claude Code hooks docs).
+- The event for `hook_deny`, `hook_allow` and `hook_ask` on both hosts. On Claude Code they also answer `PreModelSwitch`, and `hook_deny` answers `PreSkillShellCommand`. When hooks disagree on Claude Code, deny beats ask, which beats allow (Claude Code hooks docs).
 - On Copilot `tool_input` keeps Copilot's key names (`path`, `file_text`, `old_str`, `new_str`). A hook reading `tool_input.file_path` never fired on Copilot's Read. Copilot CLI 1.0.91, 2026-10-03.
 - A non-zero exit denies the call on Copilot and lets it proceed on Claude Code (GitHub Copilot hooks reference; Claude Code hooks docs). A timeout is fail-open on both.
 

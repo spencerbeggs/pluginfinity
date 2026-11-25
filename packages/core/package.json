@@ -27,6 +27,7 @@
 	},
 	"scripts": {
 		"build": "effected package build",
+		"hook-io:zig": "tsx scripts/write-hook-zig.ts ../../zig/src/events.zig",
 		"types:check": "tsc --noEmit"
 	},
 	"devDependencies": {

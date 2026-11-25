@@ -1,0 +1,21 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"plan": {
+			"type": "string",
+			"description": "Plan content in Markdown, injected from the plan file."
+		},
+		"planFilePath": {
+			"type": "string",
+			"description": "Path to the plan file, injected."
+		},
+		"allowedPrompts": {
+			"type": "array",
+			"description": "Deprecated: accepted and ignored."
+		}
+	},
+	"additionalProperties": true,
+	"title": "ExitPlanMode tool_input",
+	"description": "Arguments of the ExitPlanMode tool, which presents a plan for approval. Claude Code injects the plan content and path before hooks see the input."
+}

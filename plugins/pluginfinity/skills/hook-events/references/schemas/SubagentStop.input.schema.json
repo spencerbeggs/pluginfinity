@@ -1,0 +1,182 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"session_id": {
+			"type": "string",
+			"description": "Current session identifier."
+		},
+		"transcript_path": {
+			"type": "string",
+			"description": "Path to the conversation JSON. Written asynchronously, so it can lag the current turn; on Stop and SubagentStop read last_assistant_message instead."
+		},
+		"cwd": {
+			"type": "string",
+			"description": "Working directory when the hook is invoked. Follows Claude into a worktree or after a cd, while CLAUDE_PROJECT_DIR stays at the project root where the session started."
+		},
+		"prompt_id": {
+			"type": "string",
+			"description": "UUID of the user prompt being processed; matches the prompt.id attribute on OpenTelemetry events. Absent until the first user input."
+		},
+		"scratchpad_dir": {
+			"type": "string",
+			"description": "Path to the session's scratchpad directory. Absent when the session has none or the temp directory is unavailable. Claude Code 2.1.257 or later."
+		},
+		"permission_mode": {
+			"type": "string",
+			"enum": [
+				"default",
+				"plan",
+				"acceptEdits",
+				"auto",
+				"dontAsk",
+				"bypassPermissions"
+			],
+			"description": "Current permission mode. The mode labelled Manual arrives as default. Not every event carries this field."
+		},
+		"effort": {
+			"type": "object",
+			"properties": {
+				"level": {
+					"type": "string",
+					"enum": [
+						"low",
+						"medium",
+						"high",
+						"xhigh",
+						"max"
+					],
+					"description": "The effort level that ran, including a skill's, subagent's or ultrathink level. CLAUDE_EFFORT holds the same value."
+				}
+			},
+			"required": [
+				"level"
+			],
+			"additionalProperties": true,
+			"description": "Present on events with a tool-use context, on models that support effort."
+		},
+		"agent_id": {
+			"type": "string",
+			"description": "Unique identifier of the subagent."
+		},
+		"agent_type": {
+			"type": "string",
+			"description": "The agent name the matcher filters on. May be an empty string for an internal agent."
+		},
+		"hook_event_name": {
+			"type": "string",
+			"enum": [
+				"SubagentStop"
+			],
+			"description": "Always \"SubagentStop\"."
+		},
+		"stop_hook_active": {
+			"type": "boolean",
+			"description": "true when Claude Code is already continuing because of a stop hook. Check it before blocking again; after eight continuations in a row Claude Code overrides the block."
+		},
+		"last_assistant_message": {
+			"type": "string",
+			"description": "The text of the final response. Use it instead of reading transcript_path, which can lag the turn."
+		},
+		"background_tasks": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "Task identifier."
+					},
+					"type": {
+						"type": "string",
+						"description": "A task-type label such as shell, subagent, monitor, workflow, teammate, cloud session or MCP task."
+					},
+					"status": {
+						"type": "string",
+						"description": "Current task status."
+					},
+					"description": {
+						"type": "string",
+						"description": "Free-text description, capped at 1000 characters."
+					},
+					"command": {
+						"type": "string",
+						"description": "Shell command line. Only for shell tasks and monitor tasks that run a command."
+					},
+					"agent_type": {
+						"type": "string",
+						"description": "Subagent type name. Only for subagent tasks."
+					},
+					"server": {
+						"type": "string",
+						"description": "MCP server name. Only for monitor and MCP task tasks."
+					},
+					"tool": {
+						"type": "string",
+						"description": "MCP tool name. Only for monitor and MCP task tasks."
+					},
+					"name": {
+						"type": "string",
+						"description": "Workflow name. Only for workflow tasks."
+					}
+				},
+				"required": [
+					"id",
+					"type",
+					"status"
+				],
+				"additionalProperties": true
+			},
+			"description": "The session's in-flight background tasks; empty when nothing is running. With session_crons it tells a finished session from one paused waiting for background work."
+		},
+		"session_crons": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "Cron task identifier."
+					},
+					"schedule": {
+						"type": "string",
+						"description": "Cron expression, such as 0 9 * * 1-5."
+					},
+					"recurring": {
+						"type": "boolean",
+						"description": "false for a one-shot wakeup, true for a task that fires on every match."
+					},
+					"prompt": {
+						"type": "string",
+						"description": "The prompt submitted when the cron fires, capped at 1000 characters."
+					}
+				},
+				"required": [
+					"id",
+					"schedule",
+					"recurring",
+					"prompt"
+				],
+				"additionalProperties": true
+			},
+			"description": "The session's scheduled wakeups, from CronCreate, ScheduleWakeup and /loop."
+		},
+		"agent_transcript_path": {
+			"type": "string",
+			"description": "The subagent's own transcript. transcript_path is the main session's."
+		}
+	},
+	"required": [
+		"session_id",
+		"transcript_path",
+		"cwd",
+		"agent_id",
+		"agent_type",
+		"hook_event_name",
+		"stop_hook_active",
+		"agent_transcript_path"
+	],
+	"additionalProperties": true,
+	"title": "SubagentStop hook input",
+	"description": "A subagent finished responding. Also fires for Claude Code's internal agents, where agent_type may be an empty string. The matcher filters on agent_type."
+}

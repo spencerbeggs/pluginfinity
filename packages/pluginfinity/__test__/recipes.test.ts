@@ -111,3 +111,49 @@ describe("hook-authoring recipes", () => {
 		}
 	});
 });
+
+// The native recipes are the hooks of zig/examples/recipes, which `zig build test` runs: each
+// recipe's config entry and source must match that plugin exactly, and the skill's first example
+// must be zig/examples/guard's hook.
+describe("native-hooks recipes", () => {
+	const NATIVE = "plugins/pluginfinity/skills/native-hooks/";
+	const EXAMPLE = "zig/examples/recipes/";
+	const NATIVE_MAP = [
+		{ title: "Command guard", event: "PreToolUse", hook: "command-guard" },
+		{ title: "Startup context", event: "SessionStart", hook: "startup-context" },
+		{ title: "Post-edit reaction", event: "PostToolUse", hook: "post-edit" },
+		{ title: "Stop gate", event: "Stop", hook: "stop-gate" },
+		{ title: "Branch guard", event: "PreToolUse", hook: "branch-guard" },
+	] as const;
+	const doc = read(`${NATIVE}references/recipes.md`);
+	const config = read(`${EXAMPLE}pluginfinity.config.ts`);
+	const build = read(`${EXAMPLE}build.zig`);
+
+	for (const recipe of NATIVE_MAP) {
+		it(`"${recipe.title}" matches the example plugin's config entry and source`, () => {
+			const blocks = recipeBlocks(doc, recipe.title);
+			assert.deepStrictEqual(
+				blocks.map(([lang]) => lang),
+				["ts", "zig"],
+				"config, source",
+			);
+			const entry = /\[(\{.*\})\]/.exec(blocks[0]?.[1] ?? "")?.[1] ?? "";
+			assert.isAbove(entry.length, 0, "the config block holds one entry");
+			assert.include(entry, `binary: "hooks/bin/${recipe.hook}"`);
+			assert.include(blocks[0]?.[1] ?? "", `${recipe.event}: [`);
+			assert.include(config, entry, "the entry is in the example's config");
+			assert.strictEqual(blocks[1]?.[1], read(`${EXAMPLE}native/${recipe.hook}.zig`));
+			assert.include(build, `"${recipe.hook}"`, "the example builds the hook");
+		});
+	}
+
+	it("the shared build file in the recipes is the example's", () => {
+		assert.include(doc, `\`\`\`zig\n${build}\`\`\``);
+	});
+
+	it("the skill's first hook is the guard example's source, and its build file the example's", () => {
+		const skill = read(`${NATIVE}SKILL.md`);
+		assert.include(skill, `\`\`\`zig\n${read("zig/examples/guard/native/guard.zig")}\`\`\``);
+		assert.include(skill, `\`\`\`zig\n${read("zig/examples/guard/build.zig")}\`\`\``);
+	});
+});

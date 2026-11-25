@@ -1,0 +1,28 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"prompt": {
+			"type": "string",
+			"description": "The task for the agent to perform."
+		},
+		"description": {
+			"type": "string",
+			"description": "Short description of the task."
+		},
+		"subagent_type": {
+			"type": "string",
+			"description": "Type of specialized agent to use, such as Explore."
+		},
+		"model": {
+			"type": "string",
+			"description": "Model alias to override the default, such as sonnet."
+		}
+	},
+	"required": [
+		"prompt"
+	],
+	"additionalProperties": true,
+	"title": "Agent tool_input",
+	"description": "Arguments of the Agent tool, which spawns a subagent."
+}
