@@ -16,6 +16,7 @@ pluginfinity is a CLI that builds one host-neutral agent-plugin source into ever
 - Engine → `okf/modules/engine.md` — Load when: working under `packages/engine/`.
 - Targets → `okf/modules/targets.md` — Load when: working under `packages/targets/`.
 - Core → `okf/modules/core.md` — Load when: working under `packages/core/`.
+- Zig hook library → `okf/modules/zig-hooks.md` — Load when: working under `zig/`, or on the root `build.zig` or `build.zig.zon`.
 - Companion plugin → `okf/modules/pluginfinity-plugin.md` — Load when: working under `plugins/pluginfinity/`.
 - dogfood fixture → `okf/modules/dogfood.md` — Load when: working under `plugins/dogfood/` or adding an end-to-end exercise of a CLI feature.
 - Hook library → `okf/decisions/hook-library-is-build-injected.md` — Load when: writing or changing a hook script, the hook library or the bats helper.
@@ -27,6 +28,8 @@ pluginfinity is a CLI that builds one host-neutral agent-plugin source into ever
 - Monitors → `okf/decisions/monitors-are-a-component.md` — Load when: writing or changing a monitor, `monitors` config, or the monitor library.
 - Logging (`error.log`, `debug.log`, `PLUGINFINITY_DEBUG`) → `okf/decisions/one-logging-standard.md` — Load when: a hook, server, monitor or script needs to log, or changing `log.sh`.
 - Hook entry env (event, fail policy, run-time matcher) → `okf/decisions/entry-facts-travel-as-env.md` — Load when: changing how a hook entry is rendered, `failClosed`, or a host that ignores a matcher.
+- Native hooks (`binary` entries, prebuilt per platform) → `okf/decisions/native-hook-binaries.md`, `okf/decisions/zig-hook-library.md` — Load when: changing how a `binary` hook entry is rendered or shipped, the dispatch line, `facts.json`, or why the library is Zig and lives in this repository.
+- What native hooks have not been proven on → `okf/limitations/native-hooks-unproven-edges.md`, `okf/measurements/native-hook-binaries-2026-11-25.md` — Load when: a native hook misbehaves on Windows, Intel macOS or in a live session, or quoting its size or start-up time.
 - Hooks fail open → `okf/decisions/hooks-fail-open.md` — Load when: deciding what a hook script does on an error or an unknown input.
 - Build notes → `okf/decisions/build-notes-cover-hooks-and-monitors.md` — Load when: a target drops, degrades or omits a field, or you are changing what `build` reports.
 - Host measurements (tool names, hook environment, server environment) → `okf/measurements/copilot-runtime-names.md`, `okf/measurements/copilot-plugin-hook-environment.md`, `okf/measurements/plugin-server-environment.md` — Load when: a claim about what a host does at run time needs evidence.

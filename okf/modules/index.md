@@ -7,3 +7,4 @@
 * [dogfood plugin fixture](dogfood.md) - plugins/dogfood, an end-to-end fixture that builds a plugin with the real CLI to exercise features the companion plugin does not use; never released.
 * [pluginfinity carrier package](pluginfinity.md) - The unscoped pluginfinity package users install; it owns the pluginfinity bin as a thin shim over @pluginfinity/cli and exports defineConfig, typed against the targets registry, for pluginfinity.config.ts.
 * [pluginfinity companion plugin](pluginfinity-plugin.md) - plugins/pluginfinity, the agent plugin that teaches how to author plugins for pluginfinity; built by pluginfinity and the successor to plugin-bot.
+* [pluginfinity_hooks, the Zig hook library](zig-hooks.md) - The Zig package at the repository root that plugins depend on to write hooks as native programs; build.zig builds every hook for five platforms, and zig/src holds the library, its generated event types and the executable's entry shim.

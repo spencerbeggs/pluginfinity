@@ -6,6 +6,7 @@
 * Updated @pluginfinity/core
 * Updated @pluginfinity/engine
 * Updated @pluginfinity/targets
+* Added A native hook ships as prebuilt per-platform files that one hook statement selects
 * Updated A skill_dir token names a skill's directory, as a placeholder on Copilot
 * Updated A workspace plugin got no pluginfinity bin until the carrier was relinked after its build
 * Updated Agent frontmatter across hosts
@@ -30,6 +31,8 @@
 * Updated Hooks, servers, monitors and scripts share one logging standard
 * Updated Host runtime probes, 2026-10-07
 * Updated Monitors are a first-class component
+* Added Native hook size, start-up and parity with the bash library, 2026-11-25
+* Added Native hooks are unproven on Windows, Intel macOS and inside a live host session
 * Updated Plugin MCP and LSP server environment on Claude Code and Copilot, 2026-10-05
 * Updated Plugin source model
 * Updated Server launchers ship by discovery and files, beside an injected server library
@@ -39,6 +42,7 @@
 * Updated Targets are data plus a closed set of named formats
 * Updated The copilot target emits Agent Plugins 1.0
 * Updated The hook library is injected at build time
+* Added The native hook library is a Zig package at the repository root
 * Updated The pluginfinity command line
 * Updated The tool is named pluginfinity
 * Updated The tool packages pin Effect and the kit exactly, so pluginfinity's closure is sealed
@@ -53,6 +57,7 @@
 * Updated pluginfinity is a CLI application in its own repository
 * Updated pluginfinity ships as a carrier package over scoped layer packages
 * Updated pluginfinity.config.ts
+* Added pluginfinity_hooks, the Zig hook library
 
 ## 2026-11-13
 
