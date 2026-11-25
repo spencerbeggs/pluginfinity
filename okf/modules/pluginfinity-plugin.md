@@ -2,7 +2,7 @@
 type: Module
 title: pluginfinity companion plugin
 description: plugins/pluginfinity, the agent plugin that teaches how to author plugins for pluginfinity; built by pluginfinity and the successor to plugin-bot.
-kind: plugin
+x-okfit-kind: plugin
 resource: ../../plugins/pluginfinity
 status: draft
 tags:
@@ -33,7 +33,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-08T19:52:50Z
-integrity:
+x-okfit-integrity:
   generated:
     body: a343e46ceb4b0eff
 ---

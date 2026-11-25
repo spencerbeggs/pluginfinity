@@ -2,8 +2,8 @@
 type: Module
 title: "@pluginfinity/engine"
 description: The pluginfinity logic shared by every front end; today config discovery, loading and strict decoding, the typed config and build errors, the doctor program, build and validate for manifests, hooks, skills, agents and MCP and LSP servers, the shipped-file planner, monitors, the injected hook, server, log and monitor libraries, the reconciling emit, and ENGINE_VERSION.
-kind: package
-layer: engine
+x-okfit-kind: package
+x-okfit-layer: engine
 resource: ../../packages/engine
 status: draft
 tags:
@@ -105,7 +105,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-13T16:51:44Z
-integrity:
+x-okfit-integrity:
   generated:
     body: fc23800dca379b3f
 ---

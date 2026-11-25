@@ -9,7 +9,7 @@ tags:
   - dx
 status: draft
 stale_after: 2026-12-31T00:00:00Z
-gate: pluginfinity is published to npm, it builds the companion plugin's claude and copilot outputs from one source under plugins/pluginfinity/, and the companion covers the plugin-authoring guidance it takes over from plugin-bot.
+x-okfit-gate: pluginfinity is published to npm, it builds the companion plugin's claude and copilot outputs from one source under plugins/pluginfinity/, and the companion covers the plugin-authoring guidance it takes over from plugin-bot.
 sources:
   - id: owner-direction
     resource: conversation with the repository owner
@@ -31,7 +31,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-02T19:14:25Z
-integrity:
+x-okfit-integrity:
   generated:
     body: a295f21d81e45fdd
 ---

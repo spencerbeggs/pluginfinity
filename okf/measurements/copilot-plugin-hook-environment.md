@@ -7,7 +7,7 @@ tags:
   - github
 status: draft
 stale_after: 2027-01-01T00:00:00Z
-justifies: ../roadmaps/pluginfinity-first-release.md
+x-okfit-justifies: ../roadmaps/pluginfinity-first-release.md
 sources:
   - id: owner-probe-run
     resource: conversation with the repository owner
@@ -20,7 +20,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T22:13:15Z
-integrity:
+x-okfit-integrity:
   generated:
     body: c7536a95fa4ea185
 ---

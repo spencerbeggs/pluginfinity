@@ -2,8 +2,8 @@
 type: Module
 title: "@pluginfinity/targets"
 description: The hosts pluginfinity builds for (Claude Code as claude, GitHub Copilot as copilot) as a registry, plus the assembled PluginfinityConfig schema; versioned apart from core.
-kind: package
-layer: targets
+x-okfit-kind: package
+x-okfit-layer: targets
 resource: ../../packages/targets
 status: draft
 tags:
@@ -28,7 +28,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T06:53:05Z
-integrity:
+x-okfit-integrity:
   generated:
     body: ad63e75eeb6a0bf7
 ---

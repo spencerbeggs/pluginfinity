@@ -7,7 +7,7 @@ tags:
   - github
 status: draft
 stale_after: 2027-01-01T00:00:00Z
-justifies: ../decisions/claude-code-names-are-the-source-vocabulary.md
+x-okfit-justifies: ../decisions/claude-code-names-are-the-source-vocabulary.md
 sources:
   - id: sessionstart-run
     resource: conversation with the repository owner
@@ -20,7 +20,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-03T01:28:45Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 7065cd7473e048dd
 ---

@@ -1,6 +1,6 @@
 ---
 type: Interface
-kind: cli
+x-okfit-kind: cli
 title: The pluginfinity command line
 description: "The pluginfinity bin's commands, flags, audiences and exit codes: 0 for success, 1 for a finding such as a config error, 64 for a usage error, with stdout reserved for structured output."
 resource: ../../packages/cli/src/cli/program.ts
@@ -39,7 +39,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-28T23:29:43Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 009463cda6e0400c
 ---

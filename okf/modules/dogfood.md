@@ -2,7 +2,7 @@
 type: Module
 title: dogfood plugin fixture
 description: plugins/dogfood, an end-to-end fixture that builds a plugin with the real CLI to exercise features the companion plugin does not use; never released.
-kind: harness
+x-okfit-kind: harness
 resource: ../../plugins/dogfood
 status: draft
 tags:
@@ -38,7 +38,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T07:34:27Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 1a729786f6dc3040
 ---

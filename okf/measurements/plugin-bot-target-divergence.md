@@ -7,7 +7,7 @@ tags:
   - architecture
 status: draft
 stale_after: 2026-12-29T00:00:00Z
-justifies: ../roadmaps/pluginfinity-first-release.md
+x-okfit-justifies: ../roadmaps/pluginfinity-first-release.md
 sources:
   - id: claude-code-target
     resource: https://github.com/spencerbeggs/bot/tree/270cbf6c4cbdabf34ada7412b5c40e3e017c685a/plugins/plugin-bot/claude-code
@@ -18,7 +18,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-02T16:13:41Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 01d7b5b2427dec34
 ---

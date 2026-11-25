@@ -32,7 +32,7 @@ verified:
     at: 2026-10-05T18:45:46Z
   - by: human:spencer
     at: 2026-10-27T16:19:43Z
-integrity:
+x-okfit-integrity:
   generated:
     body: a8262330236cd62f
   verified:

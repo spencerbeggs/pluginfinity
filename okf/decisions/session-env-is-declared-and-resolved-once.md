@@ -39,7 +39,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T09:13:23Z
-integrity:
+x-okfit-integrity:
   generated:
     body: 1ab4bb2aa6ea8b4b
   verified:

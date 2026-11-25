@@ -2,8 +2,8 @@
 type: Module
 title: "@pluginfinity/core"
 description: The platform-free pluginfinity domain model, covering the plugin-wide config fields, hooks, MCP and LSP servers and shipped files, skill and agent frontmatter, and the Target capability schema.
-kind: package
-layer: core
+x-okfit-kind: package
+x-okfit-layer: core
 resource: ../../packages/core
 status: draft
 tags:
@@ -37,7 +37,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-11-08T19:52:50Z
-integrity:
+x-okfit-integrity:
   generated:
     body: ff92a268f1a3ed5e
 ---

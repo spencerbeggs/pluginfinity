@@ -1,6 +1,6 @@
 ---
 type: Interface
-kind: config
+x-okfit-kind: config
 title: pluginfinity.config.ts
 description: The per-plugin config file, written with defineConfig from the pluginfinity carrier; a name plus one top-level key per enabled target, discovered upward to the .git boundary and decoded strictly.
 resource: ../../packages/targets/src/config.ts
@@ -45,7 +45,7 @@ sources:
 generated:
   by: okfit/claude-code
   at: 2026-10-07T07:34:27Z
-integrity:
+x-okfit-integrity:
   generated:
     body: d94b221a7d14a808
 ---
