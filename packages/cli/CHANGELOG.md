@@ -1,5 +1,14 @@
 # @pluginfinity/cli
 
+## 0.3.25
+
+### Dependencies
+
+| Dependency | Type | Action | From | To |
+| --- | --- | --- | --- | --- |
+| @effected/glob | dependency | updated | 0.23.0 | 0.23.1 |
+| @pluginfinity/engine | dependency | updated | 0.3.22 | 0.3.23 |
+
 ## 0.3.24
 
 ### Dependencies
