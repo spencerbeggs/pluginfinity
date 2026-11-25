@@ -267,6 +267,28 @@ pub const Exec = struct {
     }
 };
 
+/// One variable for a program run with `Hook.execWith`: `.{ "GH_PAGER", "cat" }`.
+pub const EnvVar = struct { []const u8, []const u8 };
+
+/// How `Hook.execWith` changes the environment of the program it runs.
+pub const ExecOptions = struct {
+    /// Variables the program gets, each replacing whatever the hook inherited.
+    set: []const EnvVar = &.{},
+    /// Variables removed from what the hook inherited, so the program never sees
+    /// them. A name the hook does not have is ignored. `set` is applied after
+    /// `unset`, so a name in both ends up set.
+    unset: []const []const u8 = &.{},
+};
+
+/// The environment for a program run with `options`: the hook's own, less
+/// `unset`, plus `set`.
+fn childEnviron(arena: Allocator, parent: *const std.process.Environ.Map, options: ExecOptions) !std.process.Environ.Map {
+    var map = try parent.clone(arena);
+    for (options.unset) |name| _ = map.swapRemove(name);
+    for (options.set) |each| try map.put(each[0], each[1]);
+    return map;
+}
+
 // --- facts the build writes ---------------------------------------------------------
 
 pub const Component = enum { skill, agent, monitor, server };
@@ -656,15 +678,59 @@ pub const Hook = struct {
         return self.readText(path);
     }
 
+    /// Write `bytes` to the file at `path`, replacing it, and creating the
+    /// directories above it. The new contents are written beside the file and
+    /// moved into place, so a reader never sees half of them. Pass an absolute
+    /// path, such as one under `dataDir`.
+    pub fn writeFile(self: *Hook, path: []const u8, bytes: []const u8) !void {
+        const io = self.io orelse return error.NoIo;
+        const cwd = std.Io.Dir.cwd();
+        if (std.fs.path.dirname(path)) |dir| try cwd.createDirPath(io, dir);
+        const tmp = try std.fmt.allocPrint(self.arena, "{s}.tmp", .{path});
+        try cwd.writeFile(io, .{ .sub_path = tmp, .data = bytes });
+        try cwd.rename(tmp, cwd, path, io);
+    }
+
+    /// Where the plugin keeps files between runs: the directory the host gives
+    /// the plugin, which survives an update, else `data` under the plugin's
+    /// state directory. Null only when neither can be found. The directory may
+    /// not exist yet; `writeFile` creates it. Never write under the plugin root,
+    /// which is replaced on every update.
+    pub fn dataDir(self: *const Hook) ?[]const u8 {
+        const own = switch (self.host) {
+            .claude => "CLAUDE_PLUGIN_DATA",
+            .copilot => "COPILOT_PLUGIN_DATA",
+        };
+        if (self.getenv(own)) |dir| return dir;
+        const state = self.state_dir orelse return null;
+        return std.fs.path.join(self.arena, &.{ state, "data" }) catch null;
+    }
+
     /// Run a program in `projectDir` and wait for it, with its output captured:
     /// `try h.exec(&.{ "git", "status", "--porcelain" })`. Nothing the program
     /// prints reaches the hook's own stdout. A program that cannot be started is
     /// an error; one that exits non-zero is not, so check `ok()` or `code`.
     pub fn exec(self: *Hook, argv: []const []const u8) !Exec {
+        return self.execWith(argv, .{});
+    }
+
+    /// `exec` with the program's environment changed: variables in `unset` are
+    /// removed from what the hook inherited, then those in `set` are added.
+    /// `try h.execWith(&.{ "gh", "pr", "view" }, .{ .unset = &.{ "GH_HOST", "GH_REPO" }, .set = &.{.{ "GH_PAGER", "cat" }} })`.
+    /// This is how to keep a stale token in the user's shell away from a CLI,
+    /// on every platform and with no shell. The program is still found on the
+    /// hook's own `PATH`.
+    pub fn execWith(self: *Hook, argv: []const []const u8, options: ExecOptions) !Exec {
         const io = self.io orelse return error.NoIo;
+        const changed = options.set.len > 0 or options.unset.len > 0;
+        var child: ?std.process.Environ.Map = null;
+        if (changed) if (self.environ) |parent| {
+            child = try childEnviron(self.arena, parent, options);
+        };
         const result = try std.process.run(self.arena, io, .{
             .argv = argv,
             .cwd = .{ .path = self.projectDir() },
+            .environ_map = if (child) |*map| map else null,
             .stdout_limit = .limited(1024 * 1024),
             .stderr_limit = .limited(1024 * 1024),
         });
@@ -1719,4 +1785,23 @@ test "testing.respond runs a whole handler as run would" {
     try std.testing.expect(std.mem.indexOf(u8, closed.?, "\"deny\"") != null);
     // Input that is not a JSON object is a no-op, without calling the handler.
     try std.testing.expectEqualStrings("{}", (try testing.respond(arena, sampleHandler, .{ .event = "PreToolUse", .input = "nope" })).?);
+}
+
+test "a child's environment is the hook's, less unset, plus set" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var parent = std.process.Environ.Map.init(arena.allocator());
+    try parent.put("GH_TOKEN", "stale");
+    try parent.put("GH_HOST", "example.com");
+    try parent.put("PATH", "/usr/bin");
+    const child = try childEnviron(arena.allocator(), &parent, .{
+        .unset = &.{ "GH_HOST", "NOT_SET" },
+        .set = &.{ .{ "GH_TOKEN", "fresh" }, .{ "GH_PAGER", "cat" } },
+    });
+    try std.testing.expectEqualStrings("fresh", child.get("GH_TOKEN").?);
+    try std.testing.expectEqualStrings("cat", child.get("GH_PAGER").?);
+    try std.testing.expectEqualStrings("/usr/bin", child.get("PATH").?);
+    try std.testing.expect(child.get("GH_HOST") == null);
+    // The hook's own environment is untouched.
+    try std.testing.expectEqualStrings("stale", parent.get("GH_TOKEN").?);
 }

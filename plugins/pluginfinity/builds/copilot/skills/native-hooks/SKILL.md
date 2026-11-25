@@ -7,13 +7,14 @@ description: "Use when writing a hook as a compiled native program instead of a 
 
 A `binary` hook entry runs a prebuilt native program instead of a bash script. The program needs nothing on the user's machine: no `jq`, no bash library, no runtime. pluginfinity does not compile it. You build one file per platform with Zig, and `pluginfinity build` ships them and writes each host's hooks file.
 
-This is experimental. A bash `script` entry, covered by the `hook-authoring` skill, is still the default.
+This is experimental. A bash `script` entry, covered by the `bash-hooks` skill, is still the default. Both kinds answer the same events in the same way; the `hook-events` skill holds that contract.
 
-Three references hold the detail. Load one when you need it, not all at once:
+Four references hold the detail. Load one when you need it, not all at once:
 
 - [API](references/api.md): every call on the hook, what it returns and when it fails.
 - [Zig 0.17](references/zig.md): **read this before writing any Zig.** The standard library changed a great deal by 0.17, and Zig written from memory of an older release does not compile.
 - [Recipes](references/recipes.md): five complete, tested hooks to copy.
+- [Outside the event](references/system.md): read it when a hook runs `gh`, `aws` or another CLI, keeps a file between runs, or needs the plugin's own directory. It also says which parts of a plugin stay bash.
 
 ## When to choose it
 

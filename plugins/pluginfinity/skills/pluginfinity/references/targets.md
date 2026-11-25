@@ -103,6 +103,22 @@ no tool (0 of 6 runs each, two models), while the literal `grep`, `glob`, `web_f
 executed in every run. So those four are written by name, and `TodoWrite` is dropped with a `tool-dropped`
 note. `read`, `edit`, `execute` and `agent` are the documented aliases and are kept.
 
+## Hooks
+
+| In the config | Claude Code | Copilot |
+| :-- | :-- | :-- |
+| `script`, `command`, `binary` entries | Run | Run |
+| `http`, `mcpTool`, `prompt`, `agent` entries | Run | Fail the build, or are left out with `fallback: "omit"` |
+| An event Copilot lacks | Run | Fails the build, or is left out with `fallback: "omit"` |
+| `matcher` | Applied by the host | Applied by the host, except on `SessionStart`, `SessionEnd` and `SubagentStop`, where a hook library applies it |
+| `timeout` | Kept | Kept |
+| `failClosed` | Also written as `onFailure: "block"` | Carried to the hook as a variable only |
+| `if`, `statusMessage`, `async`, `asyncRewake`, `shell` | Kept | Dropped, with a `hook-field-dropped` note |
+| The entry's facts (`PLUGINFINITY_*`) | In the command's `env` prefix | In the entry's `env` field |
+| A `binary` entry's platform files and `lib/pluginfinity/facts.json` | Shipped | Shipped |
+
+The entry fields, the handlers and what each means are in [hooks](hooks.md).
+
 ## Files per host
 
 The base `files` ships to every host. A target's own `files`, `copilot: { files: ["copilot-only/"] }`,
@@ -161,7 +177,7 @@ Besides the three above, a build can list these kinds, in this order within a fi
 
 - `hook-matcher-runtime`: the host ignores an event's `matcher` (Copilot on `SessionStart`, `SessionEnd`
   and `SubagentStop`), so the hook library applies it at run time. Only a `script` entry that sources
-  `hook.sh` is enforced; see [hooks](hooks.md#matchers-a-host-ignores).
+  `hook.sh`, or a `binary` built on the native library, is enforced; see [hooks](hooks.md#matchers-a-host-ignores).
 - `hook-output-ignored`: a script calls `hook_context` or `hook_system_message` on an event where the host
   discards that output. The scan is best effort.
 - `monitor-omitted`: the host has no monitors, so the monitor was left out.
@@ -176,6 +192,8 @@ Besides the three above, a build can list these kinds, in this order within a fi
 - `hook-matcher-regex`: a `SessionStart` regex matcher matches `startup` but not `new`, and is left as written.
 - `hook-matcher-native-regex`: a `binary` hook has a regular-expression matcher on one of the events above. The
   native library applies it only when the hooks were built with `addHooks(.{ .regex = true })`.
+- `hook-field-dropped`: a hook entry sets `if`, `statusMessage`, `async`, `asyncRewake` or `shell`, which
+  Copilot's hooks file has no place for.
 
 A value the host's table drops is not reported, since the host does the same without it: `model: inherit`
 on Copilot is the one today. See [the findings](findings.md) for the kinds and the JSON form.

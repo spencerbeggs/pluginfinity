@@ -4,7 +4,7 @@ import { assert, describe, it } from "@effect/vitest";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const read = (path: string): string => readFileSync(`${ROOT}${path}`, "utf8");
-const RECIPES = "plugins/pluginfinity/skills/hook-authoring/references/recipes.md";
+const RECIPES = "plugins/pluginfinity/skills/bash-hooks/references/recipes.md";
 const DOGFOOD = "plugins/dogfood/";
 
 // Each recipe is a real dogfood hook: its config entry, script and bats test
@@ -65,7 +65,7 @@ const batsTest = (bats: string, name: string): string => {
 	return bats.slice(start, end + 2);
 };
 
-describe("hook-authoring recipes", () => {
+describe("bash-hooks recipes", () => {
 	const doc = read(RECIPES);
 	const config = read(`${DOGFOOD}pluginfinity.config.ts`);
 	const bats = read(`${DOGFOOD}__test__/hooks.bats`);

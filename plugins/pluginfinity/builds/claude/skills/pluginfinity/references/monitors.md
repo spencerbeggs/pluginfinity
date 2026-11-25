@@ -148,7 +148,7 @@ substitutes `${CLAUDE_PLUGIN_ROOT}` into the command text, and gives the monitor
 does: none of `CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA` or `CLAUDE_SESSION_ID`, and
 `CLAUDE_CODE_SESSION_ID=test-session`, which is the same for every call in a test, so `monitor_once` dedupes across calls (pass `CLAUDE_CODE_SESSION_ID=other` to start a new session). `HOOK_PROJECT_DIR` and the caller's working directory do not apply: use `--cwd`. Only `claude` has monitors: another target, or a missing monitor,
 fails with status 1. `--session-env <file>` seeds the session values a monitor that sources `env.sh` reads, as
-`run_script` does; see [session env](session-env.md#testing).
+`run_script` does; see [session env](session-env-testing.md).
 
 ```bash
 @test "the heartbeat notifies once and logs where it started" {

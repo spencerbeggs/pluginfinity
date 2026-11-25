@@ -39,13 +39,13 @@ sources:
     title: The library's README
 generated:
   by: okfit/claude-code
-  at: 2026-11-25T21:50:47Z
+  at: 2026-11-25T22:36:21Z
 verified:
   - by: human:spencer
     at: 2026-11-25T21:50:47Z
 x-okfit-integrity:
   generated:
-    body: 48bf5c821f430267
+    body: 92b6413a3f9f615e
   verified:
     by: human:spencer
     at: 2026-11-25T21:50:47Z
@@ -61,7 +61,7 @@ The library a plugin author links to write a hook as a native program ([decision
 ## What it holds
 
 - **`build.zig`.** As a dependency it gives a plugin one call, `addHooks(b, .{ .names = … })`, which builds each `native/<name>.zig` for the five `platforms`, names each file `<name>-<os>-<arch>` as a [`binary` entry](../decisions/native-hook-binaries.md) expects, and adds a `test` step. `source_dir`, `optimize` and `regex` are its options. Run on its own it tests the library, and with `-Ddev` it also tests the regular-expression matcher and installs the test hook `responder` and `responder-regex`.[^build-zig]
-- **`zig/src/hook.zig`.** `hook.run(init, handler)` reads the event from stdin, calls the handler, writes at most one response and always exits 0. `hook.panic` makes a panic follow the entry's fail policy. The `Hook` a handler gets reads input by Claude Code's names (`input`, `as`, `toolInput`, `envelope`), answers (`noop`, `deny`, `allow`, `allowWith`, `ask`, `context`, `block`, `systemMessage`, `raw`, `relay`, `rewake`), asks what the host honours (`can`), reads the build's facts (`toolName`, `toolPrefix`, `has`), reads and writes session env (`env`, `envSet`), and wraps the system (`exec`, `readFile`, `exists`, `projectDir`, `sessionDir`, `cdProject`, `log`, `debug`). `hook.testing.respond` runs a handler on an input in a unit test.[^hook-zig]
+- **`zig/src/hook.zig`.** `hook.run(init, handler)` reads the event from stdin, calls the handler, writes at most one response and always exits 0. `hook.panic` makes a panic follow the entry's fail policy. The `Hook` a handler gets reads input by Claude Code's names (`input`, `as`, `toolInput`, `envelope`), answers (`noop`, `deny`, `allow`, `allowWith`, `ask`, `context`, `block`, `systemMessage`, `raw`, `relay`, `rewake`), asks what the host honours (`can`), reads the build's facts (`toolName`, `toolPrefix`, `has`), reads and writes session env (`env`, `envSet`), and wraps the system (`exec`, `execWith`, which changes the program's environment, `readFile`, `writeFile`, `dataDir`, `exists`, `projectDir`, `sessionDir`, `cdProject`, `log`, `debug`). `hook.testing.respond` runs a handler on an input in a unit test.[^hook-zig]
 - **`zig/src/events.zig`.** One type per hook event and per tool input, for `h.as` and `h.toolInput`. It is generated from the hook event schemas in [`@pluginfinity/core`](core.md) by `pnpm --filter @pluginfinity/core hook-io:zig`; never edit it by hand.[^events-zig][^zig-generator]
 - **`zig/src/entry.zig`.** The root of every hook executable, compiled for size; it calls the author's `main`.[^entry]
 - **`zig/src/regex_on.zig` and `regex_off.zig`.** The matcher behind the `regex` option, and the stub that declines every pattern without it.

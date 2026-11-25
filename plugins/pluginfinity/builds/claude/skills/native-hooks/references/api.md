@@ -102,6 +102,9 @@ try h.raw(.claude, .{ .hookSpecificOutput = .{ .hookEventName = "SessionStart", 
 | `h.exists(path)` | `bool` | Whether a file or directory is there. Pass an absolute path |
 | `h.readFile(path)` | `?[]const u8` | A file of up to 1 MiB, or null. Pass an absolute path |
 | `try h.exec(&.{ "git", "status" })` | `hook.Exec` | Runs a program in `projectDir` and waits. An error only when it cannot start |
+| `try h.execWith(argv, .{ .unset = &.{"GH_HOST"}, .set = &.{.{ "GH_PAGER", "cat" }} })` | `hook.Exec` | `exec` with the program's environment changed: the names in `unset` are removed from what the hook inherited, then the pairs in `set` are added. Works on every platform, with no shell |
+| `try h.writeFile(path, bytes)` | `!void` | Writes a file whole, replacing it and creating the directories above it. Pass an absolute path |
+| `h.dataDir()` | `?[]const u8` | Where the plugin keeps files between runs: the host's data directory, else `data` under the plugin's state directory. It may not exist yet; `writeFile` creates it |
 | `h.getenv("NAME")` | `?[]const u8` | A process environment variable; null when unset or empty |
 
 Build a path from the project, since the working directory is not the project on Copilot: `try std.fs.path.join(h.arena, &.{ h.projectDir(), "TODO.md" })`.
@@ -155,7 +158,7 @@ const answer = try hook.testing.respond(arena.allocator(), handle, .{
 | `.facts` | none | The build facts as JSON, for a handler that calls `toolName`, `has` or `env` |
 | `.async_rewake` | `false` | Whether the entry sets `asyncRewake` |
 
-In a test there is no process around the handler, so `h.exec`, `h.exists`, `h.readFile`, `h.getenv` and logging do nothing: `exec` returns `error.NoIo`, `exists` false, the others null. Keep the logic that depends on them in a plain function that takes their results, and test that.
+In a test there is no process around the handler, so `h.exec`, `h.execWith`, `h.writeFile`, `h.exists`, `h.readFile`, `h.getenv`, `h.dataDir` and logging do nothing: `exec`, `execWith` and `writeFile` return `error.NoIo`, `exists` false, the others null. Keep the logic that depends on them in a plain function that takes their results, and test that.
 
 Facts for a test:
 

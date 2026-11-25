@@ -35,6 +35,18 @@ fn handle(h: *hook.Hook) !void {
         const ran = try h.exec(&.{ "sh", "-c", h.input("script").? });
         return h.context(try std.fmt.allocPrint(h.arena, "{?d}|{s}|{s}|{}", .{ ran.code, ran.text(), ran.stderr, ran.ok() }));
     }
+    if (is(respond, "exec with")) {
+        const ran = try h.execWith(&.{ "sh", "-c", h.input("script").? }, .{
+            .unset = &.{ "PF_TEST_STALE", "PF_TEST_BOTH" },
+            .set = &.{ .{ "PF_TEST_FRESH", "fresh" }, .{ "PF_TEST_BOTH", "set wins" } },
+        });
+        return h.context(ran.text());
+    }
+    if (is(respond, "write file")) {
+        try h.writeFile(h.input("path").?, h.input("text").?);
+        return h.noop();
+    }
+    if (is(respond, "data dir")) return h.context(h.dataDir() orelse "none");
     if (is(respond, "exists")) return h.context(if (h.exists(h.input("path").?)) "yes" else "no");
     if (is(respond, "read file")) return h.context(h.readFile(h.input("path").?) orelse "unreadable");
     if (is(respond, "project dir")) return h.context(h.projectDir());

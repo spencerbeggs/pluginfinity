@@ -280,6 +280,50 @@ describe.skipIf(!HAS_ZIG)("the Zig hook library's responses on Claude Code again
 		}
 	});
 
+	it("runs a program with variables removed and set, leaving the rest of the hook's environment", () => {
+		const script = 'printf "%s|%s|%s|%s" "$PF_TEST_STALE" "$PF_TEST_FRESH" "$PF_TEST_BOTH" "$PF_TEST_KEPT"';
+		const ran = run(
+			"SessionStart",
+			"exec with",
+			{ PF_TEST_STALE: "stale", PF_TEST_BOTH: "inherited", PF_TEST_KEPT: "kept" },
+			{ script },
+		);
+		assert.strictEqual(contextOf(ran.output), "|fresh|set wins|kept");
+		// Plain exec passes the environment on unchanged.
+		const plain = run("SessionStart", "exec", { PF_TEST_STALE: "stale" }, { script: 'printf "%s" "$PF_TEST_STALE"' });
+		assert.strictEqual(contextOf(plain.output), "0|stale||true");
+	});
+
+	it("writes a file whole, creating its directories, and replaces one that is there", () => {
+		const base = realpathSync(mkdtempSync(join(tmpdir(), "pf-zig-write-")));
+		try {
+			const file = join(base, "deep", "er", "count.txt");
+			run("SessionStart", "write file", {}, { path: file, text: "1\n" });
+			assert.strictEqual(readFileSync(file, "utf8"), "1\n");
+			run("SessionStart", "write file", {}, { path: file, text: "2\n" });
+			assert.strictEqual(readFileSync(file, "utf8"), "2\n");
+			assert.isFalse(existsSync(`${file}.tmp`), "the temporary file is moved, not left behind");
+		} finally {
+			rmSync(base, { recursive: true, force: true });
+		}
+	});
+
+	it("finds the data directory: the host's own variable, else data under the plugin's state directory", () => {
+		const claude = run("SessionStart", "data dir", {
+			CLAUDE_PLUGIN_DATA: "/data/claude",
+			COPILOT_PLUGIN_DATA: "/data/copilot",
+		});
+		assert.strictEqual(contextOf(claude.output), "/data/claude");
+		const copilot = run("SessionStart", "data dir", {
+			PLUGINFINITY_HOST: "copilot",
+			CLAUDE_PLUGIN_DATA: "/data/claude",
+			COPILOT_PLUGIN_DATA: "/data/copilot",
+		});
+		assert.strictEqual(contextOf(copilot.output), "/data/copilot");
+		const fallback = contextOf(run("SessionStart", "data dir").output);
+		assert.match(fallback, /\/pluginfinity\/[^/]+\/data$/);
+	});
+
 	it("reads the facts the build writes: tool names per host, shipped components and server prefixes", () => {
 		const claude = { PLUGINFINITY_ROOT: pluginRoot("root-claude", CLAUDE, "claude") };
 		const copilot = {

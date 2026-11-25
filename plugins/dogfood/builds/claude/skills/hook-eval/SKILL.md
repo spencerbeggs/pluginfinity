@@ -50,14 +50,14 @@ Expected: the subagent quotes `pluginfinity-dogfood subagent context`.
 
 A1. List the available agents and confirm `plugin-engineer`, from `pluginfinity`, is listed.
 
-A2. List the available skills and confirm `hook-authoring`, `hook-events`, `plugin-scripts` and `migrating-hooks` are all listed.
+A2. List the available skills and confirm `bash-hooks`, `native-hooks` and `hook-events` are all listed.
 
 A3. The `paths` auto-load.
 Read `plugins/dogfood/hooks/post-edit.sh`.
-Then state whether `hook-authoring` is listed among the skills available to you, and whether you invoked it. With `paths`, Claude may invoke it when working on a matching file. Nothing is injected automatically.
+Then state whether `bash-hooks` is listed among the skills available to you, and whether you invoked it. With `paths`, Claude may invoke it when working on a matching file. Nothing is injected automatically.
 Record whether you invoked it and why.
 
-A4. Delegate to `plugin-engineer` with "Name the skills you were told to read or have preloaded, and quote the first line of the hook-authoring skill". Record the answer.
+A4. Delegate to `plugin-engineer` with "Name the skills you were told to read or have preloaded, and quote the first line of the bash-hooks skill". Record the answer.
 
 **Last step. Stop block.** Do this last. Run `touch "$PWD/.pf-dogfood-block"` in the project root; the hook walks up from the session cwd to the nearest `.git`. Then finish your turn with a one-line answer. The Stop hook should block you once with the reason `pluginfinity-dogfood: delete .pf-dogfood-block, then stop`. If you get that reason, delete the file and finish. If you are not blocked, delete the file anyway and record that. Expected: blocked once.
 
@@ -79,7 +79,7 @@ Debug enabled: yes/no
 | 1 | SessionStart context | ... | ... | yes/no |
 | A1 | plugin-engineer agent listed | ... | ... | yes/no |
 | A2 | the four skills listed | ... | ... | yes/no |
-| A3 | paths auto-load | hook-authoring available; no automatic injection; invocation recorded | ... | yes/no |
+| A3 | paths auto-load | bash-hooks available; no automatic injection; invocation recorded | ... | yes/no |
 | A4 | plugin-engineer skill answer | ... | ... | yes/no |
 
 ## Log excerpts
